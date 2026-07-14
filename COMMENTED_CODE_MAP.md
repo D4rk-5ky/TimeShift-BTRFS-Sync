@@ -92,7 +92,9 @@ This file describes the current command handlers, shell command families, functi
 - `_as_bool()`: strict boolean reader used where wrong types must error.
 - `_as_int()`: strict integer reader with optional minimum value.
 - `_string_list()`: validates list-of-string config fields such as subvolumes.
-- `load_config()`: reads TOML, builds dataclasses, validates `source.mode`, and
+- `_normalize_source_path()`: normalizes source-side POSIX paths so safety comparisons do not depend on trailing slashes or redundant components.
+- `_source_path_is_same_or_under()`: checks whether a configured source path is the protected root or a descendant; used to refuse a cache root inside Timeshift-owned snapshot storage.
+- `load_config()`: reads TOML, explicitly rejects the removed unsafe `source.allow_incremental_without_parent_match` key, builds dataclasses, validates `source.mode`, and
   validates SSH only when `source.mode = "ssh"`. In local mode, `[ssh]` may be
   omitted and a placeholder SSH config is kept only so shared code can safely access `config.ssh`.
 
@@ -145,6 +147,8 @@ This file describes the current command handlers, shell command families, functi
 - `PathPreflightError`: raised before on-demand creation or send/receive when a
   required configured root is unavailable.
 - `PathCheck`: one path availability result for terminal reporting.
+- `_normalize_source_path()`: normalizes source POSIX paths before containment checks and shell-script generation.
+- `_source_path_is_same_or_under()`: prevents source cache creation inside the protected Timeshift snapshot root.
 - `_shell_words()`: shell-quotes configured command-prefix words such as
   `sudo -n` for embedded POSIX shell scripts.
 - `_btrfs_path_check_script()`: builds a small POSIX shell script that checks
@@ -168,12 +172,19 @@ This file describes the current command handlers, shell command families, functi
 - `_source_path_checks()`: runs the source snapshot-root and cache-root scripts
   through SSH or local source mode and turns their sentinel output into
   `PathCheck` objects.
+- `_parent_of_path()`: returns the parent directory text used when checking whether an exact missing target can be created safely.
+- `_local_btrfs_result()`: runs a local configured Btrfs command without raising so preflight can convert success/failure into one `PathCheck`.
+- `_compact_process_error()`: reduces command stdout/stderr and return code to a concise path-check explanation.
+- `_compact_os_error()`: converts local filesystem exceptions into concise preflight details.
+- `_print_check_block()`: prints one readable preflight result block with location, path, status, and detail.
+- `_raise_for_failed_checks()`: combines failed `PathCheck` objects into one hard `PathPreflightError` after all relevant checks are reported.
 - `_local_target_path_check()`: verifies `destination.target_root`; in real-run
   mode, if it is missing and `destination.create_target_root = true`, it creates
   the exact target root as a Btrfs subvolume after verifying that the parent
   already exists and is Btrfs-accessible. Existing target roots must pass
   `btrfs subvolume show`; ordinary directories inside Btrfs are refused so the
   backup root cannot be misidentified as a valid app-owned subvolume.
+- `_path_is_within()`: normalizes local paths and checks containment before lock/helper preparation crosses configured roots.
 - `check_required_sync_paths()`: prints the sync path preflight and refuses to
   continue before manual snapshot creation or send/receive when a configured
   path cannot be verified or created.
@@ -225,6 +236,8 @@ This file describes the current command handlers, shell command families, functi
 - `_remote_bulk_index_script()`: builds the single source shell script used to list UUID metadata and read-only paths below one source root in one SSH session.
 - `build_source_btrfs_index()`: builds a source snapshot-root or cache-root index using either SSH mode or local mode through `SourceRunner`.
 - `build_remote_btrfs_index()`: compatibility wrapper for SSH source indexes.
+- `build_remote_btrfs_index.flush_list()`: nested parser helper that commits the current remote subvolume-list section to the index before starting another section.
+- `build_remote_btrfs_index.flush_readonly()`: nested parser helper that applies the current remote read-only-list section to indexed paths before resetting its buffer.
 - `refresh_source_path()`: refreshes one source path after creation/deletion-sensitive work.
 - `refresh_remote_path()`: compatibility wrapper for refreshing one SSH source path.
 - `refresh_local_path()`: refreshes one destination path after receive/delete-sensitive work.
@@ -296,6 +309,7 @@ This file describes the current command handlers, shell command families, functi
   read-only subvolume and, when parent UUID metadata is available, that it was
   created from the requested original Timeshift subvolume. This prevents
   recreate attempts after interrupted runs or state recovery.
+- `_reuse_existing_cache_snapshot.validate()`: nested identity check that refuses writable cache subvolumes or cache snapshots whose Parent UUID belongs to a different Timeshift original.
 - `source_ensure_cache_root()`: lazily creates the configured `source.cache_root`
   as a Btrfs subvolume when cache is actually needed. It creates only the exact
   configured root, requires the parent to already exist, and refuses an existing
@@ -311,6 +325,7 @@ This file describes the current command handlers, shell command families, functi
   incremental sends, wrapped through SSH or local source mode.
 - `remote_ensure_cache_parent()`, `remote_ensure_readonly_send_path()`,
   `remote_delete_subvolume()`, and `remote_send_cmd()`: SSH compatibility wrappers.
+- `path_is_same_or_under()`: normalized destructive-safety comparison used to identify the protected Timeshift root itself and every descendant.
 - `path_is_under_cache()`: tells cleanup whether a path belongs to cache root.
 - `local_receive_cmd()`: builds `btrfs receive` argv for the destination folder.
 - `delete_local_subvolume()`: deletes a destination Btrfs subvolume.
@@ -385,6 +400,7 @@ This file describes the current command handlers, shell command families, functi
   a new Timeshift snapshot. It checks a UUID-confirmed sync floor and a usable
   incremental parent for the next pending transfer, or for a future manual
   snapshot when nothing is currently pending.
+- `_verify_sync_viability_before_manual_snapshot.verify_parent_for()`: nested wrapper that runs strict parent selection for one pending/future subvolume and rewrites failures with manual-snapshot context before any source snapshot is created.
 - `_maybe_create_manual_snapshot()`: optionally creates a Timeshift manual
   snapshot only after preflight, state recovery, source identity, and sync
   viability checks have proven it is safe to change the source. It still
@@ -395,7 +411,7 @@ This file describes the current command handlers, shell command families, functi
 - `print_snapshot_table()`: displays source snapshots and tags.
 - `_dest_subvolume_path()`: destination path for one received subvolume.
 - `_target_snapshot_dir()`: destination path for one snapshot folder.
-- `_destination_has_existing_snapshots()`: detects non-empty destination; used to decide whether a full seed is allowed.
+- `_destination_has_existing_snapshots()`: records whether destination snapshots existed at run start. That run-start result fixes full-seed permission for the whole transaction, so later recovery cleanup cannot turn an existing backup into a new seed.
 - `_snapshot_destination_paths_exist()`: verifies expected destination paths before skipping a state-complete snapshot.
 - `_preview_send_path()`: predicts direct read-only send versus cache use during dry-run previews.
 - `_send_path_kind_text()`: explains whether the selected send path is protected Timeshift original or app-owned cache.
@@ -416,7 +432,9 @@ This file describes the current command handlers, shell command families, functi
 - `_read_local_destination_parent_metadata()`: reads metadata for a candidate destination parent.
 - `_match_source_path_to_destination_received_uuid()`: compares source path UUID to destination `received_uuid`; this is the core incremental identity rule.
 - `_select_verified_parent_send_path()`: chooses a safe source parent for incremental send. It first tries an indexed source-cache subvolume whose UUID matches the destination parent's `Received UUID`, then the saved `send_path`, then indexed cache paths for UUIDs stored in state, and finally the original Timeshift path. It never recreates a missing parent cache snapshot because recreated cache snapshots get new UUIDs.
+- `_select_verified_parent_send_path.add_candidate()`: nested deduplication helper that records each possible parent path only once while preserving safest-first order.
 - `_state_uuid_values_for_path()`: returns trusted UUID values remembered for a state path.
+- `_state_uuid_values_for_path.add_key()`: nested state-reader helper that adds one non-empty UUID field to the allowed identity set.
 - `_find_confirmed_sync_floor()`: finds a safe high-watermark after pruning by confirming source/destination UUID history.
 - `_filesystem_parent_candidates()`: finds older candidates present in both source and state.
 - `_destination_snapshot_names()`: lists destination snapshot folders oldest-to-newest for state recovery.
@@ -424,13 +442,19 @@ This file describes the current command handlers, shell command families, functi
 - `_source_cache_meta_by_uuid()`: finds an existing source-cache subvolume by exact UUID and refreshes its metadata so recovery can prove read-only cache identity.
 - `_match_existing_destination_to_source()`: compares one existing destination subvolume's `Received UUID` with the matching source Timeshift subvolume and source-cache index. It returns a send path only for exact UUID matches.
 - `_recover_state_from_existing_destination()`: rebuilds missing or empty state from already-existing destination snapshots. It adopts only exact UUID matches and refuses to treat unadopted existing destination paths as incomplete receives.
-- `_select_parent()`: chooses full seed or verified incremental parent. Full sends
-  are allowed only for empty-destination seeding rules.
+- `_select_parent()`: chooses full seed or a verified incremental parent. Full sends
+  are allowed only when the destination was empty at run start. It never re-checks
+  current emptiness after recovery cleanup, so a temporarily emptied existing target
+  cannot become a new full-send chain. Without a usable UUID match it raises a clear
+  source/destination mismatch error.
+- `sync_once.discover_source_index()`: nested discovery helper that prints the selected verification mode and rebuilds the Timeshift name index before and after optional manual snapshot creation.
 - `sync_once()`: complete sync transaction for one config/run. It creates the
   `SourceRunner`, skips SSH tests in local mode, runs preflight, discovers source
-  snapshots, recovers missing state when possible, proves sync viability before
-  optional manual snapshot creation, sends/receives data, writes state, and
-  optionally prunes.
+  snapshots, and conservatively recovers missing state when possible. If the
+  destination was populated at run start, it must prove a complete UUID-confirmed
+  source/destination anchor before stale or partial snapshot recovery may delete
+  anything. It then proves manual-snapshot viability, sends/receives data, writes
+  state, and optionally prunes.
 
 ### `retention.py`
 
@@ -490,7 +514,8 @@ This file describes the current command handlers, shell command families, functi
 - `get_logger()`: returns the active run logger, if any.
 - `active_logger()`: context manager that installs one active logger.
 - `create_run_logger()`: creates one timestamped logger under the configured log directory.
-- `tee_pipe_to_log()`: background reader used by the pipeline to stream command output without deadlocking pipes.
+- `tee_pipe_to_log()`: starts a background reader used by the pipeline to stream command output without deadlocking pipes.
+- `tee_pipe_to_log._reader()`: nested thread target that reads one pipe line-by-line, mirrors it to the selected terminal stream, and copies it to the configured log channels.
 
 ### `notify.py`
 
@@ -530,13 +555,26 @@ This file describes the current command handlers, shell command families, functi
 - `_resolve_dry_run()`: merges command flags with `default_dry_run` config.
 - `cmd_init_config()`: writes the packaged config template.
 - `cmd_test_ssh()`: tests the configured source endpoint and required source sudo commands. It is used by both `test-source` and the `test-ssh` alias.
+- `cmd_test_ssh._run()`: nested logged action that selects SSH/local transport, runs Timeshift list and Btrfs version checks, and reports source sudo readiness.
 - `_refresh_state_metadata_from_timeshift()`: refreshes mutable state metadata for commands that inspect state/source without running a full sync.
 - `cmd_list_source()`: displays source Timeshift snapshots.
+- `cmd_list_source._run()`: nested logged action that performs fast or `--verify-btrfs` discovery and prints the snapshot table.
 - `cmd_sync()`: loads config, resolves dry-run mode, and calls `sync_once()`.
+- `cmd_sync._run_dry()`: nested strict dry-run path that loads state, previews sync, and optionally previews prune without creating locks, destinations, or receives.
+- `cmd_sync._run_locked()`: nested real-run path executed under `FileLock`; it performs sync and optional real prune using the same loaded state.
 - `cmd_prune()`: loads config, refreshes metadata, and runs retention pruning.
+- `cmd_prune._run_dry()`: nested preview path that refreshes source metadata in memory and prints retention decisions without deletion.
+- `cmd_prune._run_locked()`: nested real prune path that refreshes state and performs confirmed deletion while the app lock is held.
 - `cmd_create_manual()`: runs the standalone manual snapshot command after the same source identity guard used by automatic manual creation.
+- `cmd_create_manual._run()`: nested logged action that tests the source, runs path/identity guards, and invokes Timeshift only after the existing backup chain is proven.
+- `cmd_clear_state()`: loads config and runs the guarded state-file maintenance workflow with normal logging.
+- `cmd_clear_state._run()`: nested action that acquires the app lock for real clearing and calls `clear_state_file()` with the required danger flag.
+- `cmd_delete_lock()`: loads config and runs guarded stale-lock deletion with normal logging.
+- `cmd_delete_lock._run()`: nested action that calls `delete_lock_file()` after its explicit danger flag and typed confirmations are enforced.
 - `cmd_destroy_leftovers()`: loads config, chooses a survivor log directory when needed, and runs the destructive retirement cleanup command inside the normal logging/notification wrapper.
+- `cmd_destroy_leftovers._run()`: nested logged action that passes the selected source/destination deletion scope and confirmations to `destroy_leftovers()`.
 - `cmd_show_state()`: prints local state summary or raw JSON.
+- `cmd_show_state._run()`: nested logged read-only action that loads state and prints JSON or the human summary.
 - `build_parser()`: builds the top-level argparse parser and active subcommands.
 - `main()`: CLI entrypoint and final exception-to-exit-code handler.
 
@@ -587,3 +625,33 @@ This file describes the current command handlers, shell command families, functi
 - `FileLock.__init__()`: stores the lock path.
 - `FileLock.__enter__()`: opens/acquires the already-prepared lock file non-blocking. It no longer creates parent directories itself, because lock path preflight must create the parent safely as either a directory or Btrfs subvolume before locking.
 - `FileLock.__exit__()`: unlocks and closes the lock file.
+
+## Combined source inventory and source-change continuation
+
+### `remote_index.py`
+
+- `SourceInventory`: groups one Timeshift list, the complete `source.snapshot_root` Btrfs index, and the complete optional `source.cache_root` Btrfs index from the same inventory generation. It exists so parent/source comparisons do not mix metadata captured by separately timed SSH sessions.
+- `SourceInventory.snapshot_names`: extracts sorted Timeshift timestamp names for inventory-difference reporting.
+- `SourceInventory.meta()`: resolves a source path from the cache index first and then the Timeshift snapshot index; this gives recovery and parent checks one lookup interface for both roots.
+- `_parse_remote_btrfs_index_result()`: parses one marked bulk-index section into `BtrfsIndex`. The standalone one-root builder and the combined source inventory share it so UUID, Received UUID, Parent UUID, read-only, missing-root, and error behavior remain identical.
+- `_remote_source_inventory_script()`: builds the single source shell command that runs Timeshift listing and both bulk Btrfs root scans. In SSH mode it is deliberately wrapped by one SSH invocation to reduce authentication and network round trips.
+- `_split_remote_source_inventory_output()`: separates the marked Timeshift, snapshot-root, and cache-root output sections without confusing normal command output with protocol markers.
+- `build_source_inventory()`: creates one coherent `SourceInventory`. SSH mode uses one source/SSH command for all source views; local mode uses the same parsers and safety rules without network overhead.
+- `describe_source_inventory_changes()`: produces terminal/log descriptions of added/removed Timeshift names, added/removed Btrfs paths, UUID/read-only identity changes, and root availability changes between two inventory generations.
+- `compare_index()`: nested helper inside `describe_source_inventory_changes()` that compares one named Btrfs root and explains path or identity differences.
+
+### `preflight.py`
+
+- `_combined_source_path_check_script()`: wraps snapshot-root and cache-root preflight scripts into one source command. It runs the cache check only after the snapshot-root output contains its explicit OK marker, preserving the rule that app-owned cache storage cannot be created or modified when the Timeshift-owned root is unsafe.
+
+### `btrfs.py`
+
+- `_source_create_readonly_cache_snapshot()`: creates a read-only send-cache snapshot and immediately reads its Btrfs metadata inside one source command/SSH session. It verifies read-only state and available Parent UUID identity before returning metadata for the in-memory cache index.
+
+### `sync.py`
+
+- `_snapshots_from_source_inventory()`: converts the Timeshift part of a coherent source inventory into `SnapshotMeta` objects while filling configured children from the already loaded snapshot-root index.
+- `_required_pipeline_source_changes()`: compares only paths required by a failed operation—current source/send path, selected incremental parent, and optional sibling paths—and reports disappearance or UUID replacement. This prevents unrelated Timeshift churn from hiding a network, mbuffer, receive, permission, or destination failure.
+- `load_source_inventory()`: nested `sync_once()` helper that builds one combined source inventory, prints why the generation was needed, and returns the parsed Timeshift snapshot mapping.
+- `build_snapshot_queue()`: nested `sync_once()` helper that rebuilds the current oldest-to-newest queue from the latest source inventory while preserving explicit snapshot selection, fresh-destination retention selection, and existing-destination ordering rules.
+- `recover_from_source_inventory_change()`: nested `sync_once()` helper used after proven source identity changes during preparation or send/receive. It enforces the per-item retry limit, reports inventory differences, removes obsolete in-run accounting, cleans the incomplete whole snapshot date from app-owned cache/destination/state, rebuilds the combined inventory and queue, and continues without weakening UUID parent safety.

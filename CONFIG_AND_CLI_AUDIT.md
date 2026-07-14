@@ -5,7 +5,10 @@
 - No new config or CLI option was added for this safety behavior; it is mandatory when `manual_snapshot.enabled = true`.
 - No new config or CLI option was added for quiet optional Btrfs existence probes; required failures still print and log stderr.
 - No new config or CLI option was added for retention source-cache parent cleanup. Prune now always performs a final live Btrfs child-subvolume check before deleting an app-owned timestamp cache parent.
-- No new config or CLI option was added for snapshot-level sync recovery. The recovery is mandatory: incomplete current versions are retried when all configured source subvolumes still exist, and stale versions are removed/skipped when the source Timeshift snapshot vanished.
+- Snapshot-level source-change continuation is controlled by `source.source_change_retry_count` (default `5`, `0` disables). It is used only after a failed preparation/send operation and a coherent before/after inventory comparison proves that a required original, sibling, cache, or parent path disappeared or changed UUID.
+- Normal sync discovery uses one source command in SSH mode for Timeshift plus both source Btrfs roots. Source preflight also checks snapshot/cache roots in one source command, with cache work conditional on a successful snapshot-root marker.
+- The obsolete `source.allow_incremental_without_parent_match` key is explicitly rejected. It is not a compatibility option and cannot weaken parent UUID matching.
+- Full send remains valid only when the destination was empty at run start; a destination that was already populated with no UUID-confirmed source match fails before recovery deletion or sending.
 
 # Config and CLI audit for current release
 
@@ -389,9 +392,9 @@ Manual snapshot create commands intentionally omit explicit `--tags O`; Timeshif
 
 ## Removed config options
 
-- `source.allow_incremental_without_parent_match` was removed in 0.5.4. Incremental parent mismatches are now hard errors.
+- `source.allow_incremental_without_parent_match` is removed and explicitly rejected instead of being silently ignored. Incremental parent mismatches are hard errors.
 - `source.verify_incremental_parent` was removed in 0.5.5. Incremental parent verification is mandatory and no longer configurable.
-- Full send is allowed only when the destination has no snapshots. If destination snapshots exist and no matching parent can be proven, sync errors instead of starting a separate full-send chain in the same target.
+- Full send is allowed only when the destination was empty at run start. If snapshots existed at run start and no matching parent can be proven, sync errors before recovery deletion instead of allowing cleanup-created temporary emptiness to start a separate full-send chain in the same target.
 
 ## 0.1.15 audit addition
 
@@ -416,7 +419,7 @@ Manual snapshot create commands intentionally omit explicit `--tags O`; Timeshif
 
 When `state.json` is missing or empty and destination snapshots already exist, `sync` may rebuild state from exact Btrfs UUID matches. Destination names alone are not trusted, and existing unadopted destination subvolumes are not deleted automatically.
 
-For normal non-empty state files, `sync` also performs guarded recovery for incomplete current-version snapshots. If a snapshot date is missing one configured source subvolume under `source.snapshot_root`, it is treated as vanished/stale and the matching app-owned cache version, destination version, and state entry are removed before continuing. If all configured source subvolumes still exist but the current destination/state version is partial, the app clears the failed cache/destination/state version so the same date can be transferred again.
+For normal non-empty state files, `sync` also performs guarded recovery for incomplete current-version snapshots, but a destination populated at run start must first have a complete UUID-confirmed source/destination anchor. Without that anchor, sync errors before recovery deletion. After the anchor is proven, a snapshot date missing one configured source subvolume under `source.snapshot_root` is treated as vanished/stale and the matching app-owned cache version, destination version, and state entry are removed before continuing. If all configured source subvolumes still exist but the current destination/state version is partial, the app clears the failed cache/destination/state version so the same date can be transferred again incrementally from the confirmed chain.
 
 
 ## Maintenance and destructive command logging

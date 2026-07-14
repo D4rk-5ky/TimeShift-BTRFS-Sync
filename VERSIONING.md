@@ -1,3 +1,22 @@
+## 0.1.40
+
+- Replaced separate sync-time source discovery calls with one coherent source inventory. In SSH mode a single SSH command now captures `timeshift --list`, bulk UUID/read-only metadata for `source.snapshot_root`, and bulk UUID/read-only metadata for `source.cache_root`; `destination.target_root` is indexed locally once.
+- Batched source snapshot-root and cache-root preflight into one source command while preserving the rule that cache creation/checking runs only after the Timeshift-owned snapshot root emits an explicit successful safety result.
+- Removed normal per-parent source-cache `subvolume show` probes. UUID/read-only parent matching now uses the coherent bulk cache inventory, while source mutations update the index and failed operations rebuild the complete inventory.
+- Reduced normal cache-creation round trips: an absent cache path in the coherent index is created directly, a newly created cache parent is inserted into the index, and read-only snapshot creation plus metadata verification run in one source command. Concurrent target creation still receives a targeted exceptional refresh before reuse.
+- Added bounded source-change recovery with `source.source_change_retry_count` (default `5`, `0` disables). If a required original/cache/parent path disappears or changes UUID during cache preparation or `btrfs send`, the app reports the before/after inventory difference, cleans the incomplete whole snapshot date from app-owned cache/destination/state, corrects in-run transfer accounting, rebuilds all source lists and the oldest-to-newest queue, and continues.
+- Kept unrelated source churn from masking real network, mbuffer, receive, permission, or destination failures: automatic continuation occurs only when the exact paths required by the failed operation changed identity.
+- Added regression tests for one-command inventory parsing, conditional one-command source preflight, one-command cache snapshot creation/verification, relevant-versus-unrelated source changes, and continuation after a source snapshot disappears during a failed send.
+- Updated README.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
+## 0.1.39
+
+- Removed any silent acceptance of the obsolete `source.allow_incremental_without_parent_match` setting. A config containing that key now fails validation and tells the user to delete it.
+- Enforced the only two safe transfer outcomes from run-start state: a destination that was empty when the run began may start with a full send, while a destination that was already populated requires at least one complete UUID-confirmed source/destination snapshot match for incremental send.
+- Moved the existing-chain identity check ahead of stale/partial destination recovery. Recovery cleanup can no longer make an existing destination temporarily empty and thereby permit a full send; full-seed authorization remains fixed for the entire run.
+- Improved sync and manual-snapshot safety errors so they explicitly report when source and destination do not match in any usable UUID-confirmed snapshot and explain that a full send into the existing destination is refused.
+- Updated README.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
 ## 0.1.38
 
 - Added snapshot-level sync recovery for incomplete or vanished Timeshift snapshot dates. If any configured source subvolume such as `@` or `@home` is missing under `source.snapshot_root/<date>`, the app now removes stale app-owned source-cache paths, the failed destination `snapshots/<date>` version, and the state entry, then skips that vanished date and continues.

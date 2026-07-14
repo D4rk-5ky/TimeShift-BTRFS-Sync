@@ -73,6 +73,7 @@ def list_source_snapshots(
     btrfs_command: str,
     include_btrfs_info: bool = True,
     btrfs_index=None,
+    timeshift_output: str | None = None,
 ) -> list[SnapshotMeta]:
     """Discover source snapshots through SSH or local source commands.
 
@@ -83,8 +84,10 @@ def list_source_snapshots(
     metadata and checked later at send time.
     """
 
-    result = source.run(timeshift_cmd(sudo, timeshift_command, ["--list"]))
-    snapshots = parse_timeshift_list(result.stdout, snapshot_root)
+    if timeshift_output is None:
+        result = source.run(timeshift_cmd(sudo, timeshift_command, ["--list"]))
+        timeshift_output = result.stdout
+    snapshots = parse_timeshift_list(timeshift_output, snapshot_root)
     for snap in snapshots:
         for subvol in subvolumes:
             path = str(Path(snap.path) / subvol)

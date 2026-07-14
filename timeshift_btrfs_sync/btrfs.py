@@ -486,15 +486,19 @@ def _reuse_existing_cache_snapshot(
     if reused:
         return reused
 
-    # A bulk cache index may be stale or incomplete, especially after a prior
-    # interrupted run or after switching between SSH and local mode. Always do a
-    # targeted metadata refresh before attempting to create the same cache path.
+    # A coherent bulk cache index is authoritative for this inventory
+    # generation. If the path was absent, attempt creation directly instead of
+    # opening another SSH session just to repeat the same metadata lookup. A
+    # concurrent creator is handled safely by the target-already-exists branch.
+    if cache_index is not None:
+        return None
+
     refreshed = _source_refresh_cache_path(cache_index, source, cache_path, sudo=sudo, btrfs_command=btrfs_command)
     reused = validate(refreshed)
     if reused:
         return reused
 
-    if cache_index is None and source_cache_contains(source, sudo, btrfs_command, cache_root, cache_path):
+    if source_cache_contains(source, sudo, btrfs_command, cache_root, cache_path):
         meta = source_get_subvolume_meta(
             source,
             cache_path,
@@ -538,7 +542,8 @@ def source_ensure_cache_parent(
         check=False,
     )
     if result.returncode == 0:
-        _source_refresh_cache_path(cache_index, source, cache_parent, sudo=sudo, btrfs_command=btrfs_command)
+        if cache_index is not None:
+            cache_index.add(SubvolumeMeta(name=Path(cache_parent).name, path=cache_parent))
         return
 
     if "target path already exists" in result.stderr.lower():
@@ -554,6 +559,117 @@ def source_ensure_cache_parent(
 
     detail = result.stderr.strip() or result.stdout.strip() or f"return code {result.returncode}"
     raise RuntimeError("Failed to create source cache parent subvolume.\n" + detail)
+
+
+def _source_create_readonly_cache_snapshot(
+    source: SourceRunner,
+    *,
+    sudo: str,
+    btrfs_command: str,
+    original_path: str,
+    cache_path: str,
+    subvolume_name: str,
+    original_meta: SubvolumeMeta,
+) -> tuple[int, str, SubvolumeMeta | None]:
+    """Create and verify one read-only cache snapshot in one source command.
+
+    In SSH mode both ``btrfs subvolume snapshot -r`` and the confirming
+    ``btrfs subvolume show`` execute in the same SSH session. The returned
+    metadata is safe to insert directly into the coherent per-run cache index.
+    """
+
+    create_cmd = remote_btrfs_cmd(
+        sudo,
+        btrfs_command,
+        ["subvolume", "snapshot", "-r", original_path, cache_path],
+    )
+    show_cmd = remote_btrfs_cmd(
+        sudo,
+        btrfs_command,
+        ["subvolume", "show", cache_path],
+    )
+    script = f"""
+create_output=$({create_cmd} 2>&1)
+create_status=$?
+printf 'TSBTRFS_CACHE_CREATE_STATUS\t%s\n' "$create_status"
+printf 'TSBTRFS_CACHE_CREATE_OUTPUT_BEGIN\n%s\nTSBTRFS_CACHE_CREATE_OUTPUT_END\n' "$create_output"
+if [ "$create_status" -eq 0 ]; then
+    show_output=$({show_cmd} 2>&1)
+    show_status=$?
+    printf 'TSBTRFS_CACHE_SHOW_STATUS\t%s\n' "$show_status"
+    printf 'TSBTRFS_CACHE_SHOW_OUTPUT_BEGIN\n%s\nTSBTRFS_CACHE_SHOW_OUTPUT_END\n' "$show_output"
+fi
+exit 0
+""".strip()
+    result = source.run(
+        "sh -c " + shlex.quote(script),
+        check=False,
+        log_stderr=False,
+        mirror_stderr=False,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or f"return code {result.returncode}"
+        return result.returncode, detail, None
+
+    create_status: int | None = None
+    show_status: int | None = None
+    create_lines: list[str] = []
+    show_lines: list[str] = []
+    section: str | None = None
+    for line in result.stdout.splitlines():
+        if line.startswith("TSBTRFS_CACHE_CREATE_STATUS\t"):
+            try:
+                create_status = int(line.split("\t", 1)[1])
+            except ValueError:
+                create_status = None
+            continue
+        if line.startswith("TSBTRFS_CACHE_SHOW_STATUS\t"):
+            try:
+                show_status = int(line.split("\t", 1)[1])
+            except ValueError:
+                show_status = None
+            continue
+        if line == "TSBTRFS_CACHE_CREATE_OUTPUT_BEGIN":
+            section = "create"
+            continue
+        if line == "TSBTRFS_CACHE_CREATE_OUTPUT_END":
+            section = None
+            continue
+        if line == "TSBTRFS_CACHE_SHOW_OUTPUT_BEGIN":
+            section = "show"
+            continue
+        if line == "TSBTRFS_CACHE_SHOW_OUTPUT_END":
+            section = None
+            continue
+        if section == "create":
+            create_lines.append(line)
+        elif section == "show":
+            show_lines.append(line)
+
+    create_text = "\n".join(create_lines).strip()
+    if create_status != 0:
+        return create_status if create_status is not None else 1, create_text, None
+    if show_status != 0:
+        raise RuntimeError(
+            "Created read-only source cache snapshot, but metadata verification failed:\n"
+            f"  {cache_path}\n"
+            + ("\n".join(show_lines).strip() or f"return code {show_status}")
+        )
+
+    meta = parse_subvolume_show("\n".join(show_lines), subvolume_name, cache_path)
+    if meta.readonly is not True:
+        raise RuntimeError(
+            "Created source cache snapshot was not confirmed read-only:\n"
+            f"  {cache_path}"
+        )
+    if original_meta.uuid and meta.parent_uuid and meta.parent_uuid != original_meta.uuid:
+        raise RuntimeError(
+            "Created source cache snapshot has an unexpected Parent UUID:\n"
+            f"  original UUID: {original_meta.uuid}\n"
+            f"  cache Parent UUID: {meta.parent_uuid}\n"
+            f"  cache: {cache_path}"
+        )
+    return 0, create_text, meta
 
 
 def source_ensure_readonly_send_path(
@@ -614,18 +730,30 @@ def source_ensure_readonly_send_path(
         cache_index=cache_index,
     )
 
-    result = source.run(
-        remote_btrfs_cmd(sudo, btrfs_command, ["subvolume", "snapshot", "-r", original_path, cache_path]),
-        check=False,
+    create_status, create_detail, created_meta = _source_create_readonly_cache_snapshot(
+        source,
+        sudo=sudo,
+        btrfs_command=btrfs_command,
+        original_path=original_path,
+        cache_path=cache_path,
+        subvolume_name=subvolume_name,
+        original_meta=original_meta,
     )
-    if result.returncode == 0:
+    if create_status == 0 and created_meta is not None:
         if cache_index is not None:
-            from .remote_index import refresh_source_path
-
-            refresh_source_path(cache_index, source, cache_path, name=subvolume_name, sudo=sudo, btrfs_command=btrfs_command)
+            cache_index.add(created_meta)
         return cache_path
 
-    if "target path already exists" in result.stderr.lower():
+    if "target path already exists" in create_detail.lower():
+        # The coherent index was captured before this concurrent cache path
+        # appeared. Refresh exactly this exceptional path, then validate/reuse it.
+        _source_refresh_cache_path(
+            cache_index,
+            source,
+            cache_path,
+            sudo=sudo,
+            btrfs_command=btrfs_command,
+        )
         existing_cache_path = _reuse_existing_cache_snapshot(
             source,
             sudo=sudo,
@@ -638,7 +766,7 @@ def source_ensure_readonly_send_path(
         )
         if existing_cache_path:
             return existing_cache_path
-    detail = result.stderr.strip() or result.stdout.strip() or f"return code {result.returncode}"
+    detail = create_detail or f"return code {create_status}"
     raise RuntimeError("Failed to create read-only source cache snapshot.\n" + detail)
 
 

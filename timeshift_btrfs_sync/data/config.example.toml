@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.1.38 config
+# timeshift-btrfs-sync v0.1.40 config
 # Run this config on the BACKUP/DESTINATION machine.
 # source.mode = "ssh" pulls from another machine over SSH.
 # source.mode = "local" copies from Timeshift snapshots on this same machine and skips SSH.
@@ -276,16 +276,20 @@ snapshot_root = "/timeshift-btrfs/snapshots"
 # Subvolumes expected inside each Timeshift snapshot.
 subvolumes = ["@", "@home"]
 
-# Speed option. Default false is fast: discovery does NOT run btrfs subvolume show
-# for every snapshot/subvolume. It trusts the configured naming layout and only
-# checks Btrfs metadata when a subvolume is actually going to be sent.
-# Set true if you want list-source/sync discovery to verify every subvolume up front.
+# Discovery interpretation option. Normal sync always bulk-loads UUID and
+# read-only metadata for the complete snapshot_root in the same source inventory
+# command that reads Timeshift and cache_root. When false, a Timeshift-listed path
+# missing from that bulk index is represented as an expected path and handled by
+# later recovery. When true, discovery includes only paths proven by the index.
+# `list-source` remains Timeshift-only unless its --verify-btrfs flag is used.
 verify_subvolumes_at_discovery = false
 
 # Incremental parent verification is mandatory and no longer configurable.
 # Before using an existing destination snapshot as an incremental parent, the app
 # compares current source Btrfs UUID metadata with destination `received_uuid`
-# metadata. Parent mismatch is always a hard error.
+# metadata. Parent mismatch is always a hard error. Old configs containing the
+# removed source.allow_incremental_without_parent_match key are rejected; delete
+# that line. Only a destination empty at run start may start a full-send chain.
 
 # Performance/safety balance for the current run only. Parent paths from previous
 # runs are always checked against destination received_uuid before use. When true,
@@ -293,6 +297,13 @@ verify_subvolumes_at_discovery = false
 # process can be reused as the next incremental parent without re-reading Btrfs
 # metadata. This never allows creating a replacement parent cache snapshot.
 verify_incremental_parent_once_per_run = true
+
+# Number of times one snapshot/subvolume may automatically rebuild the complete
+# Timeshift + snapshot_root + cache_root inventory after a failed cache/send
+# operation proves that a required source or parent path disappeared or changed
+# UUID. Recovery cleans the incomplete whole snapshot version and rebuilds the
+# oldest-to-newest queue. Set 0 to disable this automatic continuation.
+source_change_retry_count = 5
 
 # Source-side read-only cache for writable Timeshift snapshots.
 # If cache_root is missing, real preflight creates cache_root itself as a Btrfs
@@ -306,9 +317,11 @@ verify_incremental_parent_once_per_run = true
 #   sudo -n btrfs subvolume create <cache_root>/<snapshot-name>
 # Read-only send snapshots are then created with:
 #   sudo -n btrfs subvolume snapshot -r <original> <cache_root>/<snapshot>/<subvolume>
-# If that exact cache snapshot already exists, the app verifies it is a
-# read-only Btrfs subvolume with matching parent identity and reuses it instead
-# of trying to recreate it.
+# Existing cache snapshots are bulk-indexed once and reused only when UUID,
+# read-only state, and available parent identity are safe. New snapshot creation
+# and its confirming `btrfs subvolume show` run in one source command. A targeted
+# probe is reserved for exceptional races where another process creates the path
+# after the coherent inventory was captured.
 # destroy-leftovers checks cache_root with configured sudo+Btrfs before relying
 # on source-shell `test -e`, so the source user does not need ordinary directory
 # traversal permission just to prove the app-owned cache subvolume exists.

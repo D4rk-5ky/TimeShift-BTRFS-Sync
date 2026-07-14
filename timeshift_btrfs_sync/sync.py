@@ -16,7 +16,7 @@ from __future__ import annotations
 from pathlib import Path
 from . import btrfs, timeshift
 from . import preflight, remote_index
-from .commands import stream_pipeline
+from .commands import CommandError, stream_pipeline
 from .config import AppConfig
 from .models import SnapshotMeta, SubvolumeMeta, tags_text
 from .source import SourceRunner
@@ -182,6 +182,7 @@ def list_source_snapshots(
     *,
     include_btrfs_info: bool = True,
     source_snapshot_index: remote_index.BtrfsIndex | None = None,
+    timeshift_output: str | None = None,
 ) -> list[SnapshotMeta]:
     """Discover source Timeshift snapshots."""
 
@@ -194,11 +195,69 @@ def list_source_snapshots(
         btrfs_command=config.source.btrfs_command,
         include_btrfs_info=include_btrfs_info,
         btrfs_index=source_snapshot_index,
+        timeshift_output=timeshift_output,
     )
 
 
 def source_snapshot_index(snapshots) -> dict[str, SnapshotMeta]:
     return {snap.name: snap for snap in snapshots if snap.subvolumes}
+
+
+def _snapshots_from_source_inventory(
+    config: AppConfig,
+    source: SourceRunner,
+    inventory: remote_index.SourceInventory,
+) -> dict[str, SnapshotMeta]:
+    """Build Timeshift snapshot objects from one coherent source inventory."""
+
+    return source_snapshot_index(
+        list_source_snapshots(
+            config,
+            source,
+            include_btrfs_info=config.source.verify_subvolumes_at_discovery,
+            source_snapshot_index=inventory.snapshot_index,
+            timeshift_output=inventory.timeshift_output,
+        )
+    )
+
+
+def _required_pipeline_source_changes(
+    before: remote_index.SourceInventory,
+    after: remote_index.SourceInventory,
+    *,
+    current_path: str,
+    parent_path: str | None,
+    additional_paths: tuple[tuple[str, str | None], ...] = (),
+) -> list[str]:
+    """Return identity changes to source paths required by current work.
+
+    Unrelated Timeshift churn is not enough to reinterpret a network, mbuffer,
+    cache-creation, or destination failure as a source-change retry. Automatic
+    continuation is allowed only when a path required by the failed operation
+    disappeared or changed Btrfs UUID between coherent inventory generations.
+    """
+
+    changes: list[str] = []
+    required_paths = (
+        ("current send path", current_path),
+        ("incremental parent path", parent_path),
+        *additional_paths,
+    )
+    seen: set[str] = set()
+    for label, path in required_paths:
+        if not path or path in seen:
+            continue
+        seen.add(path)
+        old_meta = before.meta(path)
+        new_meta = after.meta(path)
+        if old_meta is not None and new_meta is None:
+            changes.append(f"{label} disappeared: {path}")
+            continue
+        if old_meta is not None and new_meta is not None and old_meta.uuid and new_meta.uuid != old_meta.uuid:
+            changes.append(
+                f"{label} UUID changed: {path}: {old_meta.uuid} -> {new_meta.uuid or '-'}"
+            )
+    return changes
 
 
 def confirm_source_identity_before_manual_snapshot(
@@ -238,8 +297,9 @@ def confirm_source_identity_before_manual_snapshot(
     if not confirmed_name:
         raise SyncError(
             "Refusing to create manual Timeshift snapshot.\n\n"
-            "The destination already contains snapshots, but the configured source "
-            "could not be matched to any already received snapshot in state.json.\n"
+            "Source and destination do not match in any UUID-confirmed snapshot. "
+            "The configured source could not be matched to any already received "
+            "snapshot in state.json.\n"
             "This may be the wrong mounted OS, wrong snapshot_root, wrong source host, "
             "or a backup target from another source.\n"
             f"Reason: {reason}\n\n"
@@ -852,20 +912,27 @@ def _refresh_snapshot_source_subvolumes_live(
     snapshot: SnapshotMeta,
     source_snapshot_index: remote_index.BtrfsIndex | None,
 ) -> tuple[dict[str, SubvolumeMeta], list[tuple[str, str]]]:
-    """Live-probe every configured source subvolume for one Timeshift snapshot."""
+    """Return configured source subvolumes, preferring the bulk index.
+
+    Normal sync passes use the coherent bulk source inventory and therefore do
+    not open one SSH session per snapshot child. A targeted metadata probe is
+    used only when no inventory was supplied by a legacy/internal caller.
+    """
 
     found: dict[str, SubvolumeMeta] = {}
     missing: list[tuple[str, str]] = []
     for subvol_name in config.source.subvolumes:
         path = snapshot.subvolumes.get(subvol_name).path if subvol_name in snapshot.subvolumes else _expected_original_source_path(config, snapshot.name, subvol_name)
-        meta = remote_index.refresh_source_path(
-            source_snapshot_index,
-            source,
-            path,
-            name=subvol_name,
-            sudo=config.source.sudo,
-            btrfs_command=config.source.btrfs_command,
-        )
+        meta = source_snapshot_index.meta(path) if source_snapshot_index is not None else None
+        if source_snapshot_index is None:
+            meta = remote_index.refresh_source_path(
+                source_snapshot_index,
+                source,
+                path,
+                name=subvol_name,
+                sudo=config.source.sudo,
+                btrfs_command=config.source.btrfs_command,
+            )
         if meta:
             found[subvol_name] = meta
         else:
@@ -1378,32 +1445,22 @@ def _source_cache_meta_by_uuid(
     uuid: str | None,
     subvolume_name: str,
 ) -> SubvolumeMeta | None:
-    """Return indexed source-cache metadata for an exact UUID match.
+    """Return coherent indexed source-cache metadata for an exact UUID match.
 
-    The cache snapshot is re-read with ``btrfs subvolume show`` when possible so
-    the app can confirm read-only state. The UUID match is still the hard safety
-    rule; a missing read-only flag is tolerated only when Btrfs does not report
-    the flag.
+    The combined source inventory already captures UUID and read-only metadata
+    for the complete cache root in one SSH session. Re-reading every candidate
+    with a targeted ``subvolume show`` would add one SSH round trip per parent
+    comparison without strengthening the exact UUID rule. Mutating operations
+    refresh or update the index, and failed sends trigger a full inventory
+    rebuild before source-change recovery is considered.
     """
 
+    del config, source, subvolume_name  # Kept in the signature for existing callers.
     if not uuid or source_cache_index is None:
         return None
     indexed = source_cache_index.by_uuid.get(uuid)
-    if not indexed or not indexed.path:
-        return None
-    try:
-        refreshed = remote_index.refresh_source_path(
-            source_cache_index,
-            source,
-            indexed.path,
-            name=subvolume_name,
-            sudo=config.source.sudo,
-            btrfs_command=config.source.btrfs_command,
-        )
-    except Exception:
-        refreshed = indexed
-    if refreshed and refreshed.uuid == uuid and refreshed.readonly is not False:
-        return refreshed
+    if indexed and indexed.path and indexed.uuid == uuid and indexed.readonly is not False:
+        return indexed
     return None
 
 
@@ -1744,23 +1801,21 @@ def _select_parent(
     if allow_full_seed:
         return None, None
 
-    # Outside an empty-at-start seed run, full send is allowed only while the
-    # destination has no snapshots at all. If snapshots already exist in the
-    # backup target, refusing is safer than mixing a new full-send chain into the
-    # wrong folder.
-    if _destination_has_existing_snapshots(config):
-        details = ""
-        if candidate_failures:
-            details = "\n\nChecked parent candidate(s):\n  " + "\n  ".join(candidate_failures)
-        raise SyncError(
-            "Destination already contains snapshots, but no usable matching incremental parent "
-            "was found for the current source snapshot. Refusing to guess because this could "
-            "mix snapshots from different OS installs or backup chains. Use an empty/separate "
-            "target_root for a new full backup, or restore/repair state.json/source cache so a "
-            "matching source/destination parent can be proven."
-            + details
-        )
-    return None, None
+    # Full-send permission is based only on whether the destination was empty at
+    # run start (allow_full_seed). Do not re-check current destination emptiness:
+    # recovery may have removed a partial version during this run, and temporary
+    # emptiness must never turn an existing backup into a new seed.
+    details = ""
+    if candidate_failures:
+        details = "\n\nChecked parent candidate(s):\n  " + "\n  ".join(candidate_failures)
+    raise SyncError(
+        "Source and destination do not match in any usable snapshot for incremental send. "
+        "This run did not start with an empty destination, so a full send is refused even "
+        "if recovery cleanup has made the destination temporarily empty. Use an empty/separate "
+        "target_root for a new full backup, or restore/repair state.json and the exact source "
+        "cache so at least one source snapshot UUID matches a destination Received UUID."
+        + details
+    )
 
 
 def _verify_sync_viability_before_manual_snapshot(
@@ -1811,9 +1866,9 @@ def _verify_sync_viability_before_manual_snapshot(
         print(f"  result:  failed; no UUID-confirmed sync floor ({sync_floor_reason})")
         _human_rule("----")
         raise SyncError(
-            "Refusing to create a new Timeshift on-demand snapshot because the "
-            "existing destination/source chain is not proven syncable. Fix the "
-            "parent/state/source-cache problem first, or use an empty/separate "
+            "Refusing to create a new Timeshift on-demand snapshot because source "
+            "and destination do not match in any complete UUID-confirmed snapshot. Fix "
+            "the parent/state/source-cache problem first, or use an empty/separate "
             "target_root for a new full backup.\n\n"
             f"Sync-floor check: {sync_floor_reason}"
         )
@@ -1924,24 +1979,25 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
 
     destination_empty_at_start = not _destination_has_existing_snapshots(config)
 
-    snapshot_root_btrfs_index = remote_index.build_source_btrfs_index(
-        source,
-        config.source.snapshot_root,
-        sudo=config.source.sudo,
-        btrfs_command=config.source.btrfs_command,
-        include_root=False,
-    )
-    source_cache_index = (
-        remote_index.build_source_btrfs_index(
+    def load_source_inventory(reason: str) -> tuple[remote_index.SourceInventory, dict[str, SnapshotMeta]]:
+        """Build and report one coherent source inventory generation."""
+
+        print(f"Reading one combined source inventory ({reason})...")
+        inventory = remote_index.build_source_inventory(
             source,
-            config.source.cache_root,
+            snapshot_root=config.source.snapshot_root,
+            cache_root=config.source.cache_root,
             sudo=config.source.sudo,
             btrfs_command=config.source.btrfs_command,
-            include_root=True,
+            timeshift_command=config.source.timeshift_command,
+            required=True,
         )
-        if config.source.cache_root
-        else None
-    )
+        snapshots = _snapshots_from_source_inventory(config, source, inventory)
+        return inventory, snapshots
+
+    source_inventory, source_by_name = load_source_inventory("initial Timeshift/snapshot/cache scan")
+    snapshot_root_btrfs_index = source_inventory.snapshot_index
+    source_cache_index = source_inventory.cache_index
     destination_index = remote_index.build_local_btrfs_index(
         config.destination.target_root,
         sudo=config.destination.sudo,
@@ -1967,25 +2023,15 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
     print("  purpose:      reuse per-run path/UUID lookups instead of repeated source btrfs probes")
     _human_rule("----")
 
-    def discover_source_index(reason: str) -> dict[str, SnapshotMeta]:
-        print(f"Reading source Timeshift snapshots with sudo timeshift --list ({reason})...")
-        _human_blank()
-        print(
-            "Discovery verification: enabled, checking every configured subvolume with btrfs."
-            if config.source.verify_subvolumes_at_discovery
-            else "Discovery verification: fast mode, delaying btrfs checks until send time."
-        )
-        _human_rule("----")
-        return source_snapshot_index(
-            list_source_snapshots(
-                config,
-                source,
-                include_btrfs_info=config.source.verify_subvolumes_at_discovery,
-                source_snapshot_index=snapshot_root_btrfs_index,
-            )
-        )
+    _human_blank()
+    print(
+        "Discovery verification: bulk metadata is already loaded for every configured source path."
+        if config.source.verify_subvolumes_at_discovery
+        else "Discovery verification: bulk metadata is loaded once; missing paths are handled from the inventory and refreshed only after source change/failure."
+    )
+    print("SSH policy: Timeshift list, snapshot_root metadata, and cache_root metadata came from one source inventory command.")
+    _human_rule("----")
 
-    source_by_name = discover_source_index("before manual snapshot safety check")
     before_manual_snapshot_names = set(source_by_name)
 
     state_empty_at_start = not state.get("snapshots")
@@ -2000,6 +2046,33 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             source_snapshot_index=snapshot_root_btrfs_index,
             destination_index=destination_index,
         )
+
+    # A destination that was already populated when this run started must have a
+    # complete UUID-confirmed source/destination anchor before snapshot recovery
+    # may delete partial destination versions. This also prevents cleanup from
+    # making an existing destination look empty and enabling a full send later.
+    confirmed_existing_floor_name: str | None = None
+    confirmed_existing_floor_reason = "destination was empty at run start"
+    if not destination_empty_at_start:
+        confirmed_existing_floor_name, confirmed_existing_floor_reason = _find_confirmed_sync_floor(
+            config,
+            source,
+            state,
+            source_by_name,
+            source_cache_index=source_cache_index,
+            source_snapshot_index=snapshot_root_btrfs_index,
+            destination_index=destination_index,
+        )
+        if not confirmed_existing_floor_name:
+            raise SyncError(
+                "Source and destination do not match in any complete UUID-confirmed snapshot. "
+                "The destination was not empty when this run started, so the app refuses to "
+                "delete/recover destination snapshot versions or start a full send. Use an "
+                "empty/separate target_root for a new full backup, or restore/repair state.json "
+                "and the exact source cache so a source snapshot UUID matches a destination "
+                "Received UUID.\n\n"
+                f"Match check: {confirmed_existing_floor_reason}"
+            )
 
     stale_recovered = _recover_stale_state_snapshots_missing_from_source(
         config,
@@ -2039,14 +2112,9 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
         destination_index=destination_index,
     )
     if created_manual_snapshot:
-        snapshot_root_btrfs_index = remote_index.build_source_btrfs_index(
-            source,
-            config.source.snapshot_root,
-            sudo=config.source.sudo,
-            btrfs_command=config.source.btrfs_command,
-            include_root=False,
-        )
-        source_by_name = discover_source_index("after manual snapshot creation")
+        source_inventory, source_by_name = load_source_inventory("after manual snapshot creation")
+        snapshot_root_btrfs_index = source_inventory.snapshot_index
+        source_cache_index = source_inventory.cache_index
         created_names = sorted(set(source_by_name) - before_manual_snapshot_names)
         _human_blank()
         print("MANUAL SNAPSHOT SYNC ORDER")
@@ -2063,33 +2131,28 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
 
 
     sync_floor_name: str | None = None
-    if only_snapshot:
-        snapshots_to_sync = [source_by_name[only_snapshot]] if only_snapshot in source_by_name else []
-        if not snapshots_to_sync:
-            raise SyncError(f"Source snapshot not found: {only_snapshot}")
-    else:
-        if destination_empty_at_start:
-            snapshots_to_sync = _select_initial_sync_snapshots(config, source_by_name)
-        else:
-            snapshots_to_sync = source_by_name.values()
-            sync_floor_name, sync_floor_reason = _find_confirmed_sync_floor(
-                config,
-                source,
-                state,
-                source_by_name,
-                source_cache_index=source_cache_index,
-                source_snapshot_index=snapshot_root_btrfs_index,
-                destination_index=destination_index,
-            )
-            if sync_floor_name:
-                print(f"Sync floor: confirmed {sync_floor_name} ({sync_floor_reason})")
-                print("Source snapshots older than or equal to this floor are skipped, so pruned destination snapshots are not re-sent.")
-                _human_rule("----")
-            elif state.get("snapshots"):
-                print(f"Sync floor: none confirmed ({sync_floor_reason})")
-                print("The app will not skip old source snapshots by high-watermark because UUID confirmation failed.")
-                _human_rule("----")
+    if not destination_empty_at_start and not only_snapshot:
+        sync_floor_name = confirmed_existing_floor_name
+        sync_floor_reason = confirmed_existing_floor_reason
+        print(f"Sync floor: confirmed {sync_floor_name} ({sync_floor_reason})")
+        print("Source snapshots older than or equal to this floor are skipped, so pruned destination snapshots are not re-sent.")
+        _human_rule("----")
 
+    def build_snapshot_queue(*, require_requested_snapshot: bool) -> list[SnapshotMeta]:
+        """Build the current oldest-to-newest queue from the latest inventory."""
+
+        if only_snapshot:
+            selected = source_by_name.get(only_snapshot)
+            if selected is None:
+                if require_requested_snapshot:
+                    raise SyncError(f"Source snapshot not found: {only_snapshot}")
+                return []
+            return [selected]
+        if destination_empty_at_start:
+            return _snapshots_in_sync_order(_select_initial_sync_snapshots(config, source_by_name))
+        return _snapshots_in_sync_order(source_by_name.values())
+
+    snapshot_queue = build_snapshot_queue(require_requested_snapshot=True)
     transferred = 0
     already_synced = 0
     sync_events: list[dict] = []
@@ -2101,16 +2164,132 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
     # received_uuid before use.
     trusted_parent_send_paths: set[str] = set()
 
-    skipped_by_floor = 0
-    for snapshot in _snapshots_in_sync_order(snapshots_to_sync):
+    skipped_by_floor_names: set[str] = set()
+    counted_already: set[tuple[str, str]] = set()
+    source_change_retries: dict[tuple[str, str], int] = {}
+
+    def recover_from_source_inventory_change(
+        *,
+        failed_snapshot: SnapshotMeta,
+        subvolume_name: str,
+        refreshed_inventory: remote_index.SourceInventory,
+        refreshed_source_by_name: dict[str, SnapshotMeta],
+        required_changes: list[str],
+        inventory_changes: list[str],
+        operation: str,
+        original_error: Exception,
+    ) -> None:
+        """Recover one failed snapshot version and rebuild all source lists.
+
+        Recovery is deliberately snapshot-wide because configured subvolumes
+        such as ``@`` and ``@home`` must remain one Timeshift date version. The
+        helper also removes in-run success accounting for that version because
+        recovery deletes its cache, destination paths, and state entries before
+        the rebuilt oldest-to-newest queue is evaluated again.
+        """
+
+        nonlocal source_inventory
+        nonlocal source_by_name
+        nonlocal snapshot_root_btrfs_index
+        nonlocal source_cache_index
+        nonlocal snapshot_queue
+        nonlocal transferred
+        nonlocal already_synced
+
+        retry_key = (failed_snapshot.name, subvolume_name)
+        retry_number = source_change_retries.get(retry_key, 0) + 1
+        source_change_retries[retry_key] = retry_number
+
+        _human_blank()
+        print("SOURCE INVENTORY CHANGED DURING TRANSFER PREPARATION" if operation != "send/receive" else "SOURCE INVENTORY CHANGED DURING TRANSFER")
+        print(f"  failed item: {failed_snapshot.name}/{subvolume_name}")
+        print(f"  operation:   {operation}")
+        print(f"  retry:       {retry_number}/{config.source.source_change_retry_count}")
+        print("  required path change(s):")
+        for change in required_changes:
+            print(f"    - {change}")
+        if inventory_changes:
+            print("  complete inventory difference:")
+            for change in inventory_changes:
+                print(f"    - {change}")
+        print("  action:      clean the incomplete snapshot version, rebuild all source lists, and continue oldest-to-newest")
+        _human_rule("---")
+
+        if retry_number > config.source.source_change_retry_count:
+            raise SyncError(
+                "Source Timeshift/cache metadata kept changing while work was in progress and the automatic "
+                f"retry limit was exhausted for {failed_snapshot.name}/{subvolume_name}. "
+                f"Configured source.source_change_retry_count={config.source.source_change_retry_count}.\n\n"
+                + "\n".join(required_changes)
+            ) from original_error
+
+        source_inventory = refreshed_inventory
+        source_by_name = refreshed_source_by_name
+        snapshot_root_btrfs_index = source_inventory.snapshot_index
+        source_cache_index = source_inventory.cache_index
+        refreshed_snapshot = source_by_name.get(failed_snapshot.name)
+        source_still_exists = bool(
+            refreshed_snapshot
+            and all(
+                snapshot_root_btrfs_index.meta(
+                    _expected_original_source_path(config, failed_snapshot.name, required_name)
+                )
+                for required_name in config.source.subvolumes
+            )
+        )
+
+        removed_events = [event for event in sync_events if event.get("snapshot") == failed_snapshot.name]
+        removed_transfers = sum(1 for event in removed_events if event.get("status") == "synced")
+        if removed_events:
+            sync_events[:] = [event for event in sync_events if event.get("snapshot") != failed_snapshot.name]
+        if removed_transfers:
+            transferred = max(0, transferred - removed_transfers)
+            print(f"  accounting:  removed {removed_transfers} prior in-run success event(s) because recovery deletes the whole snapshot version")
+        counted_already.difference_update(
+            key for key in tuple(counted_already) if key[0] == failed_snapshot.name
+        )
+        already_synced = len(counted_already)
+
+        _recover_snapshot_version(
+            config,
+            source,
+            state,
+            failed_snapshot.name,
+            reason=f"required source path changed during {operation}: " + "; ".join(required_changes),
+            source_still_exists=source_still_exists,
+            dry_run=False,
+            source_cache_index=source_cache_index,
+            destination_index=destination_index,
+        )
+
+        # Recovery changed source.cache_root and destination.target_root. Rebuild
+        # the complete combined source inventory once more so parent comparison
+        # and the restarted queue never use pre-cleanup metadata.
+        source_inventory, source_by_name = load_source_inventory(
+            f"after recovery cleanup for {failed_snapshot.name}/{subvolume_name}"
+        )
+        snapshot_root_btrfs_index = source_inventory.snapshot_index
+        source_cache_index = source_inventory.cache_index
+        trusted_parent_send_paths.intersection_update(
+            path for path in tuple(trusted_parent_send_paths) if source_inventory.meta(path) is not None
+        )
+        snapshot_queue = build_snapshot_queue(require_requested_snapshot=False)
+        print(f"  rebuilt queue: {len(snapshot_queue)} snapshot(s) currently available")
+        print("  continuation:  restarting queue evaluation; surviving completed destination/state entries will be skipped")
+        _human_rule("---")
+
+    while snapshot_queue:
+        snapshot = snapshot_queue.pop(0)
         if sync_floor_name and snapshot.name <= sync_floor_name:
-            skipped_by_floor += 1
+            skipped_by_floor_names.add(snapshot.name)
             continue
 
         expected = list(config.source.subvolumes)
         if only_missing and snapshot_is_synced(state, snapshot.name, expected):
             if _snapshot_destination_paths_exist(config, snapshot.name, expected):
-                already_synced += len(expected)
+                for subvolume_name in expected:
+                    counted_already.add((snapshot.name, subvolume_name))
+                already_synced = len(counted_already)
                 continue
             print(f"Snapshot {snapshot.name}: state says synced, but at least one destination path is missing; recovering the whole date version before retry.")
             _human_blank()
@@ -2149,7 +2328,8 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             dest_path = _dest_subvolume_path(config, snapshot.name, subvol_name)
             already = state.get("snapshots", {}).get(snapshot.name, {}).get("subvolumes", {}).get(subvol_name)
             if already and already.get("status") == "ok" and dest_path.exists():
-                already_synced += 1
+                counted_already.add((snapshot.name, subvol_name))
+                already_synced = len(counted_already)
                 print(f"  {subvol_name}: already synced")
                 _human_blank()
                 continue
@@ -2181,6 +2361,7 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             if dry_run:
                 current_send_path = _preview_send_path(config, snapshot.name, subvolume)
             else:
+                inventory_before_prepare = source_inventory
                 try:
                     current_send_path = _ensure_source_send_path(
                         config,
@@ -2190,7 +2371,81 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
                         source_cache_index,
                         snapshot_root_btrfs_index,
                     )
-                except Exception as exc:
+                except Exception as prepare_exc:
+                    try:
+                        refreshed_inventory, refreshed_source_by_name = load_source_inventory(
+                            f"after failed send-path preparation {snapshot.name}/{subvol_name}"
+                        )
+                    except Exception as refresh_exc:
+                        raise SyncError(
+                            "Send-path preparation failed and the source inventory could not be rebuilt. "
+                            "The app cannot safely decide whether a Timeshift/cache path disappeared.\n\n"
+                            f"Preparation error: {prepare_exc}\n"
+                            f"Inventory refresh error: {refresh_exc}"
+                        ) from prepare_exc
+
+                    inventory_changes = remote_index.describe_source_inventory_changes(
+                        inventory_before_prepare,
+                        refreshed_inventory,
+                    )
+                    sibling_paths = tuple(
+                        (
+                            f"snapshot sibling {required_name}",
+                            _expected_original_source_path(config, snapshot.name, required_name),
+                        )
+                        for required_name in config.source.subvolumes
+                        if required_name != subvol_name
+                    )
+                    required_changes = _required_pipeline_source_changes(
+                        inventory_before_prepare,
+                        refreshed_inventory,
+                        current_path=subvolume.path,
+                        parent_path=parent_send_path,
+                        additional_paths=sibling_paths,
+                    )
+                    cache_candidate = _preview_send_path(config, snapshot.name, subvolume)
+                    if (
+                        cache_candidate != subvolume.path
+                        and inventory_before_prepare.meta(cache_candidate) is None
+                        and refreshed_inventory.meta(cache_candidate) is not None
+                    ):
+                        required_changes.append(
+                            f"send-cache target appeared concurrently: {cache_candidate}"
+                        )
+
+                    if required_changes:
+                        recover_from_source_inventory_change(
+                            failed_snapshot=snapshot,
+                            subvolume_name=subvol_name,
+                            refreshed_inventory=refreshed_inventory,
+                            refreshed_source_by_name=refreshed_source_by_name,
+                            required_changes=required_changes,
+                            inventory_changes=inventory_changes,
+                            operation="send-path/cache preparation",
+                            original_error=prepare_exc,
+                        )
+                        break
+
+                    if inventory_changes:
+                        _human_blank()
+                        print("SOURCE INVENTORY CHANGED, BUT NOT THE FAILED PREPARATION PATHS")
+                        for change in inventory_changes:
+                            print(f"  - {change}")
+                        print("  action: unrelated churn is not a source-change retry reason; preserving the existing one-time cache cleanup/retry policy")
+                        _human_rule("---")
+
+                    # Preserve the existing one-time cleanup/retry behavior for a
+                    # cache/probe failure when all required source identities are
+                    # unchanged. Use the newly rebuilt inventory rather than stale
+                    # per-path metadata, then let a second failure propagate.
+                    source_inventory = refreshed_inventory
+                    source_by_name = refreshed_source_by_name
+                    snapshot_root_btrfs_index = source_inventory.snapshot_index
+                    source_cache_index = source_inventory.cache_index
+                    refreshed_snapshot = source_by_name.get(snapshot.name)
+                    if refreshed_snapshot is None:
+                        raise prepare_exc
+                    snapshot = refreshed_snapshot
                     found, missing = _refresh_snapshot_source_subvolumes_live(
                         config,
                         source,
@@ -2198,31 +2453,25 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
                         snapshot_root_btrfs_index,
                     )
                     if missing:
-                        missing_text = ", ".join(f"{name}={path}" for name, path in missing)
-                        _recover_snapshot_version(
-                            config,
-                            source,
-                            state,
-                            snapshot.name,
-                            reason="source disappeared while creating send-cache: " + missing_text,
-                            source_still_exists=False,
-                            dry_run=dry_run,
-                            source_cache_index=source_cache_index,
-                            destination_index=destination_index,
-                        )
-                        break
+                        raise prepare_exc
                     snapshot.subvolumes = found
                     _recover_snapshot_version(
                         config,
                         source,
                         state,
                         snapshot.name,
-                        reason=f"send-cache creation/probe failed even though source still exists: {exc}",
+                        reason=f"send-cache creation/probe failed while source identities remained unchanged: {prepare_exc}",
                         source_still_exists=True,
-                        dry_run=dry_run,
+                        dry_run=False,
                         source_cache_index=source_cache_index,
                         destination_index=destination_index,
                     )
+                    source_inventory, source_by_name = load_source_inventory(
+                        f"after unchanged-source preparation recovery for {snapshot.name}/{subvol_name}"
+                    )
+                    snapshot_root_btrfs_index = source_inventory.snapshot_index
+                    source_cache_index = source_inventory.cache_index
+                    snapshot = source_by_name.get(snapshot.name) or snapshot
                     subvolume = snapshot.subvolumes[subvol_name]
                     current_send_path = _ensure_source_send_path(
                         config,
@@ -2303,17 +2552,63 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             # Optional mbuffer is inserted as the middle command. Password auth
             # environment is passed to the source side so streamed sends work
             # with sshpass in SSH mode. Local mode uses no extra environment.
-            stream_pipeline(
-                send_cmd,
-                receive_cmd,
-                middle_cmd=config.stream.command(),
-                verbose=True,
-                left_env=source.environment(),
-                # If stream.btrfs_verbose is enabled, let Btrfs operation
-                # output appear live in the terminal. mbuffer remains the real
-                # byte/throughput progress display.
-                passthrough_right_stdout=config.stream.btrfs_verbose,
-            )
+            inventory_before_send = source_inventory
+            try:
+                stream_pipeline(
+                    send_cmd,
+                    receive_cmd,
+                    middle_cmd=config.stream.command(),
+                    verbose=True,
+                    left_env=source.environment(),
+                    # If stream.btrfs_verbose is enabled, let Btrfs operation
+                    # output appear live in the terminal. mbuffer remains the real
+                    # byte/throughput progress display.
+                    passthrough_right_stdout=config.stream.btrfs_verbose,
+                )
+            except CommandError as pipeline_exc:
+                try:
+                    refreshed_inventory, refreshed_source_by_name = load_source_inventory(
+                        f"after failed transfer {snapshot.name}/{subvol_name}"
+                    )
+                except Exception as refresh_exc:
+                    raise SyncError(
+                        "The send/receive pipeline failed and the source inventory could not be rebuilt. "
+                        "The app cannot safely decide whether a Timeshift/cache parent disappeared.\n\n"
+                        f"Pipeline error: {pipeline_exc}\n"
+                        f"Inventory refresh error: {refresh_exc}"
+                    ) from pipeline_exc
+
+                inventory_changes = remote_index.describe_source_inventory_changes(
+                    inventory_before_send,
+                    refreshed_inventory,
+                )
+                required_changes = _required_pipeline_source_changes(
+                    inventory_before_send,
+                    refreshed_inventory,
+                    current_path=current_send_path,
+                    parent_path=parent_send_path,
+                )
+                if not required_changes:
+                    if inventory_changes:
+                        _human_blank()
+                        print("SOURCE INVENTORY CHANGED, BUT NOT THE FAILED PIPELINE PATHS")
+                        for change in inventory_changes:
+                            print(f"  - {change}")
+                        print("  action: preserving the original pipeline failure; unrelated snapshot churn is not treated as a retry reason")
+                        _human_rule("---")
+                    raise
+
+                recover_from_source_inventory_change(
+                    failed_snapshot=snapshot,
+                    subvolume_name=subvol_name,
+                    refreshed_inventory=refreshed_inventory,
+                    refreshed_source_by_name=refreshed_source_by_name,
+                    required_changes=required_changes,
+                    inventory_changes=inventory_changes,
+                    operation="send/receive",
+                    original_error=pipeline_exc,
+                )
+                break
             _human_rule("---")
 
             received_meta = None
@@ -2394,6 +2689,7 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             transferred += 1
 
     _human_rule("----")
+    skipped_by_floor = len(skipped_by_floor_names)
     if skipped_by_floor:
         print(f"Skipped {skipped_by_floor} source snapshot(s) at or below confirmed sync floor.")
     print("No missing subvolumes to sync." if transferred == 0 else f"Synced {transferred} subvolume(s).")

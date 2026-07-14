@@ -27,8 +27,8 @@ class ManualSnapshotConfig:
 
     # Source identity checking is not configurable. If the destination already
     # contains snapshots, manual snapshot creation requires a UUID-confirmed
-    # source/destination anchor. If the destination is empty, a first full seed
-    # is allowed.
+    # source/destination anchor. If the destination is empty when the operation
+    # starts, a first full seed is allowed.
 
     # Comment passed to `timeshift --create --comments`. The comment should
     # contain marker so later retention can recognize snapshots created by this
@@ -78,6 +78,11 @@ class SourceConfig:
     # true, a source send_path that was just successfully sent/received by this
     # process can be reused as the next parent without re-reading metadata.
     verify_incremental_parent_once_per_run: bool = True
+
+    # Number of automatic inventory rebuild/retry cycles allowed for one
+    # snapshot/subvolume when a required source or parent path disappears or
+    # changes identity during btrfs send. Zero disables automatic continuation.
+    source_change_retry_count: int = 5
 
     send_compressed_data: bool = False
     send_proto: int | None = None
@@ -259,6 +264,13 @@ def load_config(path: str | Path) -> AppConfig:
     name = str(raw.get("name") or "timeshift-btrfs-sync")
 
     source_raw = _table(raw, "source")
+    if "allow_incremental_without_parent_match" in source_raw:
+        raise ConfigError(
+            "source.allow_incremental_without_parent_match has been removed and is not accepted. "
+            "Delete this line from the config. Only a destination that is empty when sync starts may begin with a full send; "
+            "when destination snapshots already exist, at least one source snapshot UUID must "
+            "match a destination Received UUID or sync refuses to send."
+        )
     source_mode = _stripped(source_raw, "mode", "ssh").lower()
     if source_mode not in {"ssh", "local"}:
         raise ConfigError("source.mode must be either 'ssh' or 'local'")
@@ -326,6 +338,7 @@ def load_config(path: str | Path) -> AppConfig:
         cleanup_superseded_cache=_bool(source_raw, "source", "cleanup_superseded_cache", True),
         verify_subvolumes_at_discovery=_bool(source_raw, "source", "verify_subvolumes_at_discovery", False),
         verify_incremental_parent_once_per_run=_bool(source_raw, "source", "verify_incremental_parent_once_per_run", True),
+        source_change_retry_count=int(_int(source_raw, "source", "source_change_retry_count", 5)),
         send_compressed_data=_bool(source_raw, "source", "send_compressed_data", False),
         send_proto=_int(source_raw, "source", "send_proto", None),
     )

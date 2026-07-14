@@ -12,10 +12,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 import os
+import re
 import shlex
 
 from . import btrfs
-from .commands import run_local, sudo_prefix
+from .commands import quote_join, run_local, sudo_prefix
 from .models import SubvolumeMeta
 from .ssh import SSHRunner
 from .source import SourceRunner
@@ -93,6 +94,41 @@ class BtrfsIndex:
         for candidate in list(self.by_path):
             if is_under(candidate, root):
                 self.discard(candidate)
+
+
+@dataclass(slots=True)
+class SourceInventory:
+    """One coherent source-side Timeshift/Btrfs inventory.
+
+    In SSH mode the Timeshift list, snapshot-root Btrfs index, and cache-root
+    Btrfs index are captured inside one SSH session. Keeping those three views
+    together is important when short-lived snapshots are created or deleted:
+    parent selection compares metadata that was observed in the same inventory
+    generation instead of mixing results from several separately timed SSH
+    commands.
+    """
+
+    timeshift_output: str
+    snapshot_index: BtrfsIndex
+    cache_index: BtrfsIndex | None
+
+    @property
+    def snapshot_names(self) -> tuple[str, ...]:
+        """Return Timeshift timestamp names in sorted order."""
+
+        pattern = re.compile(r"\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}")
+        return tuple(sorted(set(pattern.findall(self.timeshift_output))))
+
+    def meta(self, path: str | Path | None) -> SubvolumeMeta | None:
+        """Return source metadata from cache first, then snapshot-root index."""
+
+        if not path:
+            return None
+        if self.cache_index is not None:
+            meta = self.cache_index.meta(path)
+            if meta is not None:
+                return meta
+        return self.snapshot_index.meta(path)
 
 
 def normalize_path(path: str | Path) -> str:
@@ -373,9 +409,35 @@ def build_remote_btrfs_index(
     root = normalize_path(root_path)
     script = _remote_bulk_index_script(root, sudo, btrfs_command)
     result = ssh.run("sh -c " + shlex.quote(script), check=False, log_stderr=False, mirror_stderr=False)
+    return _parse_remote_btrfs_index_result(
+        result.returncode,
+        result.stdout,
+        result.stderr,
+        root=root,
+        include_root=include_root,
+        required=required,
+    )
+
+
+def _parse_remote_btrfs_index_result(
+    returncode: int,
+    stdout: str,
+    stderr: str,
+    *,
+    root: str,
+    include_root: bool,
+    required: bool,
+) -> BtrfsIndex:
+    """Parse one remote bulk-index section into a :class:`BtrfsIndex`.
+
+    The standalone one-root index and the combined source inventory use this
+    same parser so UUID, parent UUID, received UUID, and read-only handling stay
+    identical.
+    """
+
     index = BtrfsIndex(root=root, location="remote")
-    if result.returncode != 0:
-        text = result.stderr.strip() or result.stdout.strip() or f"return code {result.returncode}"
+    if returncode != 0:
+        text = stderr.strip() or stdout.strip() or f"return code {returncode}"
         if "No such file or directory" in text or "can't access" in text or "cannot access" in text:
             index.root_missing = True
         if required:
@@ -404,7 +466,7 @@ def build_remote_btrfs_index(
         current_readonly_root = None
         current_readonly_lines = []
 
-    for line in result.stdout.splitlines():
+    for line in stdout.splitlines():
         if line == "TSBTRFS_ROOT_SHOW_BEGIN":
             flush_list()
             flush_readonly()
@@ -456,6 +518,216 @@ def build_remote_btrfs_index(
             index.add(root_meta)
     return index
 
+
+def _remote_source_inventory_script(
+    snapshot_root: str,
+    cache_root: str | None,
+    *,
+    sudo: str,
+    btrfs_command: str,
+    timeshift_command: str,
+) -> str:
+    """Return one remote script for Timeshift plus both source Btrfs roots.
+
+    Several source commands run inside the script, but SSH mode opens only one
+    SSH session for the complete inventory generation.
+    """
+
+    timeshift_command_text = quote_join(sudo_prefix(sudo) + [timeshift_command, "--list"])
+    snapshot_script = _remote_bulk_index_script(normalize_path(snapshot_root), sudo, btrfs_command)
+    cache_block = ""
+    if cache_root:
+        cache_script = _remote_bulk_index_script(normalize_path(cache_root), sudo, btrfs_command)
+        cache_block = (
+            "\nprintf 'TSBTRFS_INDEX_SECTION_BEGIN\\tcache\\n'\n"
+            + cache_script
+            + "\nprintf 'TSBTRFS_INDEX_SECTION_END\\tcache\\n'\n"
+        )
+    return (
+        "printf 'TSBTRFS_TIMESHIFT_BEGIN\\n'\n"
+        f"timeshift_output=$({timeshift_command_text} 2>&1)\n"
+        "timeshift_status=$?\n"
+        "printf 'TSBTRFS_TIMESHIFT_STATUS\\t%s\\n' \"$timeshift_status\"\n"
+        "printf '%s\\n' \"$timeshift_output\"\n"
+        "printf 'TSBTRFS_TIMESHIFT_END\\n'\n\n"
+        "printf 'TSBTRFS_INDEX_SECTION_BEGIN\\tsnapshot\\n'\n"
+        + snapshot_script
+        + "\nprintf 'TSBTRFS_INDEX_SECTION_END\\tsnapshot\\n'\n"
+        + cache_block
+        + "exit 0"
+    )
+
+
+def _split_remote_source_inventory_output(output: str) -> tuple[str, int | None, dict[str, str]]:
+    """Split combined inventory output into Timeshift and named Btrfs sections."""
+
+    timeshift_lines: list[str] = []
+    timeshift_status: int | None = None
+    in_timeshift = False
+    current_section: str | None = None
+    section_lines: dict[str, list[str]] = {}
+
+    for line in output.splitlines():
+        if line == "TSBTRFS_TIMESHIFT_BEGIN":
+            in_timeshift = True
+            continue
+        if line.startswith("TSBTRFS_TIMESHIFT_STATUS\t"):
+            try:
+                timeshift_status = int(line.split("\t", 1)[1])
+            except ValueError:
+                timeshift_status = None
+            continue
+        if line == "TSBTRFS_TIMESHIFT_END":
+            in_timeshift = False
+            continue
+        if line.startswith("TSBTRFS_INDEX_SECTION_BEGIN\t"):
+            current_section = line.split("\t", 1)[1]
+            section_lines.setdefault(current_section, [])
+            continue
+        if line.startswith("TSBTRFS_INDEX_SECTION_END\t"):
+            current_section = None
+            continue
+        if in_timeshift:
+            timeshift_lines.append(line)
+        elif current_section is not None:
+            section_lines[current_section].append(line)
+
+    return "\n".join(timeshift_lines), timeshift_status, {
+        name: "\n".join(lines) for name, lines in section_lines.items()
+    }
+
+
+def build_source_inventory(
+    source: SourceRunner,
+    *,
+    snapshot_root: str,
+    cache_root: str | None,
+    sudo: str,
+    btrfs_command: str,
+    timeshift_command: str,
+    required: bool = True,
+) -> SourceInventory:
+    """Build one coherent Timeshift/snapshot/cache source inventory.
+
+    SSH mode uses one SSH command for all three views. Local mode uses the same
+    parsers without caring about local process count because there is no SSH
+    authentication or network round trip.
+    """
+
+    snapshot_root_normalized = normalize_path(snapshot_root)
+    cache_root_normalized = normalize_path(cache_root) if cache_root else None
+
+    if not source.uses_ssh:
+        timeshift_result = source.run(
+            quote_join(sudo_prefix(sudo) + [timeshift_command, "--list"]),
+            check=required,
+            log_stderr=required,
+            mirror_stderr=required,
+            mirror_stdout_on_failure=True,
+        )
+        snapshot_index = build_local_btrfs_index(
+            snapshot_root_normalized,
+            sudo=sudo,
+            btrfs_command=btrfs_command,
+            include_root=False,
+            required=required,
+        )
+        cache_index = (
+            build_local_btrfs_index(
+                cache_root_normalized,
+                sudo=sudo,
+                btrfs_command=btrfs_command,
+                include_root=True,
+                required=required,
+            )
+            if cache_root_normalized
+            else None
+        )
+        return SourceInventory(timeshift_result.stdout, snapshot_index, cache_index)
+
+    script = _remote_source_inventory_script(
+        snapshot_root_normalized,
+        cache_root_normalized,
+        sudo=sudo,
+        btrfs_command=btrfs_command,
+        timeshift_command=timeshift_command,
+    )
+    result = source.run(
+        "sh -c " + shlex.quote(script),
+        check=False,
+        log_stderr=False,
+        mirror_stderr=False,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or f"return code {result.returncode}"
+        raise RuntimeError(f"Source inventory SSH command failed: {detail}")
+
+    timeshift_output, timeshift_status, sections = _split_remote_source_inventory_output(result.stdout)
+    if timeshift_status != 0 and required:
+        detail = timeshift_output.strip() or f"return code {timeshift_status}"
+        raise RuntimeError(f"Source Timeshift --list failed while building inventory: {detail}")
+
+    snapshot_output = sections.get("snapshot", "")
+    snapshot_index = _parse_remote_btrfs_index_result(
+        0 if snapshot_output else 1,
+        snapshot_output,
+        "missing snapshot inventory section" if not snapshot_output else "",
+        root=snapshot_root_normalized,
+        include_root=False,
+        required=required,
+    )
+    cache_index = None
+    if cache_root_normalized:
+        cache_output = sections.get("cache", "")
+        cache_index = _parse_remote_btrfs_index_result(
+            0 if cache_output else 1,
+            cache_output,
+            "missing cache inventory section" if not cache_output else "",
+            root=cache_root_normalized,
+            include_root=True,
+            required=required,
+        )
+    return SourceInventory(timeshift_output, snapshot_index, cache_index)
+
+
+def describe_source_inventory_changes(before: SourceInventory, after: SourceInventory) -> list[str]:
+    """Return concise human-readable differences between two inventories."""
+
+    changes: list[str] = []
+    before_names = set(before.snapshot_names)
+    after_names = set(after.snapshot_names)
+    added_names = sorted(after_names - before_names)
+    removed_names = sorted(before_names - after_names)
+    if added_names:
+        changes.append("Timeshift snapshot(s) added: " + ", ".join(added_names))
+    if removed_names:
+        changes.append("Timeshift snapshot(s) removed: " + ", ".join(removed_names))
+
+    def compare_index(label: str, old: BtrfsIndex | None, new: BtrfsIndex | None) -> None:
+        old_paths = set(old.by_path) if old is not None else set()
+        new_paths = set(new.by_path) if new is not None else set()
+        added = sorted(new_paths - old_paths)
+        removed = sorted(old_paths - new_paths)
+        if added:
+            changes.append(f"{label} subvolume path(s) added: " + ", ".join(added))
+        if removed:
+            changes.append(f"{label} subvolume path(s) removed: " + ", ".join(removed))
+        for path in sorted(old_paths & new_paths):
+            old_meta = old.by_path[path]
+            new_meta = new.by_path[path]
+            old_identity = (old_meta.uuid, old_meta.parent_uuid, old_meta.received_uuid, old_meta.readonly)
+            new_identity = (new_meta.uuid, new_meta.parent_uuid, new_meta.received_uuid, new_meta.readonly)
+            if old_identity != new_identity:
+                changes.append(
+                    f"{label} metadata changed: {path} "
+                    f"{old_identity!r} -> {new_identity!r}"
+                )
+        if old is not None and new is not None and old.root_missing != new.root_missing:
+            changes.append(f"{label} root_missing changed: {old.root_missing} -> {new.root_missing}")
+
+    compare_index("snapshot_root", before.snapshot_index, after.snapshot_index)
+    compare_index("cache_root", before.cache_index, after.cache_index)
+    return changes
 
 def refresh_source_path(
     index: BtrfsIndex | None,

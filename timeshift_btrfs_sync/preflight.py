@@ -292,21 +292,79 @@ rm -f "$err_file"
 """.strip()
 
 
-def _source_path_checks(config: AppConfig, source: SourceRunner, *, dry_run: bool) -> list[PathCheck]:
-    """Check/create source.snapshot_root and source.cache_root policy."""
+def _combined_source_path_check_script(
+    snapshot_script: str,
+    cache_script: str | None,
+    cache_root: str | None,
+) -> str:
+    """Run both source-root preflight checks inside one source command.
 
-    parsed: list[PathCheck] = []
+    The cache script executes only when the snapshot-root script emitted its
+    explicit OK marker. This preserves the rule that app-owned cache storage
+    must not be created or modified until the Timeshift-owned root is proven
+    safe, while SSH mode still opens only one connection for both checks.
+    """
+
+    snapshot_q = shlex.quote(snapshot_script)
+    if cache_script is None:
+        return f"sh -c {snapshot_q}"
+
+    cache_q = shlex.quote(cache_script)
+    cache_root_q = shlex.quote(cache_root or "")
+    return f"""
+snapshot_output=$(sh -c {snapshot_q} 2>&1)
+snapshot_status=$?
+printf '%s\n' "$snapshot_output"
+if [ "$snapshot_status" -eq 0 ] && printf '%s\n' "$snapshot_output" | grep -F 'TSBTRFS_PATH_OK	source.snapshot_root	' >/dev/null 2>&1; then
+    sh -c {cache_q}
+else
+    printf 'TSBTRFS_PATH_OK\t%s\t%s\t%s\n' 'source.cache_root' {cache_root_q} 'skipped because source.snapshot_root failed preflight; cache storage was not created or modified'
+fi
+exit 0
+""".strip()
+
+
+def _source_path_checks(config: AppConfig, source: SourceRunner, *, dry_run: bool) -> list[PathCheck]:
+    """Check/create both source roots with at most one SSH command."""
+
     snapshot_script = _source_snapshot_root_script(
         config.source.snapshot_root,
         sudo=config.source.sudo,
         btrfs_command=config.source.btrfs_command,
         dry_run=dry_run,
     )
-    snapshot_result = source.run("sh -c " + shlex.quote(snapshot_script), check=False, log_stderr=False, mirror_stderr=False)
-    snapshot_parsed = _parse_path_check_output(snapshot_result.stdout, location=source.location)
-    if snapshot_result.returncode != 0 or not any(item.label == "source.snapshot_root" for item in snapshot_parsed):
-        detail = (snapshot_result.stderr.strip() or snapshot_result.stdout.strip() or f"return code {snapshot_result.returncode}").strip()
-        snapshot_parsed.append(
+
+    cache_path_invalid = bool(
+        config.source.cache_root
+        and _source_path_is_same_or_under(config.source.cache_root, config.source.snapshot_root)
+    )
+    cache_script = None
+    if config.source.cache_root and not cache_path_invalid:
+        cache_script = _cache_root_check_script(
+            config.source.cache_root,
+            sudo=config.source.sudo,
+            btrfs_command=config.source.btrfs_command,
+            create_readonly_cache=config.source.create_readonly_cache,
+            dry_run=dry_run,
+        )
+
+    combined_script = _combined_source_path_check_script(
+        snapshot_script,
+        cache_script,
+        config.source.cache_root,
+    )
+    result = source.run(
+        "sh -c " + shlex.quote(combined_script),
+        check=False,
+        log_stderr=False,
+        mirror_stderr=False,
+    )
+    parsed = _parse_path_check_output(result.stdout, location=source.location)
+
+    snapshot_present = any(item.label == "source.snapshot_root" for item in parsed)
+    if result.returncode != 0 or not snapshot_present:
+        detail = (result.stderr.strip() or result.stdout.strip() or f"return code {result.returncode}").strip()
+        parsed.append(
             PathCheck(
                 label="source.snapshot_root",
                 path=config.source.snapshot_root,
@@ -315,64 +373,33 @@ def _source_path_checks(config: AppConfig, source: SourceRunner, *, dry_run: boo
                 detail=detail,
             )
         )
-    parsed.extend(snapshot_parsed)
 
-    snapshot_ok = any(item.label == "source.snapshot_root" and item.ok for item in snapshot_parsed)
-    if not snapshot_ok:
+    if cache_path_invalid and config.source.cache_root:
         parsed.append(
             PathCheck(
                 label="source.cache_root",
-                path=config.source.cache_root or "",
+                path=config.source.cache_root,
                 location=source.location,
-                ok=True,
+                ok=False,
                 detail=(
-                    "skipped because source.snapshot_root failed preflight; "
-                    "the app must not create or modify source cache storage until the Timeshift-owned "
-                    "snapshot root has been verified on the source endpoint"
+                    "source.cache_root must be outside source.snapshot_root. "
+                    "source.snapshot_root is Timeshift-owned and may be an ordinary directory, "
+                    "but source.cache_root is app-owned send-cache storage. "
+                    "Use a separate path such as <timeshift-root>/.ts-btrfs-sync/send-cache."
                 ),
             )
-        ) if config.source.cache_root else None
-        return parsed
-
-    if config.source.cache_root:
-        if _source_path_is_same_or_under(config.source.cache_root, config.source.snapshot_root):
-            parsed.append(
-                PathCheck(
-                    label="source.cache_root",
-                    path=config.source.cache_root,
-                    location=source.location,
-                    ok=False,
-                    detail=(
-                        "source.cache_root must be outside source.snapshot_root. "
-                        "source.snapshot_root is Timeshift-owned and may be an ordinary directory, "
-                        "but source.cache_root is app-owned send-cache storage. "
-                        "Use a separate path such as <timeshift-root>/.ts-btrfs-sync/send-cache."
-                    ),
-                )
-            )
-            return parsed
-
-        cache_script = _cache_root_check_script(
-            config.source.cache_root,
-            sudo=config.source.sudo,
-            btrfs_command=config.source.btrfs_command,
-            create_readonly_cache=config.source.create_readonly_cache,
-            dry_run=dry_run,
         )
-        cache_result = source.run("sh -c " + shlex.quote(cache_script), check=False, log_stderr=False, mirror_stderr=False)
-        cache_parsed = _parse_path_check_output(cache_result.stdout, location=source.location)
-        if cache_result.returncode != 0 or not any(item.label == "source.cache_root" for item in cache_parsed):
-            detail = (cache_result.stderr.strip() or cache_result.stdout.strip() or f"return code {cache_result.returncode}").strip()
-            cache_parsed.append(
-                PathCheck(
-                    label="source.cache_root",
-                    path=config.source.cache_root,
-                    location=source.location,
-                    ok=False,
-                    detail=detail,
-                )
+    elif config.source.cache_root and not any(item.label == "source.cache_root" for item in parsed):
+        detail = (result.stderr.strip() or result.stdout.strip() or f"return code {result.returncode}").strip()
+        parsed.append(
+            PathCheck(
+                label="source.cache_root",
+                path=config.source.cache_root,
+                location=source.location,
+                ok=False,
+                detail=detail,
             )
-        parsed.extend(cache_parsed)
+        )
     return parsed
 
 
