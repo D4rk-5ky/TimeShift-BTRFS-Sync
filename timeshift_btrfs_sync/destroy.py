@@ -501,7 +501,12 @@ def _load_payload_state(config: AppConfig) -> dict | None:
     """
 
     try:
-        return state_mod.load_state(config.state_file, config.destination.target_root)
+        return state_mod.load_state(
+            config.state_file,
+            config.destination.target_root,
+            snapshot_root=config.source.snapshot_root,
+            cache_root=config.source.cache_root,
+        )
     except Exception:
         return None
 

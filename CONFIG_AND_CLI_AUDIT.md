@@ -1,5 +1,7 @@
 ## Current audit note
 
+- State schema version 2 stores `source_path` relative to `source.snapshot_root`, cache/direct `send_path` relative to the root selected by `send_path_kind`, `parent_source_path` relative to the root selected by `parent_source_path_kind`, and `destination_path` relative to `destination.target_root`.
+- Older absolute state paths are migrated in memory only when their exact `<snapshot>/<subvolume>` suffix matches the state identity. Parent selection and prune resolve paths under the current config roots and still require Btrfs UUID proof.
 - Every managed destination `snapshots/<date>` entry is now required to be a Btrfs subvolume. New dates are created with `btrfs subvolume create`; prune/recovery delete `@` and optional `@home` first, then delete the date subvolume so its regular `info.json` disappears with the container.
 - Legacy ordinary destination date folders are unsupported and refused. `destroy-leftovers` also refuses ordinary non-empty source-cache or destination roots; recursive ordinary deletion is not available for backup/cache trees.
 - Automatic manual/on-demand snapshot creation is gated by preflight, optional state recovery, source identity checks, and a sync-viability check.

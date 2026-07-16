@@ -1,3 +1,16 @@
+## 0.1.44
+
+- Upgraded persistent state to schema version 2 and made source-side paths relocatable.
+- `source_path` is now stored as `<snapshot>/<subvolume>` relative to `source.snapshot_root`.
+- `send_path` is now stored as `<snapshot>/<subvolume>` relative to the root selected by `send_path_kind`: app-owned cache paths resolve below `source.cache_root`, while direct read-only Timeshift paths resolve below `source.snapshot_root`.
+- `parent_source_path` is now root-relative and records `parent_source_path_kind` so incremental parent paths remain unambiguous after source-root relocation.
+- Kept `destination_path` relative to `destination.target_root` as before.
+- Added in-memory migration for older absolute source/cache/parent/destination state paths. Migration requires the exact state snapshot/subvolume suffix, refuses path escapes or mismatched identities, and writes the relative format on the next state save.
+- Updated parent selection, sync-floor confirmation, prune cache cleanup, protected Timeshift reporting, state recovery, show-state, and destroy-leftovers reporting to resolve state paths through the current configured roots before UUID checks or deletion decisions.
+- Preserved the UUID safety model: moving/remounting a root does not bypass `Received UUID`/source UUID validation, and recreated cache snapshots with new UUIDs remain invalid as old incremental parents.
+- Added regression coverage for cache/direct path storage, old-state migration after all roots move, parent resolution, prune resolution, and rejection of mismatched relative paths.
+- Updated README.md, INSTALL.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
 ## 0.1.43
 
 - Made the managed destination snapshot-date layout strictly Btrfs-only. Every newly created `<destination.target_root>/snapshots/<date>` container is now a Btrfs subvolume containing the received `@` and optional `@home` child subvolumes plus the regular Timeshift `info.json` control file.

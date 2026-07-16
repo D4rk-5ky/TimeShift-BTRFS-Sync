@@ -325,6 +325,7 @@ This file describes the current command handlers, shell command families, functi
   incremental sends, wrapped through SSH or local source mode.
 - `remote_ensure_cache_parent()`, `remote_ensure_readonly_send_path()`,
   `remote_delete_subvolume()`, and `remote_send_cmd()`: SSH compatibility wrappers.
+- `reject_protected_source_snapshot_path()`: refuses any source-side deletion aimed at `source.snapshot_root` or a descendant before a Btrfs delete command is built.
 - `path_is_same_or_under()`: normalized destructive-safety comparison used to identify the protected Timeshift root itself and every descendant.
 - `path_is_under_cache()`: tells cleanup whether a path belongs to cache root.
 - `local_receive_cmd()`: builds `btrfs receive` argv for the destination folder.
@@ -349,32 +350,36 @@ This file describes the current command handlers, shell command families, functi
 
 ### `state.py`
 
-- `empty_state()`: creates a new state object.
-- `_safe_relative_path()`: rejects paths that would escape the target root.
-- `destination_path_to_relative()`: stores destination paths relative to
-  `destination.target_root` so the whole backup root can be moved safely.
-- `resolve_destination_path()`: resolves relative state paths under current
-  target root.
-- `normalize_destination_paths()`: normalizes absolute destination paths into
-  safe relative paths on load.
-- `load_state()`: reads JSON state or creates empty state, then normalizes paths.
-- `save_state()`: atomically writes pretty JSON state.
-- `refresh_snapshot_metadata_from_source()`: updates only mutable Timeshift
-  metadata: `tags`, `comment`, `created`, and `path`. It must not touch UUID,
-  send path, destination path, parent, or status fields.
-- `snapshot_is_synced()`: returns whether all expected subvolumes are marked ok.
-- `mark_subvolume_synced()`: records successful receive metadata after a transfer,
-  including whether the exact `send_path` is app-owned source cache or a
-  protected read-only Timeshift original.
-- `send_path_kind_for_state_subvolume()`: returns the stored/fallback ownership kind.
-- `state_send_path_is_app_cache()`: true only for app-owned send-cache paths that prune may delete.
-- `state_send_path_is_protected_timeshift_original()`: true for direct read-only Timeshift original send paths that prune must never delete.
-- `reject_protected_source_snapshot_path()`: final source-delete safety guard; refuses any source-side delete, prune, destroy, or cleanup attempt aimed at `source.snapshot_root` or anything below it.
-- `remove_snapshot_from_state()`: removes a snapshot after successful pruning.
-- `refresh_state_metadata_and_report()`: shared sync/prune helper that refreshes
-  mutable metadata, reports changed snapshot names, and saves only when allowed.
-- `latest_synced_before()`: finds the newest older synced parent candidate,
-  including saved send-cache parents when the original Timeshift snapshot was pruned.
+- `empty_state()`: creates a new state schema-version-2 document.
+- `_safe_relative_path()`: rejects destination-relative paths that are absolute, empty, or escape `destination.target_root`.
+- `_safe_source_relative_path()`: validates remote/local POSIX source-relative paths and rejects absolute, empty, or parent-escaping values.
+- `_normalize_source_root()`: normalizes configured source roots with POSIX semantics so SSH paths are not interpreted through destination-host path rules.
+- `_source_path_relative_to_root()`: converts a current absolute source path to a relative candidate only when it is below the configured root.
+- `_expected_snapshot_relative_path()`: builds the canonical `<snapshot-name>/<subvolume>` source-state suffix.
+- `_absolute_source_path_ends_with()`: validates whether an older absolute state path ends in the exact expected snapshot/subvolume identity before relocation migration.
+- `source_path_to_relative()`: stores source/cache paths as canonical root-relative strings and migrates valid older absolute paths even after the configured root moved.
+- `resolve_source_path()`: resolves one stored source-relative suffix under the current configured source root.
+- `destination_path_to_relative()`: stores destination paths relative to `destination.target_root`, including safe migration of older absolute destination paths.
+- `resolve_destination_path()`: resolves one stored destination path under the current target root.
+- `send_path_kind_for_state_subvolume()`: determines whether `send_path` belongs to app-owned source cache or protected Timeshift storage, preferring explicit schema fields and conservative legacy fallbacks.
+- `_source_root_for_kind()`: maps `source-cache` to `source.cache_root` and `timeshift-original-readonly` to `source.snapshot_root`.
+- `resolve_state_source_path()`: resolves state `source_path` under the current `source.snapshot_root`.
+- `resolve_state_send_path()`: resolves state `send_path` under the current root selected by `send_path_kind`.
+- `resolve_state_parent_source_path()`: resolves state `parent_source_path` under the current root selected by `parent_source_path_kind`.
+- `normalize_destination_paths()`: converts loaded destination paths to target-root-relative form in memory.
+- `normalize_source_paths()`: converts loaded `source_path`, `send_path`, and `parent_source_path` fields to root-relative form, adds missing ownership-kind fields where safely inferable, and preserves invalid values for precise later errors.
+- `normalize_state_paths()`: applies destination/source migration together and upgrades the in-memory state schema version.
+- `load_state()`: reads JSON state or creates empty state, then resolves/migrates paths against the complete current config roots.
+- `save_state()`: atomically writes pretty JSON state and records the current state schema version.
+- `refresh_snapshot_metadata_from_source()`: updates only mutable Timeshift metadata: `tags`, `comment`, `created`, and destination-relative snapshot `path`.
+- `snapshot_is_synced()`: returns whether all expected subvolumes are marked `ok`.
+- `_kind_for_absolute_source_path()`: classifies a live absolute source path against the configured snapshot/cache roots before it is stored.
+- `mark_subvolume_synced()`: records successful receive metadata with source, cache, parent, and destination paths stored relative to their owning roots while retaining UUID identity fields.
+- `state_send_path_is_app_cache()`: returns true only for app-owned cache paths that prune may delete.
+- `state_send_path_is_protected_timeshift_original()`: returns true for Timeshift-owned direct-send paths that prune must never delete.
+- `remove_snapshot_from_state()`: removes a snapshot after coordinated destination/cache pruning succeeds.
+- `refresh_state_metadata_and_report()`: refreshes mutable metadata, reports changes, and writes state only outside dry-run.
+- `latest_synced_before()`: finds the newest older synced parent candidate, including relative saved cache parents when Timeshift already pruned the original.
 
 ### `sync.py`
 
@@ -432,7 +437,7 @@ This file describes the current command handlers, shell command families, functi
 - `_recover_stale_state_snapshots_missing_from_source()`: start-of-run cleanup for stale incomplete state entries whose Timeshift source snapshot is no longer listed.
 - `_read_local_destination_parent_metadata()`: reads metadata for a candidate destination parent.
 - `_match_source_path_to_destination_received_uuid()`: compares source path UUID to destination `received_uuid`; this is the core incremental identity rule.
-- `_select_verified_parent_send_path()`: chooses a safe source parent for incremental send. It first tries an indexed source-cache subvolume whose UUID matches the destination parent's `Received UUID`, then the saved `send_path`, then indexed cache paths for UUIDs stored in state, and finally the original Timeshift path. It never recreates a missing parent cache snapshot because recreated cache snapshots get new UUIDs.
+- `_select_verified_parent_send_path()`: chooses a safe source parent for incremental send. It first tries an indexed source-cache UUID match, then resolves the saved root-relative `send_path` under the current configured root, then tries indexed UUID candidates and the original Timeshift path. It never recreates a missing parent cache snapshot because recreated cache snapshots get new UUIDs.
 - `_select_verified_parent_send_path.add_candidate()`: nested deduplication helper that records each possible parent path only once while preserving safest-first order.
 - `_state_uuid_values_for_path()`: returns trusted UUID values remembered for a state path.
 - `_state_uuid_values_for_path.add_key()`: nested state-reader helper that adds one non-empty UUID field to the allowed identity set.
@@ -465,8 +470,8 @@ This file describes the current command handlers, shell command families, functi
 - `_is_app_created_ondemand()`: distinguishes app-created on-demand snapshots from normal user-created Timeshift on-demand snapshots.
 - `_delete_reason_for_snapshot()`: explains the first applicable delete reason.
 - `_delete_reasons()`: returns all human-readable delete reasons.
-- `_source_cache_delete_paths()`: returns cached `send_path` entries for a snapshot selected by retention. It only returns app-owned paths under `source.cache_root`.
-- `_protected_timeshift_send_paths()`: returns direct Timeshift original send paths so prune plans/execution can show that they are protected.
+- `_source_cache_delete_paths()`: resolves root-relative cached `send_path` entries under the current `source.cache_root` and returns only app-owned, root-contained prune candidates.
+- `_protected_timeshift_send_paths()`: resolves root-relative direct Timeshift send paths under the current `source.snapshot_root` so prune can report them as protected.
 - `_destination_delete_paths()`: returns tracked destination subvolume paths for the same prune item.
 - `_source_cache_child_subvolume_paths()`: re-reads live Btrfs child subvolumes below one app-owned timestamp cache parent and converts listed paths back to safe absolute paths under `source.cache_root`.
 - `_delete_live_source_cache_children()`: deletes any remaining live child subvolumes below one cache parent deepest-first before the parent is deleted, even when the run-start cache index or state thought `@`/`@home` were already gone.
@@ -546,6 +551,7 @@ This file describes the current command handlers, shell command families, functi
 - `add_config_arg()`: adds common `--config/-c`.
 - `add_run_mode_args()`: adds paired `--dry-run` and `--run` flags.
 - `add_yes_delete_arg()`: adds explicit deletion confirmation flag.
+- `_load_config_state()`: loads state with destination, Timeshift snapshot, and source-cache roots so all relative paths resolve against the current config before a command uses them.
 - `_failure_exit_code()`: maps known exceptions to stable process exit codes.
 - `_stderr_tail_for_exception()`: chooses useful stderr tail text for failure notifications.
 - `_send_notifications()`: sends MQTT/email status after logged commands.
@@ -605,7 +611,7 @@ This file describes the current command handlers, shell command families, functi
 - `_print_target()`: prints one configured cleanup root before any deletion.
 - `_print_result()`: prints one target result with subvolume count and errors.
 - `_result_by_label()`: finds the source or destination destroy result used for normalized payload reporting.
-- `_load_payload_state()`: loads state.json only for reporting protected direct-send payloads; destroy-leftovers still ignores state for delete decisions.
+- `_load_payload_state()`: loads and root-normalizes state.json only for reporting protected direct-send payloads; destroy-leftovers still ignores state for delete decisions.
 - `_print_payload_match_if_available()`: prints the normalized source/destination payload match block when both source cache and destination target were selected.
 - `destroy_leftovers()`: main retirement cleanup entry point. It ignores retention/state by design, prints progress before each source/destination target, and attempts source/destination targets independently so one failing side does not prevent the other side from being cleaned.
 
@@ -664,3 +670,24 @@ This file describes the current command handlers, shell command families, functi
 - `load_source_inventory()`: nested `sync_once()` helper that builds one combined source inventory, prints why the generation was needed, and returns the parsed Timeshift snapshot mapping.
 - `build_snapshot_queue()`: nested `sync_once()` helper that rebuilds the current oldest-to-newest queue from the latest source inventory while preserving explicit snapshot selection, fresh-destination retention selection, and existing-destination ordering rules.
 - `recover_from_source_inventory_change()`: nested `sync_once()` helper used after proven source identity changes during preparation or send/receive. It enforces the per-item retry limit, reports inventory differences, removes obsolete in-run accounting, cleans the incomplete whole snapshot date from app-owned cache/destination/state, rebuilds the combined inventory and queue, and continues without weakening UUID parent safety.
+
+## Packaging and executable build helpers
+
+### `scripts/build_pyinstaller.py`
+
+- `build_args()`: constructs the complete PyInstaller argument list for one
+  `onedir` or `onefile` build, including the project import path, packaged
+  `config.example.toml`, optional MQTT hidden import, clean-build switch, and
+  caller-supplied extra PyInstaller arguments. Centralizing this list keeps both
+  build modes consistent.
+- `run_pyinstaller()`: imports and invokes PyInstaller, and produces an explicit
+  installation command when the optional build dependency is unavailable.
+- `main()`: parses the build-helper CLI, expands `both` into `onedir` and
+  `onefile` runs, prints each selected build mode, and invokes
+  `run_pyinstaller()` with the arguments returned by `build_args()`.
+
+### `tools/pyinstaller_entry.py`
+
+- `main()`: imported from `timeshift_btrfs_sync.cli`; the entry script calls the
+  real application CLI and exits with its return code so PyInstaller packages
+  the normal command behavior without a second implementation.

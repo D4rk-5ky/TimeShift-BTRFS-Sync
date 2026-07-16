@@ -46,6 +46,17 @@ def add_yes_delete_arg(parser, help_text: str) -> None:
     parser.add_argument("--yes-delete", action="store_true", help=help_text)
 
 
+def _load_config_state(config):
+    """Load state and resolve all root-relative paths against this config."""
+
+    return load_state(
+        config.state_file,
+        config.destination.target_root,
+        snapshot_root=config.source.snapshot_root,
+        cache_root=config.source.cache_root,
+    )
+
+
 def _failure_exit_code(exc: BaseException) -> int:
     """Return a stable CLI exit code for failure notifications.
 
@@ -299,14 +310,14 @@ def cmd_sync(args) -> int:
     def _run_dry() -> int:
         print("Run mode: dry-run")
         print("Strict dry-run: no destination preparation, no lock file, no receive, and no prune deletion will be performed.")
-        state = load_state(config.state_file, config.destination.target_root)
+        state = _load_config_state(config)
         sync_once(config, state, dry_run=True, limit=args.limit, only_snapshot=args.snapshot, only_missing=not args.resend)
         if args.prune or config.prune_after_sync:
             prune(config, state, dry_run=True, yes_delete=False)
         return 0
 
     def _run_locked() -> int:
-        state = load_state(config.state_file, config.destination.target_root)
+        state = _load_config_state(config)
         sync_once(config, state, dry_run=False, limit=args.limit, only_snapshot=args.snapshot, only_missing=not args.resend)
         if args.prune or config.prune_after_sync:
             prune(config, state, dry_run=False, yes_delete=args.yes_delete)
@@ -329,14 +340,14 @@ def cmd_prune(args) -> int:
     def _run_dry() -> int:
         print("Run mode: dry-run")
         print("Strict dry-run: no lock file and no destination deletion will be performed.")
-        state = load_state(config.state_file, config.destination.target_root)
+        state = _load_config_state(config)
         _refresh_state_metadata_from_timeshift(config, state, dry_run=True)
         prune(config, state, dry_run=True, yes_delete=False)
         return 0
 
     def _run_locked() -> int:
         prepare_destination_helper_paths(config, dry_run=False)
-        state = load_state(config.state_file, config.destination.target_root)
+        state = _load_config_state(config)
         _refresh_state_metadata_from_timeshift(config, state, dry_run=False)
         prune(config, state, dry_run=False, yes_delete=args.yes_delete)
         return 0
@@ -364,7 +375,7 @@ def cmd_create_manual(args) -> int:
         confirm_source_identity_before_manual_snapshot(
             config,
             source,
-            load_state(config.state_file, config.destination.target_root),
+            _load_config_state(config),
             load_source_index=lambda: source_snapshot_index(
                 list_source_snapshots(config, source, include_btrfs_info=config.source.verify_subvolumes_at_discovery)
             ),
@@ -455,7 +466,7 @@ def cmd_show_state(args) -> int:
     config = load_config(args.config)
 
     def _run() -> int:
-        state = load_state(config.state_file, config.destination.target_root)
+        state = _load_config_state(config)
         if args.json:
             print(json.dumps(state, indent=2, sort_keys=True))
             return 0

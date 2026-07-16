@@ -144,7 +144,22 @@ The destination `target_root` must be a Btrfs subvolume. If it is missing and `d
 
 `state.json` records successfully received snapshots and the metadata needed for incremental sends. Do not manually delete `state.json` while a job is running. Use the guarded `clear-state` command when you intentionally want to remove the configured state file after a failed transfer or before a controlled state-recovery run. Do not delete only `snapshots/` while keeping old state.
 
-State destination paths are stored relative to `destination.target_root`, for example `snapshots/2026-06-23_07-10-24/@`. This means you can move the whole target root to another mount point, update `destination.target_root`, and the app will resolve existing state paths under the new target root. Absolute state paths are normalized when the state is loaded.
+State schema version 2 stores every managed path relative to the configured root that owns it:
+
+```json
+{
+  "source_path": "2026-07-15_05-00-02/@",
+  "send_path": "2026-07-15_05-00-02/@",
+  "send_path_kind": "source-cache",
+  "parent_source_path": "2026-07-15_04-00-02/@",
+  "parent_source_path_kind": "source-cache",
+  "destination_path": "snapshots/2026-07-15_05-00-02/@"
+}
+```
+
+`source_path` is always relative to `source.snapshot_root`. `send_path` is resolved under `source.cache_root` when `send_path_kind = "source-cache"`, or under `source.snapshot_root` when `send_path_kind = "timeshift-original-readonly"`. `parent_source_path` follows the same rule through `parent_source_path_kind`. `destination_path` remains relative to `destination.target_root`.
+
+This lets you move or remount `source.snapshot_root`, `source.cache_root`, or the whole destination target, then update those roots in the config. State paths resolve below the new locations. The app still verifies Btrfs UUID identity before using a moved send-cache or Timeshift path as an incremental parent; a cache subvolume that was deleted and recreated has a new UUID and is not treated as the old parent. State files from 0.1.43 and earlier that contain absolute paths are normalized in memory when loaded, using the exact `<snapshot-name>/<subvolume>` suffix. The next state write stores the migrated relative format. Unknown or mismatching legacy paths are not silently rewritten.
 
 During `sync` and before standalone `prune`, mutable Timeshift metadata for already-synced snapshots is refreshed from the latest `timeshift --list`. This updates snapshot-level `tags`, `comment`, `created`, and `path` in `state.json` without re-sending data and without changing Btrfs UUID, parent-chain, send-path, destination-path, or status fields. This lets retention follow Timeshift when it later promotes or changes flags such as `O`, `H`, `D`, `W`, or `M`. The metadata refresh uses the fast Timeshift list path and does not run `btrfs subvolume show` for every already-synced snapshot.
 
@@ -211,13 +226,13 @@ The parent must represent the same Btrfs snapshot on both source and destination
 source parent UUID == destination parent Received UUID
 ```
 
-This protects the backup from mixing snapshots from another OS, another source host, or a reset backup chain. Parent paths from previous runs are always checked before use. The app first checks whether the indexed source send-cache already contains a read-only snapshot whose UUID exactly matches the destination parent's `Received UUID`. This lets a local run reuse read-only cache snapshots that were created earlier by an SSH pull. If no indexed cache UUID match exists, the app tries the saved `send_path` from state.json, then any indexed cache path for the UUIDs recorded in state, and finally the original Timeshift source snapshot. It never creates a replacement cache snapshot while choosing an existing parent, because a recreated cache snapshot gets a new UUID and cannot match the destination parent.
+This protects the backup from mixing snapshots from another OS, another source host, or a reset backup chain. Parent paths from previous runs are always checked before use. The app first checks whether the indexed source send-cache already contains a read-only snapshot whose UUID exactly matches the destination parent's `Received UUID`. This lets a local run reuse read-only cache snapshots that were created earlier by an SSH pull. If no indexed cache UUID match exists, the app resolves the saved root-relative `send_path` against the current configured source root, then tries any indexed cache path for the UUIDs recorded in state, and finally the original Timeshift source snapshot. It never creates a replacement cache snapshot while choosing an existing parent, because a recreated cache snapshot gets a new UUID and cannot match the destination parent.
 
 ## Source read-only send cache
 
 `btrfs send` requires read-only source snapshots. If Timeshift snapshots are writable, the app can create read-only source send-cache snapshots under `source.cache_root`.
 
-If a Timeshift snapshot child is already read-only, the app sends directly from that original Timeshift path instead of creating a duplicate source-cache snapshot. The state records this with `send_path_kind = "timeshift-original-readonly"`, and prune treats that path as protected Timeshift-owned data. The app may read and send from `source.snapshot_root`, but it must not delete, prune, destroy, clean, rename, move, or change original Timeshift snapshots; cleanup of `source.snapshot_root` remains Timeshift's job only. Source-side delete functions have an explicit protected-root guard for this.
+If a Timeshift snapshot child is already read-only, the app sends directly from that original Timeshift path instead of creating a duplicate source-cache snapshot. The state records the `source_path` and `send_path` as `<date>/<subvolume>` plus `send_path_kind = "timeshift-original-readonly"`; the kind resolves both paths under the current `source.snapshot_root`, and prune treats that path as protected Timeshift-owned data. The app may read and send from `source.snapshot_root`, but it must not delete, prune, destroy, clean, rename, move, or change original Timeshift snapshots; cleanup of `source.snapshot_root` remains Timeshift's job only. Source-side delete functions have an explicit protected-root guard for this.
 
 The top-level `cache_root` does not have to be created manually, but it must not be the Timeshift snapshots directory and must not be inside `source.snapshot_root`. If `cache_root` is missing, real preflight creates it as a Btrfs subvolume before snapshot discovery/send work. The parent directory of `cache_root` must already exist and be Btrfs-accessible. Per-snapshot cache parents and read-only send snapshots are also created with Btrfs commands:
 
@@ -233,7 +248,7 @@ Before creating `<cache_root>/<snapshot>/<subvolume>`, the app also does a targe
 
 A missing result from that pre-create metadata refresh is expected when the cache snapshot has not been created yet, for example `send-cache/<snapshot>/@home`. Optional Btrfs existence probes are kept out of terminal `COMMAND STDERR` output and out of `.err`; required metadata failures and real send/receive failures still print and log full stderr.
 
-Every read-only cache snapshot created by `sync` is kept until retention runs. This preserves more possible source/destination UUID common ground when short-lived snapshots, such as hourly snapshots, disappear later. For each pruned snapshot, `prune` attempts both destination deletion and matching source send-cache deletion in one coordinated item. It removes the `state.json` entry only after destination subvolumes and source send-cache are both confirmed gone or already absent. If either side is unavailable, it still attempts the available side and keeps state so the next prune can retry.
+Every read-only cache snapshot created by `sync` is kept until retention runs. Its state `send_path` is stored as `<date>/<subvolume>` relative to the current `source.cache_root`, not as an absolute mount path. This preserves more possible source/destination UUID common ground when short-lived snapshots, such as hourly snapshots, disappear later. For each pruned snapshot, `prune` attempts both destination deletion and matching source send-cache deletion in one coordinated item. It removes the `state.json` entry only after destination subvolumes and source send-cache are both confirmed gone or already absent. If either side is unavailable, it still attempts the available side and keeps state so the next prune can retry.
 
 Prune only deletes send paths that are explicitly app-owned source-cache paths below `source.cache_root`. On the destination, prune requires `snapshots/<date>` to be a Btrfs subvolume, deletes its configured received child subvolumes first, and then deletes the date subvolume. The final Btrfs deletion removes the regular `info.json` automatically. Before deleting a timestamp cache parent such as `send-cache/<snapshot>`, prune re-reads live Btrfs children under that parent and deletes remaining child subvolumes deepest-first. No ordinary-directory cleanup fallback is used. Unexpected content, an ordinary legacy date folder, or an ordinary non-empty configured root causes a manual-inspection error. Source delete candidates at or below `source.snapshot_root` are always refused.
 

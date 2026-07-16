@@ -27,10 +27,13 @@ from .retention import initial_sync_keep_names
 from .state import (
     latest_synced_before,
     mark_subvolume_synced,
+    normalize_state_paths,
     refresh_state_metadata_and_report,
     remove_snapshot_from_state,
     resolve_destination_path,
+    resolve_state_send_path,
     save_state,
+    state_send_path_is_app_cache,
     snapshot_is_synced,
 )
 
@@ -1351,7 +1354,19 @@ def _select_verified_parent_send_path(
         if indexed_parent and indexed_parent.path:
             add_candidate("indexed source-cache UUID match", indexed_parent.path)
 
-    saved_send_path = state_parent.get("send_path") if state_parent else None
+    saved_send_path = None
+    saved_send_path_error: str | None = None
+    if state_parent and state_parent.get("send_path"):
+        try:
+            saved_send_path = resolve_state_send_path(
+                state_parent,
+                snapshot_root=config.source.snapshot_root,
+                cache_root=config.source.cache_root,
+                snapshot_name=parent_name,
+                subvolume_name=subvolume_name,
+            )
+        except ValueError as exc:
+            saved_send_path_error = f"saved state send_path is invalid: {exc}"
     add_candidate("saved state send_path", saved_send_path)
 
     # Newer state also stores the exact UUID that was streamed. If the saved
@@ -1369,6 +1384,8 @@ def _select_verified_parent_send_path(
     add_candidate("original Timeshift source path", original_source_path)
 
     failures: list[str] = []
+    if saved_send_path_error:
+        failures.append(saved_send_path_error)
     for label, path in candidates:
         ok, reason = _match_source_path_to_destination_received_uuid(
             config,
@@ -1387,7 +1404,11 @@ def _select_verified_parent_send_path(
         failures.append(reason)
 
     cache_hint = ""
-    if isinstance(saved_send_path, str) and btrfs.path_is_under_cache(saved_send_path, config.source.cache_root):
+    if state_parent and state_send_path_is_app_cache(
+        state_parent,
+        cache_root=config.source.cache_root,
+        snapshot_root=config.source.snapshot_root,
+    ):
         cache_hint = (
             "\n\nThe saved source parent was a read-only cache snapshot. If that exact "
             "cache UUID still exists anywhere below source.cache_root, the app can "
@@ -1404,7 +1425,13 @@ def _select_verified_parent_send_path(
         f"no source parent path matched. {reason}{cache_hint}",
     )
 
-def _state_uuid_values_for_path(state_subvol: dict, *, path: str, source_path: str) -> set[str]:
+def _state_uuid_values_for_path(
+    state_subvol: dict,
+    *,
+    path: str,
+    source_path: str,
+    send_path: str | None,
+) -> set[str]:
     """Return UUID values that may safely identify the source path.
 
     State from newer versions has both original_source_uuid and
@@ -1416,7 +1443,6 @@ def _state_uuid_values_for_path(state_subvol: dict, *, path: str, source_path: s
     """
 
     values: set[str] = set()
-    send_path = state_subvol.get("send_path")
 
     def add_key(key: str) -> None:
         value = state_subvol.get(key)
@@ -1508,7 +1534,19 @@ def _find_confirmed_sync_floor(
 
             sub_reasons: list[str] = []
             source_path = source_subvol.path if source_subvol else ""
-            candidate_paths = [path for path in (state_subvol.get("send_path"), source_path) if isinstance(path, str) and path]
+            saved_send_path: str | None = None
+            if state_subvol.get("send_path"):
+                try:
+                    saved_send_path = resolve_state_send_path(
+                        state_subvol,
+                        snapshot_root=config.source.snapshot_root,
+                        cache_root=config.source.cache_root,
+                        snapshot_name=name,
+                        subvolume_name=subvolume_name,
+                    )
+                except ValueError as exc:
+                    sub_reasons.append(f"invalid saved send_path: {exc}")
+            candidate_paths = [path for path in (saved_send_path, source_path) if isinstance(path, str) and path]
             if not candidate_paths:
                 ok = False
                 reasons.append(f"{subvolume_name}: no saved send_path and original source snapshot is not listed")
@@ -1521,7 +1559,12 @@ def _find_confirmed_sync_floor(
                     subvolume_name=subvolume_name,
                     destination_path=destination_path,
                     label=path,
-                    expected_uuids=_state_uuid_values_for_path(state_subvol, path=path, source_path=source_path),
+                    expected_uuids=_state_uuid_values_for_path(
+                        state_subvol,
+                        path=path,
+                        source_path=source_path,
+                        send_path=saved_send_path,
+                    ),
                     source_cache_index=source_cache_index,
                     source_snapshot_index=source_snapshot_index,
                     destination_index=destination_index,
@@ -1748,6 +1791,8 @@ def _recover_state_from_existing_destination(
                 subvolume=original_subvol,
                 destination_path=dest_path,
                 destination_root=config.destination.target_root,
+                snapshot_root=config.source.snapshot_root,
+                cache_root=config.source.cache_root,
                 parent_snapshot=parent_snapshot,
                 parent_source_path=parent_source_path,
                 send_path=send_path,
@@ -1877,7 +1922,18 @@ def _select_parent(
         parent_snapshot = source_by_name.get(parent_name)
         parent_subvol = parent_snapshot.subvolumes.get(subvolume_name) if parent_snapshot else None
         parent_state = state_parent_data.get(parent_name)
-        saved_send_path = parent_state.get("send_path") if parent_state else None
+        saved_send_path: str | None = None
+        if parent_state and parent_state.get("send_path"):
+            try:
+                saved_send_path = resolve_state_send_path(
+                    parent_state,
+                    snapshot_root=config.source.snapshot_root,
+                    cache_root=config.source.cache_root,
+                    snapshot_name=parent_name,
+                    subvolume_name=subvolume_name,
+                )
+            except ValueError as exc:
+                candidate_failures.append(f"{parent_name}/{subvolume_name}: invalid saved send_path: {exc}")
         if not parent_subvol and not saved_send_path:
             continue
 
@@ -2081,6 +2137,13 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
     successful subvolume receive, state.json is updated immediately. That is how
     later snapshots in the same run can become incremental.
     """
+
+    normalize_state_paths(
+        state,
+        target_root=config.destination.target_root,
+        snapshot_root=config.source.snapshot_root,
+        cache_root=config.source.cache_root,
+    )
 
     if dry_run:
         print("Strict dry-run: destination preparation is skipped; no target directories or internal metadata directories are created/changed.")
@@ -2814,7 +2877,21 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             except Exception:
                 send_meta = None
 
-            mark_subvolume_synced(state, snapshot=snapshot, subvolume=subvolume, destination_path=dest_path, destination_root=config.destination.target_root, parent_snapshot=parent_name, parent_source_path=parent_send_path, send_path=current_send_path, received_meta=received_meta, original_meta=original_meta, send_meta=send_meta)
+            mark_subvolume_synced(
+                state,
+                snapshot=snapshot,
+                subvolume=subvolume,
+                destination_path=dest_path,
+                destination_root=config.destination.target_root,
+                snapshot_root=config.source.snapshot_root,
+                cache_root=config.source.cache_root,
+                parent_snapshot=parent_name,
+                parent_source_path=parent_send_path,
+                send_path=current_send_path,
+                received_meta=received_meta,
+                original_meta=original_meta,
+                send_meta=send_meta,
+            )
             save_state(config.state_file, state)
             trusted_parent_send_paths.add(current_send_path)
             _record_sync_event(

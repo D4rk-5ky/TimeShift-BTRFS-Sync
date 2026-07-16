@@ -158,3 +158,7 @@ One-file build:
 ### Cleanup build artifacts
 
 PyInstaller creates `build/`, `dist/`, and a `.spec` file. These are build artifacts, not backup data. Inspect and remove them manually before a clean rebuild; the application itself never recursively deletes backup or source-cache trees through ordinary filesystem commands.
+
+## Moving configured roots
+
+State schema version 2 stores source snapshot paths relative to `source.snapshot_root`, app-created send paths relative to `source.cache_root`, and destination paths relative to `destination.target_root`. After moving or remounting one of these roots, update the matching config value. The app resolves the saved suffix under the new root and still requires the same Btrfs UUID before it accepts an incremental parent. Existing absolute paths from older state files are migrated on load when their exact snapshot/subvolume suffix is valid.
