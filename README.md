@@ -120,7 +120,7 @@ Replace `btrbk-source` with the name printed by the application and use its prin
 
 `destroy-leftovers --delete-source` keeps the source sudoers model narrow. On the source host it uses passwordless `sudo btrfs` only for Btrfs metadata and subvolume deletion. It does not require passwordless `find`, `test`, `rm`, `mkdir`, or `cat`.
 
-When Btrfs leaves an empty ordinary directory behind after deleting a source cache subvolume, the app tries to remove that stale directory with normal non-sudo `rmdir`. If the source user does not have filesystem permission to remove that ordinary directory, the cleanup is reported as incomplete instead of asking for broad sudo access.
+Source cache payloads and timestamp containers are Btrfs subvolumes. Cleanup deletes child cache subvolumes first and then deletes the timestamp parent with `btrfs subvolume delete`. The app does not use ordinary-directory cleanup as a fallback. If a configured cache path is an ordinary non-empty directory, cleanup stops and requires manual inspection.
 
 
 > ⚠️ AI-assisted / vibe-coded experimental software. Use at your own risk.
@@ -130,7 +130,8 @@ When Btrfs leaves an empty ordinary directory behind after deleting a source cac
 The destination `target_root` is the backup job folder. The app creates and owns:
 
 ```text
-<target_root>/snapshots/                         received snapshot dates
+<target_root>/snapshots/                         helper directory or Btrfs subvolume
+<target_root>/snapshots/<date>/                   Btrfs date subvolume
 <target_root>/snapshots/<date>/info.json         shared Timeshift control file
 <target_root>/snapshots/<date>/@                 received root subvolume, when configured
 <target_root>/snapshots/<date>/@home             received home subvolume, when configured
@@ -139,7 +140,7 @@ The destination `target_root` is the backup job folder. The app creates and owns
 
 Timeshift uses one `info.json` for the whole snapshot date. It sits beside `@` and optional `@home`; there is not a second combined metadata file to create. The app captures that one file once and writes it once after every subvolume configured for the date has completed. This works with `subvolumes = ["@", "@home"]`, `subvolumes = ["@"]`, or `subvolumes = ["@home"]`.
 
-The destination `target_root` must be a Btrfs subvolume. If it is missing and `destination.create_target_root = true`, the app creates it with `btrfs subvolume create`. The lock-file parent is prepared before the rest of the sync/prune checks so a real job can acquire the lock early. Helper folders such as `snapshots/`, `.ts-btrfs-sync/`, the lock-file parent, and optional `log_dir` may be ordinary directories or Btrfs subvolumes. When a helper folder is missing during a real run, the app tries `btrfs subvolume create` first because the app works on Btrfs storage, then falls back to normal `mkdir` if Btrfs creation is not possible at that location. After creation, the helper path must still be writable by the app user because lock, state, logs, and per-snapshot receive folders are created before or around sudo Btrfs operations.
+The destination `target_root` must be a Btrfs subvolume. If it is missing and `destination.create_target_root = true`, the app creates it with `btrfs subvolume create`. The lock-file parent is prepared before the rest of the sync/prune checks so a real job can acquire the lock early. General helper paths such as `snapshots/`, `.ts-btrfs-sync/`, the lock-file parent, and optional `log_dir` may be ordinary directories or Btrfs subvolumes. Every individual `snapshots/<date>` container is different: it must be a Btrfs subvolume. New date containers are created with `btrfs subvolume create` before `btrfs receive`. Existing ordinary date folders, files, or symlinks directly below `snapshots/` are refused as an unsupported layout and must be inspected and moved or removed manually.
 
 `state.json` records successfully received snapshots and the metadata needed for incremental sends. Do not manually delete `state.json` while a job is running. Use the guarded `clear-state` command when you intentionally want to remove the configured state file after a failed transfer or before a controlled state-recovery run. Do not delete only `snapshots/` while keeping old state.
 
@@ -149,7 +150,7 @@ During `sync` and before standalone `prune`, mutable Timeshift metadata for alre
 
 If `state.json` is missing or empty while destination snapshots already exist, `sync` tries a conservative state recovery before creating a manual snapshot or sending data. It scans destination snapshots and compares each destination subvolume's `Received UUID` with the UUID of the matching source Timeshift subvolume or an existing read-only source-cache subvolume. Only exact UUID matches are adopted into in-memory state and, during a real run, written back to `state.json`. Names alone are never trusted. If an existing destination subvolume cannot be adopted, the app refuses to delete it as an incomplete receive because it may be a valid backup from a missing state file.
 
-A full reset means deleting both `snapshots/` and `.ts-btrfs-sync/`. Received `@` and `@home` entries are Btrfs subvolumes, so delete them with `btrfs subvolume delete` before removing ordinary folders.
+A full reset means deleting both the received snapshot subvolumes and `.ts-btrfs-sync/`. Use `destroy-leftovers` for a complete app-owned reset. It deletes nested Btrfs subvolumes deepest-first and does not recursively remove ordinary non-empty backup trees.
 
 ## How sync works
 
@@ -167,10 +168,11 @@ Normal sync flow:
 9. Use full send only when the destination was empty at the start of the sync run.
 10. Use incremental send when a UUID-confirmed parent is available.
 11. Error out if the destination already has snapshots but no matching parent can be proven.
-12. Receive into <target_root>/snapshots/<snapshot>/<subvolume>.
-13. Save state after each successful receive, but treat all configured subvolumes for one Timeshift date as one complete version.
-14. After the configured `@`, `@home`, or single selected subvolume set is complete, atomically create or refresh `<target_root>/snapshots/<snapshot>/info.json` from the content captured in the same source inventory generation.
-15. If a required source/cache/parent path disappears or changes UUID during preparation or transfer, rebuild the complete combined source inventory, clean the incomplete whole date version including its copied `info.json`, rebuild the queue, and continue within source.source_change_retry_count.
+12. Create `<target_root>/snapshots/<snapshot>` as a Btrfs date subvolume.
+13. Receive each configured child into `<target_root>/snapshots/<snapshot>/<subvolume>`.
+14. Save state after each successful receive, but treat all configured subvolumes for one Timeshift date as one complete version.
+15. After the configured `@`, `@home`, or single selected subvolume set is complete, atomically create or refresh `<target_root>/snapshots/<snapshot>/info.json` inside the date subvolume.
+16. If a required source/cache/parent path disappears or changes UUID during preparation or transfer, rebuild the complete combined source inventory, delete the incomplete child subvolumes and then the date subvolume, rebuild the queue, and continue within `source.source_change_retry_count`.
 ```
 
 Normal `sync` always bulk-loads source Btrfs metadata; it does not open one SSH connection per snapshot or subvolume. `source.verify_subvolumes_at_discovery` controls whether missing bulk-index entries are omitted immediately or represented as expected paths for later recovery handling. `list-source` remains a lightweight Timeshift-only command unless `--verify-btrfs` is requested.
@@ -233,7 +235,7 @@ A missing result from that pre-create metadata refresh is expected when the cach
 
 Every read-only cache snapshot created by `sync` is kept until retention runs. This preserves more possible source/destination UUID common ground when short-lived snapshots, such as hourly snapshots, disappear later. For each pruned snapshot, `prune` attempts both destination deletion and matching source send-cache deletion in one coordinated item. It removes the `state.json` entry only after destination subvolumes and source send-cache are both confirmed gone or already absent. If either side is unavailable, it still attempts the available side and keeps state so the next prune can retry.
 
-Prune only deletes send paths that are explicitly app-owned source-cache paths below `source.cache_root`. On the destination, prune deletes the copied `snapshots/<date>/info.json` only after every tracked Btrfs subvolume for that date is confirmed gone and no unknown content remains beside the control file, then removes the now-empty date directory. Before deleting a timestamp cache parent such as `send-cache/<snapshot>`, prune re-reads live Btrfs children under that parent and deletes any remaining child subvolumes deepest-first, even if the run-start index or state had already considered `@` or `@home` gone. The parent delete also removes only empty ordinary child directories with normal non-sudo `rmdir` before retrying Btrfs deletion, so stale mountpoint directories do not block cleanup. It never uses source-side sudo `rm`, `find`, `chmod`, or `chown`, and it refuses any source delete candidate that is `source.snapshot_root` or below it. If a snapshot was sent directly from a read-only Timeshift original, prune prints it as a protected original send path and never deletes it.
+Prune only deletes send paths that are explicitly app-owned source-cache paths below `source.cache_root`. On the destination, prune requires `snapshots/<date>` to be a Btrfs subvolume, deletes its configured received child subvolumes first, and then deletes the date subvolume. The final Btrfs deletion removes the regular `info.json` automatically. Before deleting a timestamp cache parent such as `send-cache/<snapshot>`, prune re-reads live Btrfs children under that parent and deletes remaining child subvolumes deepest-first. No ordinary-directory cleanup fallback is used. Unexpected content, an ordinary legacy date folder, or an ordinary non-empty configured root causes a manual-inspection error. Source delete candidates at or below `source.snapshot_root` are always refused.
 
 ## Source/destination Btrfs index optimization
 
@@ -271,7 +273,7 @@ If a transfer is interrupted while `btrfs receive` has already created the desti
 
 If Timeshift or another process changes the source while a snapshot is being prepared or streamed—for example, an hourly snapshot or selected parent is deleted—the failed command is followed by one complete combined source inventory rebuild. The app compares the before/after UUID identities of the exact current, parent, and configured sibling paths. Unrelated Timeshift churn does not hide a network, mbuffer, or destination error. When a required path really disappeared or changed UUID, the terminal and logs show the complete inventory difference, the app removes the incomplete app-owned cache/destination/state version for that date, rebuilds all source lists and the oldest-to-newest queue, and continues. If the vanished snapshot is no longer available it is skipped; if it still exists with a valid new inventory it can be retried. This is bounded per snapshot/subvolume by `source.source_change_retry_count`; `0` disables automatic continuation. The same snapshot-level cleanup is used at the start of a later sync for stale incomplete state entries whose source Timeshift snapshot is no longer listed.
 
-Recovery cleanup never deletes `source.snapshot_root` or anything below it. Source cleanup is limited to app-owned paths under `source.cache_root`, and destination cleanup removes only Btrfs subvolumes, the specific copied `snapshots/<date>/info.json`, and empty ordinary directories below the current snapshot-date folder. Complete destination snapshots remain valid even after Timeshift later prunes the original source snapshot; they are not removed merely because the source no longer lists the old hourly date.
+Recovery cleanup never deletes `source.snapshot_root` or anything below it. Source cleanup is limited to app-owned Btrfs subvolumes under `source.cache_root`. Destination cleanup deletes configured received child subvolumes first and then deletes the `snapshots/<date>` Btrfs subvolume; its regular `info.json` disappears as part of that final Btrfs deletion. Ordinary destination date folders are not supported or cleaned automatically. Complete destination snapshots remain valid even after Timeshift later prunes the original source snapshot.
 
 The copied control file is required for every snapshot date processed by sync. If the source `info.json` is absent, unreadable, malformed in transport framing, or cannot be written safely on the destination, the sync run raises an error instead of silently reporting success for a metadata-less snapshot. For source read failures, the error names the effective SSH/source account and UID and explains the required mount-path traversal/read permissions and persistent `/etc/fstab` option. Existing complete destination snapshots are backfilled or refreshed from the current source inventory when their source snapshot is still available. Destination writes use a temporary file plus atomic replacement, and a symlink at the final `info.json` path is refused.
 
@@ -299,7 +301,7 @@ Examples:
 
 `destroy-leftovers` is a separate destructive command for the case where you no longer want to use this app/setup and want to remove app-created source send-cache and/or destination backup leftovers. It ignores retention rules and `state.json` because it is not a normal prune operation. It never deletes `source.snapshot_root`, because that belongs to Timeshift and contains the user's own source snapshots.
 
-Source send-cache cleanup deletes nested Btrfs subvolumes deepest-first. This matters because cache entries can be container subvolumes such as `send-cache/<snapshot>` with child payload subvolumes such as `send-cache/<snapshot>/@`. The app walks each source cache subvolume with `btrfs subvolume list -o`, deletes children before parents, and removes empty ordinary directory entries left behind by child deletion before retrying the parent. This still uses only the configured source user plus passwordless `btrfs`; it does not require sudo access to `rm`, `find`, `chmod`, or `chown`.
+Source send-cache cleanup deletes nested Btrfs subvolumes deepest-first. Cache entries can be container subvolumes such as `send-cache/<snapshot>` with child payload subvolumes such as `send-cache/<snapshot>/@`. The app walks the Btrfs tree, deletes children before parents, and never falls back to recursive ordinary deletion. The destination is handled the same way: received `@`/`@home` subvolumes are deleted before the date subvolume, which also removes `info.json`. An ordinary non-empty configured source or destination root is refused for manual inspection.
 
 Dry-run is the default:
 
@@ -491,7 +493,7 @@ Shows the local state tracking file.
 
 ### `destroy-leftovers`
 
-Destroys configured source/destination leftover trees when this app setup is being retired. This is not a prune command and does not use retention or `state.json` safety. For source cleanup, the configured `source.cache_root` is first checked with configured sudo+Btrfs metadata, so a cache root that is not traversable by the source shell user is still handled when Btrfs can see it as the app-owned cache subvolume. The command still never uses source-side sudo `test`, `rm`, `find`, `chmod`, or `chown`; ordinary source directory removal uses the source user's normal permissions only. When `log_dir` is enabled, the command is logged like other app commands. It also prints progress before each source/destination target and during subvolume discovery/deletion, so long destination cleanup does not look like a frozen SSH run after the source side finishes.
+Destroys configured source/destination leftovers when this app setup is being retired. This is not a prune command and does not use retention or `state.json` safety. Configured Btrfs roots are scanned recursively and their child subvolumes are deleted deepest-first before the root subvolume. There is no recursive ordinary-directory fallback. A configured ordinary non-empty source cache root or destination root is refused and must be inspected manually; an empty ordinary root may be removed with `rmdir`. The command never deletes `source.snapshot_root`.
 
 | Flag | What it does | Why it may be needed |
 |---|---|---|

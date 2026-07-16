@@ -157,8 +157,4 @@ One-file build:
 
 ### Cleanup build artifacts
 
-PyInstaller creates `build/`, `dist/`, and a `.spec` file. Remove them when you want a clean rebuild:
-
-```bash
-rm -rf build dist ts-btrfs.spec
-```
+PyInstaller creates `build/`, `dist/`, and a `.spec` file. These are build artifacts, not backup data. Inspect and remove them manually before a clean rebuild; the application itself never recursively deletes backup or source-cache trees through ordinary filesystem commands.

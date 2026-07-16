@@ -1,5 +1,7 @@
 ## Current audit note
 
+- Every managed destination `snapshots/<date>` entry is now required to be a Btrfs subvolume. New dates are created with `btrfs subvolume create`; prune/recovery delete `@` and optional `@home` first, then delete the date subvolume so its regular `info.json` disappears with the container.
+- Legacy ordinary destination date folders are unsupported and refused. `destroy-leftovers` also refuses ordinary non-empty source-cache or destination roots; recursive ordinary deletion is not available for backup/cache trees.
 - Automatic manual/on-demand snapshot creation is gated by preflight, optional state recovery, source identity checks, and a sync-viability check.
 - On existing destinations, the app must prove a UUID-confirmed sync floor and a usable incremental parent before running `timeshift --create`.
 - No new config or CLI option was added for this safety behavior; it is mandatory when `manual_snapshot.enabled = true`.

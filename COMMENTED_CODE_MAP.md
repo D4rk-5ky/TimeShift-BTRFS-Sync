@@ -28,14 +28,14 @@ This file describes the current command handlers, shell command families, functi
 | `sudo -n timeshift --create --comments <text>` | Creates an optional source on-demand snapshot. | Lets a sync run start by capturing the current system state before the normal oldest-to-newest send loop. |
 | `sudo -n btrfs subvolume show <path>` | Reads UUID, parent UUID, received UUID, and read-only state for a subvolume. Optional existence probes are quiet when missing; required checks still print/log stderr. | Incremental sends are only safe when source and destination Btrfs identities match, while not-yet-created cache paths such as `@home` should not look like real errors. |
 | `sudo -n btrfs subvolume list ... <root>` | Builds source-cache and destination indexes of known subvolume paths and UUID metadata. | Reduces repeated metadata probes and helps cleanup find nested subvolumes safely. |
-| `sudo -n btrfs subvolume create <path>` | Creates the source cache root or per-snapshot cache parent as a Btrfs subvolume. | Writable Timeshift snapshots need read-only send copies, and those copies must live inside Btrfs. |
+| `sudo -n btrfs subvolume create <path>` | Creates the source cache root, per-snapshot cache parent, destination target root, helper subvolumes, or destination `snapshots/<date>` container. | Managed cache roots and every destination date container must be explicit Btrfs subvolumes. |
 | `sudo -n btrfs subvolume snapshot -r <src> <dst>` | Creates a read-only source-cache snapshot from a writable Timeshift snapshot child. | `btrfs send` requires the send source to be read-only. |
 | `sudo -n btrfs send [-p <parent>] <current>` | Streams a full or incremental Btrfs snapshot from the chosen source path. | This is the actual payload transfer mechanism. Incremental mode saves time and space by sending only changes since the verified parent. |
 | `sudo -n btrfs receive <destination folder>` | Receives the Btrfs stream into the destination snapshot folder. | Recreates the source snapshot subvolume on the backup filesystem. |
 | `sudo -n btrfs subvolume delete <path>` | Deletes destination snapshots or app-owned source cache subvolumes during cleanup. | Btrfs subvolumes must be deleted with Btrfs, not ordinary `rm`. |
 | `mbuffer` | Optional middle stage between `btrfs send` and `btrfs receive`. | Gives buffering, rate limiting, and transfer statistics when enabled. |
 | `sudo -n btrfs subvolume create <helper path>` | First attempt for missing destination helper folders such as the lock/state/log or snapshots folder. | Prefer Btrfs subvolumes because the app manages Btrfs backup storage. |
-| `mkdir` / `rmdir` / `rm -rf` | `mkdir` is the fallback for helper-folder creation when Btrfs creation is not possible; `rmdir` / `rm -rf` remove safe ordinary leftover directories when needed. | Helper paths can still be ordinary directories on non-Btrfs or user-writable locations, while Btrfs payload subvolumes are handled by Btrfs commands. |
+| `mkdir` / `rmdir` | `mkdir` is limited to general helper-folder fallback; `rmdir` may remove only an empty ordinary configured root. | Backup/cache payload trees and destination date containers are never recursively deleted as ordinary directories. Non-empty ordinary configured roots require manual inspection. |
 | `unlink state_file` | Removes only the configured state metadata file during `clear-state`. | Lets a controlled recovery run rebuild state from exact Btrfs UUID matches without deleting snapshots. |
 | `flock lock_file` + `unlink lock_file` | Checks that the configured lock file is not currently held, then removes it during `delete-lock`. | Allows stale lock cleanup without bypassing an active running job. |
 
@@ -320,7 +320,7 @@ This file describes the current command handlers, shell command families, functi
 - `source_ensure_readonly_send_path()`: returns the original Timeshift path when
   indexed or probed metadata proves it is already read-only, otherwise creates/reuses
   an app-owned read-only cache snapshot for the current send.
-- `source_delete_subvolume()`: deletes one source Btrfs subvolume through SSH or local source mode. For app-owned cache parents it can first remove only empty ordinary child directories with non-sudo `rmdir`, then run Btrfs deletion, so stale mountpoint directories do not require broad source sudo permissions.
+- `source_delete_subvolume()`: deletes exactly one source Btrfs subvolume through SSH or local source mode after enforcing the protected Timeshift-root guard; it has no ordinary-directory cleanup fallback.
 - `source_send_cmd()`: builds the argv for `btrfs send`, including `-p` for
   incremental sends, wrapped through SSH or local source mode.
 - `remote_ensure_cache_parent()`, `remote_ensure_readonly_send_path()`,
@@ -328,6 +328,7 @@ This file describes the current command handlers, shell command families, functi
 - `path_is_same_or_under()`: normalized destructive-safety comparison used to identify the protected Timeshift root itself and every descendant.
 - `path_is_under_cache()`: tells cleanup whether a path belongs to cache root.
 - `local_receive_cmd()`: builds `btrfs receive` argv for the destination folder.
+- `create_local_subvolume()`: creates one local Btrfs subvolume, used for each managed destination date container before receive.
 - `delete_local_subvolume()`: deletes a destination Btrfs subvolume.
 
 ### `timeshift.py`
@@ -417,14 +418,14 @@ This file describes the current command handlers, shell command families, functi
 - `_send_path_kind_text()`: explains whether the selected send path is protected Timeshift original or app-owned cache.
 - `_ensure_source_send_path()`: verifies/creates the current read-only send path
   through `SourceRunner`.
-- `_cleanup_incomplete_destination_receive()`: removes only the current partial
-  destination receive before retry and invalidates the destination index entry.
+- `_cleanup_incomplete_destination_receive()`: deletes only the current partial received Btrfs child subvolume before retry; it refuses ordinary paths and keeps the date subvolume in place.
 - `_source_cache_live_child_paths()`: performs a fresh Btrfs child-subvolume list below one source send-cache date parent for recovery cleanup, converting listed paths back under `source.cache_root` before any delete is allowed.
-- `_cleanup_source_cache_snapshot_version()`: removes the app-owned `source.cache_root/<snapshot>` recovery version, deleting live child cache subvolumes deepest-first and then the date parent, while still refusing any Timeshift-owned source path.
-- `_remove_empty_destination_dirs_up_to()`: removes empty ordinary destination directories upward without crossing the configured stop root.
-- `_cleanup_destination_snapshot_version()`: removes one failed destination `snapshots/<date>` version as a whole, deleting Btrfs subvolumes, the specific copied `info.json`, and empty directories only so `@` and `@home` cannot be mixed from different transfer attempts.
+- `_cleanup_source_cache_snapshot_version()`: removes the app-owned `source.cache_root/<snapshot>` recovery version using Btrfs child-first deletion only, while refusing every Timeshift-owned source path.
+- `_cleanup_destination_snapshot_version()`: requires `snapshots/<date>` to be a Btrfs subvolume, refuses unexpected content or an ordinary legacy folder, deletes configured child subvolumes first, then deletes the date subvolume so `info.json` disappears with it.
+- `_ensure_destination_snapshot_subvolume()`: creates each missing destination date container with `btrfs subvolume create`, reuses an indexed existing date subvolume without an extra probe, and refuses ordinary legacy date folders.
+- `_validate_destination_snapshot_layout()`: checks every direct entry below destination `snapshots/` against the bulk destination index and stops before sync when any entry is not a Btrfs date subvolume.
 - `_refresh_snapshot_source_subvolumes_live()`: targeted live-probes every configured source subvolume for one Timeshift date and updates the per-run source snapshot index so stale hourly entries are not trusted.
-- `_snapshot_destination_has_any_path()`: detects whether a destination date has any current folder or configured child path that recovery may need to clean.
+- `_snapshot_destination_has_any_path()`: detects whether a destination date subvolume or configured child path exists and may require recovery.
 - `_snapshot_state_is_complete_with_destination()`: checks that both state and destination contain all configured subvolumes before treating a snapshot as complete.
 - `_recover_snapshot_version()`: central sync recovery reporter/dispatcher that cleans source cache, destination, and state for a failed or vanished current snapshot date and refreshes metadata indexes.
 - `_prepare_snapshot_for_transfer_or_recover()`: snapshot-level pre-transfer guard that verifies all configured source subvolumes still exist; if the source still exists it clears a failed current version for retry, and if the source vanished it removes stale traces and skips that date.
@@ -473,7 +474,7 @@ This file describes the current command handlers, shell command families, functi
 - `initial_sync_keep_names()`: returns retained source snapshot names for a fresh destination seed.
 - `_cleanup_source_cache_for_pruned_snapshot()`: checks one timestamp send-cache parent, deletes tracked app-owned cache subvolumes, performs a final live child-subvolume check below the parent, and deletes the parent only after Btrfs reports no remaining child subvolumes.
 - `build_prune_plan()`: computes retention keep/delete decisions from state, source tags, and config; it does not delete anything.
-- `_delete_destination_snapshot_for_prune()`: deletes destination Btrfs subvolumes for one snapshot, removes only its copied `info.json` after tracked subvolumes are gone and no unknown sibling content remains, and returns true only when the complete destination date directory is confirmed gone.
+- `_delete_destination_snapshot_for_prune()`: requires a Btrfs date subvolume, refuses ordinary legacy layout or unexpected content, deletes child payload subvolumes first, then deletes the date subvolume so `info.json` is removed by Btrfs.
 - `_delete_prune_item()`: runs coordinated per-snapshot destination cleanup and source send-cache cleanup before removing state.
 - `print_prune_plan()`: prints retention summary and delete plan to terminal and `.succes`.
 - `prune()`: prints the plan and only deletes in real mode with explicit confirmation. It creates a `SourceRunner` for source-cache cleanup.
@@ -596,12 +597,10 @@ This file describes the current command handlers, shell command families, functi
 - `_source_subvolume_meta()`: detects whether a source cleanup root itself is a Btrfs subvolume.
 - `_local_child_subvolumes()`: lists local child Btrfs subvolumes below a cleanup root.
 - `_source_child_subvolumes()`: lists source child Btrfs subvolumes below a cleanup root.
-- `_local_remove_empty_child_dirs()`: removes empty ordinary directories below a local cleanup subvolume deepest-first before parent deletion, so stale child-subvolume mountpoint directories do not block `btrfs subvolume delete`.
-- `_local_remove_stale_path()`: removes an ordinary local directory that remains at a path after the subvolume at that path was deleted.
 - `_confirm_or_raise()`: requires exact typed confirmation instead of yes/no.
-- `_delete_local_tree()`: recursively discovers and deletes local child subvolumes deepest-first, then removes stale ordinary directories/files.
-- `_source_delete_subvolumes_batched()`: deletes many source-cache subvolumes in one source command during `destroy-leftovers`, removing empty ordinary child directories before parent deletion without requiring sudo `rm`, `find`, `chmod`, or `chown`.
-- `_delete_source_tree()`: checks the source send-cache root with configured sudo+Btrfs metadata before falling back to normal shell visibility, recursively walks `btrfs subvolume list -o` from each discovered cache subvolume, deletes nested payload subvolumes such as `@` before timestamp/container parents, and keeps `source.snapshot_root` protected.
+- `_delete_local_tree()`: recursively discovers and deletes a managed local Btrfs tree deepest-first using only `btrfs subvolume delete`. An ordinary non-empty configured root is refused for manual inspection; only an already-empty ordinary root may be removed with exact-path `rmdir`.
+- `_source_delete_subvolumes_batched()`: deletes many source-cache subvolumes in one source command during `destroy-leftovers`; the generated shell contains only guarded `btrfs subvolume delete` operations.
+- `_delete_source_tree()`: checks the source send-cache root with configured sudo+Btrfs metadata, recursively discovers nested cache subvolumes, deletes payload children before timestamp/container parents in one batched source command, protects `source.snapshot_root`, and refuses any ordinary non-empty cache root instead of recursively deleting it.
 - `_mode_text()`: returns the exact typed phrase for the chosen destructive mode.
 - `_print_target()`: prints one configured cleanup root before any deletion.
 - `_print_result()`: prints one target result with subvolume count and errors.

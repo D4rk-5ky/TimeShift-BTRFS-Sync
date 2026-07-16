@@ -491,9 +491,10 @@ def _dest_subvolume_path(config: AppConfig, snapshot_name: str, subvolume_name: 
 
 
 def _target_snapshot_dir(config: AppConfig, snapshot_name: str) -> Path:
-    """Return the local directory passed to `btrfs receive`.
+    """Return the managed destination date subvolume passed to `btrfs receive`.
 
-    `btrfs receive <dir>` creates the incoming subvolume inside this directory.
+    ``btrfs receive <date-subvolume>`` creates the incoming ``@`` or
+    ``@home`` child subvolume inside this app-owned Btrfs container.
     """
 
     return config.destination.target_root / "snapshots" / snapshot_name
@@ -505,6 +506,87 @@ def _destination_info_json_path(config: AppConfig, snapshot_name: str) -> Path:
     return _target_snapshot_dir(config, snapshot_name) / "info.json"
 
 
+def _ensure_destination_snapshot_subvolume(
+    config: AppConfig,
+    snapshot_name: str,
+    destination_index: remote_index.BtrfsIndex | None,
+) -> Path:
+    """Create or validate one managed destination date subvolume.
+
+    Every ``snapshots/<date>`` path created by this release is a Btrfs
+    subvolume. Existing ordinary date folders are an unsupported legacy layout
+    and are refused instead of migrated or deleted automatically.
+    """
+
+    snapshot_dir = _target_snapshot_dir(config, snapshot_name)
+    if snapshot_dir.is_symlink():
+        raise SyncError(f"Refusing symlinked destination snapshot date path: {snapshot_dir}")
+    if snapshot_dir.exists():
+        indexed = destination_index.meta(snapshot_dir) if destination_index is not None else None
+        if indexed:
+            return snapshot_dir
+        meta = remote_index.refresh_local_path(
+            destination_index,
+            snapshot_dir,
+            name=snapshot_dir.name,
+            sudo=config.destination.sudo,
+            btrfs_command=config.destination.btrfs_command,
+        )
+        if not meta:
+            raise SyncError(
+                "Unsupported legacy destination layout: snapshot date path is an ordinary directory, "
+                "not a Btrfs subvolume. Move/remove it manually before retrying; automatic legacy "
+                "migration and ordinary recursive deletion are intentionally disabled:\n"
+                f"  {snapshot_dir}"
+            )
+        return snapshot_dir
+
+    parent = snapshot_dir.parent
+    if not parent.exists() or not parent.is_dir():
+        raise SyncError(f"Destination snapshots parent is unavailable: {parent}")
+    try:
+        btrfs.create_local_subvolume(snapshot_dir, config.destination.sudo, config.destination.btrfs_command)
+    except Exception as exc:
+        raise SyncError(f"Could not create destination snapshot date Btrfs subvolume {snapshot_dir}: {exc}") from exc
+    meta = remote_index.refresh_local_path(
+        destination_index,
+        snapshot_dir,
+        name=snapshot_dir.name,
+        sudo=config.destination.sudo,
+        btrfs_command=config.destination.btrfs_command,
+    )
+    if not meta:
+        raise SyncError(f"Destination date path was created but is not a Btrfs subvolume: {snapshot_dir}")
+    print(f"  destination date subvolume: created {snapshot_dir}")
+    return snapshot_dir
+
+
+def _validate_destination_snapshot_layout(
+    config: AppConfig,
+    destination_index: remote_index.BtrfsIndex,
+) -> None:
+    """Refuse every existing ordinary/symlinked destination date entry."""
+
+    snapshots_root = config.destination.target_root / "snapshots"
+    if not snapshots_root.exists():
+        return
+    try:
+        entries = list(snapshots_root.iterdir())
+    except OSError as exc:
+        raise SyncError(f"Could not inspect destination snapshots root {snapshots_root}: {exc}") from exc
+    invalid: list[str] = []
+    for entry in entries:
+        if entry.is_symlink() or not entry.is_dir() or not destination_index.contains(entry):
+            invalid.append(str(entry))
+    if invalid:
+        raise SyncError(
+            "Unsupported destination layout detected. Every entry directly below destination "
+            "snapshots/ must be a Btrfs date subvolume. Ordinary date folders/files and symlinks "
+            "are not migrated or deleted automatically. Inspect and move/remove them manually:\n  "
+            + "\n  ".join(sorted(invalid))
+        )
+
+
 def _atomic_write_snapshot_info_json(path: Path, content: str) -> None:
     """Atomically write one captured Timeshift ``info.json`` file.
 
@@ -514,7 +596,8 @@ def _atomic_write_snapshot_info_json(path: Path, content: str) -> None:
     document under the final name.
     """
 
-    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.parent.exists():
+        raise OSError(f"destination snapshot date subvolume is missing: {path.parent}")
     fd, tmp_name = tempfile.mkstemp(prefix=".info.json.", suffix=".tmp", dir=str(path.parent))
     raw_fd_open = True
     try:
@@ -697,15 +780,10 @@ def _cleanup_incomplete_destination_receive(
     subvolume_name: str,
     destination_index: remote_index.BtrfsIndex | None = None,
 ) -> None:
-    """Delete an incomplete destination receive before retrying.
+    """Delete one incomplete received Btrfs child subvolume before retrying.
 
-    If the user presses Ctrl+C or SSH drops while `btrfs receive` is running,
-    the destination can be left with a partially received subvolume. It is not in
-    state.json, so it is unsafe to treat as completed. The safest automatic
-    recovery is to delete that incomplete Btrfs subvolume and receive it again.
-
-    Only Btrfs subvolumes are deleted automatically. If the path is a normal
-    non-empty directory, the app refuses and asks for manual cleanup.
+    Ordinary-directory fallback deletion is intentionally unsupported. The
+    containing date subvolume remains in place for the retry.
     """
 
     if not dest_path.exists():
@@ -715,50 +793,34 @@ def _cleanup_incomplete_destination_receive(
 
     _human_blank()
     print(f"  {subvolume_name}: found incomplete destination receive not recorded in state.json")
-    print("  retry policy: delete only this incomplete destination path now")
-    print("  order policy: keep the existing snapshot queue order; resend when this snapshot/subvolume is reached")
+    print("  retry policy: delete only this incomplete Btrfs child subvolume now")
+    print("  date layout: keep the managed snapshot-date Btrfs subvolume for retry")
     print()
-    print(f"LOCAL INCOMPLETE DELETE: {dest_path}")
+    print(f"LOCAL INCOMPLETE BTRFS DELETE: {dest_path}")
     print()
 
+    meta = remote_index.refresh_local_path(
+        destination_index,
+        dest_path,
+        name=subvolume_name,
+        sudo=config.destination.sudo,
+        btrfs_command=config.destination.btrfs_command,
+    )
+    if not meta:
+        raise SyncError(
+            "Destination path exists but is not a Btrfs subvolume. Ordinary-directory cleanup "
+            "is disabled; inspect and remove it manually before retrying:\n"
+            f"  {dest_path}"
+        )
     try:
-        # Confirm it is a Btrfs subvolume before deleting it. This avoids using
-        # the backup tool as a dangerous rm -rf replacement.
-        _local_meta(config, dest_path, subvolume_name)
         btrfs.delete_local_subvolume(dest_path, config.destination.sudo, config.destination.btrfs_command)
     except Exception as exc:
-        # If it is just an empty ordinary directory, removing it is safe. If it
-        # contains files, stop and let the user inspect it manually.
-        try:
-            if dest_path.is_dir() and not any(dest_path.iterdir()):
-                dest_path.rmdir()
-            else:
-                raise
-        except Exception:
-            raise SyncError(
-                "Destination path exists but is not a deletable Btrfs subvolume "
-                "or empty directory. Clean it manually before retrying:\n"
-                f"  {dest_path}\n"
-                f"Original cleanup error: {exc}"
-            ) from exc
-
-    # Remove the now-empty snapshot folder if possible. It will be recreated just
-    # before btrfs receive.
-    try:
-        parent = dest_path.parent
-        if parent.exists() and parent.is_dir() and not any(parent.iterdir()):
-            parent.rmdir()
-    except Exception:
-        pass
-
+        raise SyncError(f"Could not delete incomplete destination Btrfs subvolume {dest_path}: {exc}") from exc
     if destination_index is not None:
         destination_index.remove_tree(dest_path)
-
-    print("  incomplete destination receive removed")
+    print("  incomplete destination Btrfs subvolume removed")
     print("  retrying this snapshot/subvolume at its current oldest-to-newest queue position")
     _human_rule("---")
-
-
 
 def _source_cache_live_child_paths(
     config: AppConfig,
@@ -817,7 +879,7 @@ def _cleanup_source_cache_snapshot_version(
     partial or the source Timeshift snapshot vanished mid-run, the current date
     cache must not remain as a future parent candidate. The helper deletes live
     child subvolumes deepest-first, then the cache date parent when it is empty.
-    It never targets source.snapshot_root and never uses source-side ``rm -rf``.
+    It never targets ``source.snapshot_root`` and never uses recursive ordinary deletion.
     """
 
     if not config.source.cache_root:
@@ -895,7 +957,6 @@ def _cleanup_source_cache_snapshot_version(
             parent_dir,
             protected_snapshot_root=config.source.snapshot_root,
             check=False,
-            remove_empty_child_dirs=True,
         )
         if result.returncode != 0:
             detail = result.stderr.strip() or result.stdout.strip() or f"return code {result.returncode}"
@@ -908,26 +969,6 @@ def _cleanup_source_cache_snapshot_version(
     raise SyncError(f"Source send-cache parent still has child subvolumes after recovery cleanup: {parent_dir}")
 
 
-def _remove_empty_destination_dirs_up_to(parent: Path, stop_root: Path) -> None:
-    """Remove empty ordinary directories upward without crossing stop_root."""
-
-    stop_root = stop_root.resolve()
-    current = parent
-    while True:
-        try:
-            resolved = current.resolve()
-        except FileNotFoundError:
-            resolved = current.parent.resolve()
-        if resolved == stop_root or not str(resolved).startswith(str(stop_root) + "/"):
-            return
-        try:
-            current.rmdir()
-        except FileNotFoundError:
-            current = current.parent
-            continue
-        except OSError:
-            return
-        current = current.parent
 
 
 def _cleanup_destination_snapshot_version(
@@ -935,12 +976,11 @@ def _cleanup_destination_snapshot_version(
     snapshot_name: str,
     destination_index: remote_index.BtrfsIndex | None = None,
 ) -> None:
-    """Delete the local destination version for one snapshot date safely.
+    """Delete one whole destination date version using Btrfs only.
 
-    Recovery removes the whole ``snapshots/<date>`` version, not only the
-    currently failing subvolume. Mixing a newly received ``@home`` with an older
-    ``@`` from the same date would create a misleading partial backup. Only
-    Btrfs subvolumes and empty ordinary directories are removed.
+    Configured child subvolumes are deleted first. The date subvolume is then
+    deleted, which removes its regular ``info.json`` automatically. Ordinary
+    date folders and unexpected content are refused for manual inspection.
     """
 
     snapshot_dir = _target_snapshot_dir(config, snapshot_name)
@@ -949,6 +989,8 @@ def _cleanup_destination_snapshot_version(
             destination_index.remove_tree(snapshot_dir)
         print(f"  recovery destination: already gone {snapshot_dir}")
         return
+    if snapshot_dir.is_symlink():
+        raise SyncError(f"Refusing symlinked destination snapshot date path during recovery: {snapshot_dir}")
 
     live_index = remote_index.build_local_btrfs_index(
         snapshot_dir,
@@ -957,82 +999,40 @@ def _cleanup_destination_snapshot_version(
         include_root=True,
         required=False,
     )
-    candidate_paths = set(live_index.child_paths(snapshot_dir))
-    for subvol_name in config.source.subvolumes:
-        candidate_paths.add(str(_dest_subvolume_path(config, snapshot_name, subvol_name)))
-    # If the date folder itself is a Btrfs subvolume in a future layout, delete
-    # it after children. In the current layout it is normally an ordinary dir.
-    if live_index.contains(snapshot_dir):
-        candidate_paths.add(str(snapshot_dir))
-
-    for path_text in sorted(candidate_paths, key=lambda item: (item.count("/"), item), reverse=True):
-        path = Path(path_text)
-        if not remote_index.is_under(path, snapshot_dir):
-            raise SyncError(f"Refusing destination recovery cleanup outside snapshot date folder: {path}")
-        meta = remote_index.refresh_local_path(
-            destination_index,
-            path,
-            name=path.name,
-            sudo=config.destination.sudo,
-            btrfs_command=config.destination.btrfs_command,
+    if not live_index.contains(snapshot_dir):
+        raise SyncError(
+            "Unsupported legacy destination layout during recovery: snapshot date path is not a "
+            "Btrfs subvolume. Automatic ordinary-directory cleanup is disabled:\n"
+            f"  {snapshot_dir}"
         )
-        if meta:
-            print(f"  recovery destination subvolume: deleting {path}")
-            btrfs.delete_local_subvolume(path, config.destination.sudo, config.destination.btrfs_command)
-            if destination_index is not None:
-                destination_index.remove_tree(path)
-            continue
-        if path.exists() and path.is_dir():
-            try:
-                path.rmdir()
-                print(f"  recovery destination empty dir: removed {path}")
-            except OSError:
-                # It may be a non-empty ordinary mountpoint directory left after
-                # Btrfs subvolume deletion. Keep it for the final parent check.
-                pass
 
-    info_json_path = _destination_info_json_path(config, snapshot_name)
-    remaining_entries: list[Path] = []
-    if snapshot_dir.exists():
-        try:
-            remaining_entries = [entry for entry in snapshot_dir.iterdir() if entry.name != "info.json"]
-        except OSError as exc:
-            raise SyncError(f"Could not inspect destination snapshot directory during recovery: {snapshot_dir}: {exc}") from exc
-    if not remaining_entries and (info_json_path.exists() or info_json_path.is_symlink()):
-        try:
-            info_json_path.unlink()
-            print(f"  recovery destination metadata: removed {info_json_path}")
-        except OSError as exc:
-            raise SyncError(f"Could not remove destination snapshot metadata during recovery: {info_json_path}: {exc}") from exc
-
-    if snapshot_dir.exists():
-        meta = remote_index.refresh_local_path(
-            destination_index,
-            snapshot_dir,
-            name=snapshot_dir.name,
-            sudo=config.destination.sudo,
-            btrfs_command=config.destination.btrfs_command,
+    expected_children = {_dest_subvolume_path(config, snapshot_name, name) for name in config.source.subvolumes}
+    live_children = {Path(path) for path in live_index.child_paths(snapshot_dir)}
+    unexpected_subvolumes = sorted(str(path) for path in live_children if path not in expected_children)
+    try:
+        unexpected_entries = sorted(
+            str(entry) for entry in snapshot_dir.iterdir()
+            if entry.name not in set(config.source.subvolumes) | {"info.json"}
         )
-        if meta:
-            print(f"  recovery destination date subvolume: deleting {snapshot_dir}")
-            btrfs.delete_local_subvolume(snapshot_dir, config.destination.sudo, config.destination.btrfs_command)
-            if destination_index is not None:
-                destination_index.remove_tree(snapshot_dir)
-        else:
-            try:
-                snapshot_dir.rmdir()
-                print(f"  recovery destination date dir: removed {snapshot_dir}")
-            except OSError as exc:
-                raise SyncError(
-                    "Destination snapshot date folder is not empty after Btrfs recovery cleanup. "
-                    "Only Btrfs subvolumes and empty ordinary directories are removed automatically:\n"
-                    f"  {snapshot_dir}"
-                ) from exc
+    except OSError as exc:
+        raise SyncError(f"Could not inspect destination date subvolume during recovery: {snapshot_dir}: {exc}") from exc
+    if unexpected_subvolumes or unexpected_entries:
+        details = unexpected_subvolumes + unexpected_entries
+        raise SyncError(
+            "Destination date subvolume contains unexpected content. Refusing automatic recovery "
+            "deletion; inspect it manually:\n  " + "\n  ".join(details)
+        )
 
+    for child in sorted(live_children, key=lambda item: (len(item.parts), str(item)), reverse=True):
+        print(f"  recovery destination child subvolume: deleting {child}")
+        btrfs.delete_local_subvolume(child, config.destination.sudo, config.destination.btrfs_command)
+        if destination_index is not None:
+            destination_index.remove_tree(child)
+
+    print(f"  recovery destination date subvolume: deleting {snapshot_dir}")
+    btrfs.delete_local_subvolume(snapshot_dir, config.destination.sudo, config.destination.btrfs_command)
     if destination_index is not None:
         destination_index.remove_tree(snapshot_dir)
-    _remove_empty_destination_dirs_up_to(snapshot_dir.parent, config.destination.target_root / "snapshots")
-
 
 def _refresh_snapshot_source_subvolumes_live(
     config: AppConfig,
@@ -2105,6 +2105,13 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
     if not dry_run:
         prepare_destination(config)
 
+    destination_index = remote_index.build_local_btrfs_index(
+        config.destination.target_root,
+        sudo=config.destination.sudo,
+        btrfs_command=config.destination.btrfs_command,
+        include_root=True,
+    )
+    _validate_destination_snapshot_layout(config, destination_index)
     destination_empty_at_start = not _destination_has_existing_snapshots(config)
 
     def load_source_inventory(reason: str) -> tuple[remote_index.SourceInventory, dict[str, SnapshotMeta]]:
@@ -2126,12 +2133,6 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
     source_inventory, source_by_name = load_source_inventory("initial Timeshift/snapshot/cache scan")
     snapshot_root_btrfs_index = source_inventory.snapshot_index
     source_cache_index = source_inventory.cache_index
-    destination_index = remote_index.build_local_btrfs_index(
-        config.destination.target_root,
-        sudo=config.destination.sudo,
-        btrfs_command=config.destination.btrfs_command,
-        include_root=True,
-    )
     _human_blank()
     print("SOURCE INDEX CACHE")
     if snapshot_root_btrfs_index.root_missing:
@@ -2447,7 +2448,7 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
         print(f"Snapshot {snapshot.name} tags={''.join(snapshot.tags) or '-'}")
         _human_blank()
         if dry_run:
-            print(f"  would ensure local directory: {target_dir}")
+            print(f"  would ensure destination date Btrfs subvolume: {target_dir}")
             print(f"  info.json: would create or refresh {target_dir / 'info.json'} after all configured subvolumes succeed")
             _human_blank()
 
@@ -2671,7 +2672,7 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             # Create the local receive directory only after parent selection.
             # This prevents an empty in-progress directory from being mistaken as
             # an existing backup by the safety guard.
-            target_dir.mkdir(parents=True, exist_ok=True)
+            target_dir = _ensure_destination_snapshot_subvolume(config, snapshot.name, destination_index)
             _human_blank()
             print(f"  {subvol_name}: {mode} send/receive")
             print(f"    source-kind: {_send_path_kind_text(config, current_send_path, subvolume.path)}")

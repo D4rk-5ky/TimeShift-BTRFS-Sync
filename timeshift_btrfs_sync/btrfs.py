@@ -780,62 +780,16 @@ def source_delete_subvolume(
     check: bool = False,
     log_stderr: bool = True,
     mirror_stderr: bool = True,
-    remove_empty_child_dirs: bool = False,
 ):
-    """Delete a source-side Btrfs subvolume.
+    """Delete one source-side Btrfs subvolume and nothing else.
 
-    The optional protected_snapshot_root guard is a final safety net: the app
-    must never delete Timeshift-owned source.snapshot_root or any path below it.
-    When remove_empty_child_dirs is true, the source shell first removes only
-    empty ordinary child directories with rmdir. This is used for app-owned
-    cache parent subvolumes, where deleted nested subvolumes can leave empty
-    ordinary mountpoint directories that make Btrfs report "Directory not
-    empty". It never removes files and never uses source-side sudo rm/find.
+    The optional protected-source guard is a final safety net: the app must
+    never delete Timeshift-owned ``source.snapshot_root`` or any path below it.
+    Managed source-cache trees are deleted only with
+    ``btrfs subvolume delete``. There is no ordinary-directory cleanup fallback.
     """
 
     reject_protected_source_snapshot_path(path, protected_snapshot_root, action="delete")
-    if remove_empty_child_dirs:
-        sudo_words = " ".join(shlex.quote(part) for part in sudo_prefix(sudo))
-        script = f"""
-path={shlex.quote(path)}
-sudo_words={shlex.quote(sudo_words)}
-btrfs_cmd={shlex.quote(btrfs_command)}
-run_btrfs() {{
-    if [ -n "$sudo_words" ]; then
-        # shellcheck disable=SC2086
-        $sudo_words "$btrfs_cmd" "$@"
-    else
-        "$btrfs_cmd" "$@"
-    fi
-}}
-remove_empty_child_dirs() {{
-    base=$1
-    while :; do
-        changed=0
-        for child in "$base"/* "$base"/.[!.]* "$base"/..?*; do
-            [ -e "$child" ] || continue
-            [ -d "$child" ] || continue
-            if rmdir -- "$child" 2>/dev/null; then
-                changed=1
-            fi
-        done
-        [ "$changed" -eq 1 ] || break
-    done
-}}
-remove_empty_child_dirs "$path"
-run_btrfs subvolume delete "$path"
-status=$?
-if [ "$status" -eq 0 ] && [ -e "$path" ]; then
-    rmdir -- "$path" >/dev/null 2>&1 || true
-fi
-exit "$status"
-""".strip()
-        return source.run(
-            "sh -c " + shlex.quote(script),
-            check=check,
-            log_stderr=log_stderr,
-            mirror_stderr=mirror_stderr,
-        )
     return source.run(
         remote_btrfs_cmd(sudo, btrfs_command, ["subvolume", "delete", path]),
         check=check,
@@ -1017,6 +971,12 @@ def local_receive_cmd(destination_dir: Path, sudo: str, btrfs_command: str = "bt
         args += ["-v"]
     args.append(str(destination_dir))
     return local_btrfs_cmd(sudo, btrfs_command, args)
+
+
+def create_local_subvolume(path: Path, sudo: str, btrfs_command: str = "btrfs") -> None:
+    """Create one local Btrfs subvolume at an existing parent path."""
+
+    run_local(local_btrfs_cmd(sudo, btrfs_command, ["subvolume", "create", str(path)]))
 
 
 def delete_local_subvolume(path: Path, sudo: str, btrfs_command: str = "btrfs") -> None:

@@ -3,9 +3,11 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from timeshift_btrfs_sync import remote_index, retention, sync
 from timeshift_btrfs_sync.config import load_config
+from timeshift_btrfs_sync.models import SubvolumeMeta
 from timeshift_btrfs_sync.sync import SyncError
 
 
@@ -69,6 +71,7 @@ class DestinationInfoJsonTests(unittest.TestCase):
     def test_single_subvolume_snapshot_writes_shared_info_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             config = self.make_config(Path(tmp) / "target", ["@"])
+            (config.destination.target_root / "snapshots" / SNAPSHOT).mkdir(parents=True)
             changed = sync._sync_snapshot_info_json(
                 config,
                 inventory_with_info(),
@@ -82,6 +85,7 @@ class DestinationInfoJsonTests(unittest.TestCase):
     def test_home_only_snapshot_writes_shared_info_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             config = self.make_config(Path(tmp) / "target", ["@home"])
+            (config.destination.target_root / "snapshots" / SNAPSHOT).mkdir(parents=True)
             sync._sync_snapshot_info_json(config, inventory_with_info(), SNAPSHOT, dry_run=False)
             destination = config.destination.target_root / "snapshots" / SNAPSHOT / "info.json"
             self.assertEqual(destination.read_text(encoding="utf-8"), INFO_CONTENT)
@@ -170,18 +174,53 @@ class DestinationInfoJsonTests(unittest.TestCase):
             info_path.write_text(INFO_CONTENT, encoding="utf-8")
             (snapshot_dir / "unknown-file").write_text("keep", encoding="utf-8")
             state = {"snapshots": {SNAPSHOT: {"subvolumes": {}}}}
-            self.assertFalse(retention._delete_destination_snapshot_for_prune(config, state, SNAPSHOT))
+            live = remote_index.BtrfsIndex(str(snapshot_dir), "local")
+            live.add(SubvolumeMeta(snapshot_dir.name, str(snapshot_dir), uuid="date-uuid"))
+            with patch.object(retention.remote_index, "build_local_btrfs_index", return_value=live):
+                self.assertFalse(retention._delete_destination_snapshot_for_prune(config, state, SNAPSHOT))
             self.assertEqual(info_path.read_text(encoding="utf-8"), INFO_CONTENT)
 
-    def test_prune_removes_info_json_after_subvolumes_are_gone(self) -> None:
+    def test_prune_deletes_date_subvolume_after_children_and_info_json_disappears_with_it(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             config = self.make_config(Path(tmp) / "target", ["@"])
             snapshot_dir = config.destination.target_root / "snapshots" / SNAPSHOT
             snapshot_dir.mkdir(parents=True)
             (snapshot_dir / "info.json").write_text(INFO_CONTENT, encoding="utf-8")
             state = {"snapshots": {SNAPSHOT: {"subvolumes": {}}}}
-            self.assertTrue(retention._delete_destination_snapshot_for_prune(config, state, SNAPSHOT))
+            child = snapshot_dir / "@"
+            child.mkdir()
+            live = remote_index.BtrfsIndex(str(snapshot_dir), "local")
+            live.add(SubvolumeMeta(snapshot_dir.name, str(snapshot_dir), uuid="date-uuid"))
+            live.add(SubvolumeMeta(child.name, str(child), uuid="child-uuid"))
+            deleted: list[Path] = []
+
+            def fake_delete(path: Path, *_args) -> None:
+                deleted.append(path)
+                if path == child:
+                    child.rmdir()
+                elif path == snapshot_dir:
+                    (snapshot_dir / "info.json").unlink()
+                    snapshot_dir.rmdir()
+
+            with (
+                patch.object(retention.remote_index, "build_local_btrfs_index", return_value=live),
+                patch.object(retention.btrfs, "delete_local_subvolume", side_effect=fake_delete),
+            ):
+                self.assertTrue(retention._delete_destination_snapshot_for_prune(config, state, SNAPSHOT))
+            self.assertEqual(deleted, [child, snapshot_dir])
             self.assertFalse(snapshot_dir.exists())
+
+    def test_prune_refuses_ordinary_legacy_date_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config = self.make_config(Path(tmp) / "target", ["@"])
+            snapshot_dir = config.destination.target_root / "snapshots" / SNAPSHOT
+            snapshot_dir.mkdir(parents=True)
+            (snapshot_dir / "info.json").write_text(INFO_CONTENT, encoding="utf-8")
+            state = {"snapshots": {SNAPSHOT: {"subvolumes": {}}}}
+            empty = remote_index.BtrfsIndex(str(snapshot_dir), "local")
+            with patch.object(retention.remote_index, "build_local_btrfs_index", return_value=empty):
+                self.assertFalse(retention._delete_destination_snapshot_for_prune(config, state, SNAPSHOT))
+            self.assertTrue(snapshot_dir.exists())
 
 
 if __name__ == "__main__":

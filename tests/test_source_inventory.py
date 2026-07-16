@@ -272,6 +272,7 @@ class SyncContinuationTests(unittest.TestCase):
             config.source.source_change_retry_count = 2
             config.manual_snapshot.enabled = False
             config.destination.target_root = Path(tmp) / "target"
+            (config.destination.target_root / "snapshots").mkdir(parents=True)
             config.state_file = Path(tmp) / "state.json"
 
             source_path = "/snapshots/2026-07-14_01-00-00/@"
@@ -310,6 +311,7 @@ class SyncContinuationTests(unittest.TestCase):
                 patch.object(sync, "refresh_state_metadata_and_report", return_value=0),
                 patch.object(sync, "_select_parent", return_value=(None, None)),
                 patch.object(sync, "_ensure_source_send_path", return_value=source_path),
+                patch.object(sync, "_ensure_destination_snapshot_subvolume", return_value=config.destination.target_root / "snapshots" / "2026-07-14_01-00-00"),
                 patch.object(sync, "stream_pipeline", side_effect=pipeline_error),
                 patch.object(sync, "_recover_snapshot_version", side_effect=lambda *_a, **kw: recovered.append(kw["reason"])),
             ):

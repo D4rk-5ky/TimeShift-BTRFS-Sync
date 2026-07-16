@@ -403,7 +403,6 @@ def _cleanup_source_cache_for_pruned_snapshot(
                 parent_dir,
                 protected_snapshot_root=config.source.snapshot_root,
                 check=False,
-                remove_empty_child_dirs=True,
             )
             if result.returncode == 0:
                 if source_cache_index is not None:
@@ -507,57 +506,73 @@ def build_prune_plan(config: AppConfig, state: dict) -> PrunePlan:
 
 
 def _delete_destination_snapshot_for_prune(config: AppConfig, state: dict, snapshot_name: str) -> bool:
-    """Return True when destination subvolumes for one pruned snapshot are gone."""
+    """Delete one destination snapshot date using Btrfs subvolume deletion only."""
 
     if not config.destination.target_root.exists():
         print(f"  destination: target root unavailable, keeping state entry for retry: {config.destination.target_root}")
         return False
 
-    item = state.get("snapshots", {}).get(snapshot_name, {})
     snap_path = config.destination.target_root / "snapshots" / snapshot_name
-    destination_paths = _destination_delete_paths(config, item)
-    subvol_paths = [path for _, path in destination_paths]
-    if not subvol_paths:
-        print("  destination: no tracked destination subvolume paths; checking snapshot parent only")
+    if not snap_path.exists():
+        print("  destination: already gone, confirmed")
+        return True
+    if snap_path.is_symlink():
+        print(f"  warning: destination date path is a symlink; refusing cleanup: {snap_path}")
+        return False
+
+    live_index = remote_index.build_local_btrfs_index(
+        snap_path,
+        sudo=config.destination.sudo,
+        btrfs_command=config.destination.btrfs_command,
+        include_root=True,
+        required=False,
+    )
+    if not live_index.contains(snap_path):
+        print(
+            "  warning: unsupported legacy destination date folder is not a Btrfs subvolume; "
+            f"manual inspection is required: {snap_path}"
+        )
+        return False
+
+    expected_children = {snap_path / name for name in config.source.subvolumes}
+    live_children = {Path(path) for path in live_index.child_paths(snap_path)}
+    unexpected_subvolumes = sorted(str(path) for path in live_children if path not in expected_children)
+    try:
+        unexpected_entries = sorted(
+            str(entry) for entry in snap_path.iterdir()
+            if entry.name not in set(config.source.subvolumes) | {"info.json"}
+        )
+    except OSError as exc:
+        print(f"  warning: destination date subvolume could not be inspected; keeping state entry for retry: {exc}")
+        return False
+    if unexpected_subvolumes or unexpected_entries:
+        print("  warning: destination date subvolume contains unexpected content; manual inspection is required:")
+        for item in unexpected_subvolumes + unexpected_entries:
+            print(f"    - {item}")
+        return False
+
     ok = True
-    for subvol_name, subvol_path in sorted(destination_paths, key=lambda item: len(item[1].parts), reverse=True):
-        if not subvol_path.exists():
-            print(f"  destination {subvol_name}: already gone, confirmed {subvol_path}")
-            continue
-        print(f"  destination {subvol_name}: deleting {subvol_path}")
+    for child in sorted(live_children, key=lambda item: (len(item.parts), str(item)), reverse=True):
+        print(f"  destination child subvolume: deleting {child}")
         try:
-            btrfs.delete_local_subvolume(subvol_path, config.destination.sudo, config.destination.btrfs_command)
+            btrfs.delete_local_subvolume(child, config.destination.sudo, config.destination.btrfs_command)
         except Exception as exc:
             ok = False
-            print(f"  warning: destination subvolume cleanup failed; keeping state entry for retry: {exc}")
-    subvolumes_gone = not any(path.exists() for path in subvol_paths)
-    info_path = snap_path / "info.json"
-    remaining_entries: list[Path] = []
-    if snap_path.exists() and subvolumes_gone:
-        try:
-            remaining_entries = [entry for entry in snap_path.iterdir() if entry.name != "info.json"]
-        except OSError as exc:
-            ok = False
-            print(f"  warning: destination date directory could not be inspected; keeping state entry for retry: {exc}")
-    if ok and subvolumes_gone and not remaining_entries and (info_path.exists() or info_path.is_symlink()):
-        print(f"  destination metadata: deleting {info_path}")
-        try:
-            info_path.unlink()
-        except OSError as exc:
-            ok = False
-            print(f"  warning: destination info.json cleanup failed; keeping state entry for retry: {exc}")
-    if snap_path.exists() and ok and subvolumes_gone and not remaining_entries:
-        try:
-            snap_path.rmdir()
-        except OSError:
-            pass
-    destination_gone = subvolumes_gone and not snap_path.exists()
-    if destination_gone:
-        print("  destination: confirmed gone")
-    elif ok:
-        print(f"  destination: still present, keeping state entry for retry: {snap_path}")
-    return ok and destination_gone
+            print(f"  warning: destination child cleanup failed; keeping state entry for retry: {exc}")
+    if not ok:
+        return False
 
+    print(f"  destination date subvolume: deleting {snap_path}")
+    try:
+        btrfs.delete_local_subvolume(snap_path, config.destination.sudo, config.destination.btrfs_command)
+    except Exception as exc:
+        print(f"  warning: destination date-subvolume cleanup failed; keeping state entry for retry: {exc}")
+        return False
+    if snap_path.exists():
+        print(f"  destination: still present after Btrfs deletion, keeping state entry for retry: {snap_path}")
+        return False
+    print("  destination: confirmed gone; info.json was removed with the date subvolume")
+    return True
 
 def _delete_prune_item(
     config: AppConfig,

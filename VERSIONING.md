@@ -1,3 +1,14 @@
+## 0.1.43
+
+- Made the managed destination snapshot-date layout strictly Btrfs-only. Every newly created `<destination.target_root>/snapshots/<date>` container is now a Btrfs subvolume containing the received `@` and optional `@home` child subvolumes plus the regular Timeshift `info.json` control file.
+- Changed destination prune and failed-transfer recovery to delete child payload subvolumes first and then delete the date-container subvolume. Deleting the date subvolume removes its regular `info.json` automatically, so no ordinary recursive cleanup is used for managed snapshot versions.
+- Removed legacy ordinary destination date-folder support. Startup validation now refuses any direct `snapshots/` entry that is not a Btrfs subvolume, and prune/recovery refuse ordinary or unexpectedly populated date paths for manual inspection rather than migrating or deleting them.
+- Removed both recursive ordinary-directory fallback branches from `destroy-leftovers`. A Btrfs source cache or destination tree is recursively discovered and deleted deepest-first only with `btrfs subvolume delete`; an ordinary non-empty configured root is refused and reported for manual inspection.
+- Removed ordinary stale-directory cleanup from normal source-cache deletion. Cache payload children and timestamp parents are now deleted only as Btrfs subvolumes, while `source.snapshot_root` remains protected.
+- Kept only narrow ordinary-file operations required for app metadata and control files, such as atomic temporary-file replacement and guarded state/lock handling. Backup and cache trees are never recursively deleted through ordinary filesystem commands.
+- Added regression coverage for date-subvolume creation/reuse, refusal of legacy ordinary date folders and ordinary non-empty destroy roots, child-first Btrfs-only remote cleanup, and absence of `rm -rf` from packaged runtime Python.
+- Updated README.md, INSTALL.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
 ## 0.1.42
 
 - Added effective source account identity capture to the existing combined source inventory. SSH mode records the non-sudo remote account name and UID in the same SSH request used for Timeshift, `info.json`, snapshot-root, and cache-root discovery, so permission diagnostics add no SSH round trip.
