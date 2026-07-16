@@ -1,3 +1,24 @@
+## 0.1.42
+
+- Added effective source account identity capture to the existing combined source inventory. SSH mode records the non-sudo remote account name and UID in the same SSH request used for Timeshift, `info.json`, snapshot-root, and cache-root discovery, so permission diagnostics add no SSH round trip.
+- Improved remote metadata discovery so inability to traverse or list `source.snapshot_root` is recorded explicitly and applied to every Timeshift-listed date whose `info.json` could not be captured.
+- Expanded the hard `info.json` error to print the remote SSH source account used by the destination, including its UID, and explain that this account—not local destination root—must traverse every source mount-path parent and read the control file.
+- Added current README/install/config guidance for a stable privileged `/etc/fstab` Btrfs mount, narrow ownership/mode or POSIX ACL access by the printed account name/UID, and the difference between Btrfs filesystem permissions and FAT/NTFS-style `uid=`/`gid=` mount remapping.
+- Added regression coverage for identity parsing, root traversal failure propagation, and the complete user/UID/fstab permission error.
+- Updated README.md, INSTALL.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
+## 0.1.41
+
+- Added preservation of Timeshift's one shared per-snapshot-date `info.json` beside received `@` and optional `@home` subvolumes at `<destination.target_root>/snapshots/<date>/info.json`.
+- Kept SSH round trips minimal: the existing combined source inventory command now reads all readable `<source.snapshot_root>/<date>/info.json` files with ordinary non-sudo `cat` in the same SSH request that runs `timeshift --list` and scans snapshot/cache Btrfs metadata. Local source mode reads the same files directly.
+- Added framed parsing that preserves the exact text content, including whether the source file has a final newline, and records missing/unreadable metadata per Timeshift date.
+- Made metadata completion strict: sync cannot report success for a processed snapshot date unless its source control file was captured and the destination file can be created/refreshed; paired `@`/`@home`, root-only, and home-only configurations all write the shared file once after their configured subvolume set is complete.
+- Added atomic destination creation/update using a same-directory temporary file, `fsync`, and `os.replace`; symlinked destination `info.json` paths are refused.
+- Added backfill/refresh for already-complete destination dates whose source snapshot remains available, without re-sending Btrfs data.
+- Updated source-change reporting to include added, removed, or changed `info.json` content. Snapshot recovery removes the copied control file with the failed whole-date version, and prune removes it only after tracked destination Btrfs subvolumes are confirmed gone and no unknown sibling content remains.
+- Added regression coverage for one-command SSH capture, exact framing, paired and single-subvolume completion, atomic update/idempotence, missing metadata failure, symlink refusal, and prune cleanup.
+- Updated README.md, INSTALL.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, the packaged config example, and the minimal source sudoers comments.
+
 ## 0.1.40
 
 - Replaced separate sync-time source discovery calls with one coherent source inventory. In SSH mode a single SSH command now captures `timeshift --list`, bulk UUID/read-only metadata for `source.snapshot_root`, and bulk UUID/read-only metadata for `source.cache_root`; `destination.target_root` is indexed locally once.

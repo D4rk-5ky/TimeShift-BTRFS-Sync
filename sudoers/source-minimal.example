@@ -1,4 +1,7 @@
 # /etc/sudoers.d/ts-btrfs-source
 # Edit with: sudo visudo -f /etc/sudoers.d/ts-btrfs-source
+# Per-snapshot Timeshift info.json is read with ordinary non-sudo cat. Ensure
+# this user can traverse source.snapshot_root and read each <date>/info.json.
+# Do not add a passwordless sudo rule for cat, cp, find, or rm.
 ts-btrfs-sync-user ALL=(root) NOPASSWD: /usr/bin/btrfs *
 ts-btrfs-sync-user ALL=(root) NOPASSWD: /usr/bin/timeshift *

@@ -236,8 +236,8 @@ This file describes the current command handlers, shell command families, functi
 - `_remote_bulk_index_script()`: builds the single source shell script used to list UUID metadata and read-only paths below one source root in one SSH session.
 - `build_source_btrfs_index()`: builds a source snapshot-root or cache-root index using either SSH mode or local mode through `SourceRunner`.
 - `build_remote_btrfs_index()`: compatibility wrapper for SSH source indexes.
-- `build_remote_btrfs_index.flush_list()`: nested parser helper that commits the current remote subvolume-list section to the index before starting another section.
-- `build_remote_btrfs_index.flush_readonly()`: nested parser helper that applies the current remote read-only-list section to indexed paths before resetting its buffer.
+- `_parse_remote_btrfs_index_result.flush_list()`: nested parser helper that commits the current remote subvolume-list section to the index before starting another section.
+- `_parse_remote_btrfs_index_result.flush_readonly()`: nested parser helper that applies the current remote read-only-list section to indexed paths before resetting its buffer.
 - `refresh_source_path()`: refreshes one source path after creation/deletion-sensitive work.
 - `refresh_remote_path()`: compatibility wrapper for refreshing one SSH source path.
 - `refresh_local_path()`: refreshes one destination path after receive/delete-sensitive work.
@@ -422,7 +422,7 @@ This file describes the current command handlers, shell command families, functi
 - `_source_cache_live_child_paths()`: performs a fresh Btrfs child-subvolume list below one source send-cache date parent for recovery cleanup, converting listed paths back under `source.cache_root` before any delete is allowed.
 - `_cleanup_source_cache_snapshot_version()`: removes the app-owned `source.cache_root/<snapshot>` recovery version, deleting live child cache subvolumes deepest-first and then the date parent, while still refusing any Timeshift-owned source path.
 - `_remove_empty_destination_dirs_up_to()`: removes empty ordinary destination directories upward without crossing the configured stop root.
-- `_cleanup_destination_snapshot_version()`: removes one failed destination `snapshots/<date>` version as a whole, deleting Btrfs subvolumes and empty dirs only so `@` and `@home` cannot be mixed from different transfer attempts.
+- `_cleanup_destination_snapshot_version()`: removes one failed destination `snapshots/<date>` version as a whole, deleting Btrfs subvolumes, the specific copied `info.json`, and empty directories only so `@` and `@home` cannot be mixed from different transfer attempts.
 - `_refresh_snapshot_source_subvolumes_live()`: targeted live-probes every configured source subvolume for one Timeshift date and updates the per-run source snapshot index so stale hourly entries are not trusted.
 - `_snapshot_destination_has_any_path()`: detects whether a destination date has any current folder or configured child path that recovery may need to clean.
 - `_snapshot_state_is_complete_with_destination()`: checks that both state and destination contain all configured subvolumes before treating a snapshot as complete.
@@ -473,7 +473,7 @@ This file describes the current command handlers, shell command families, functi
 - `initial_sync_keep_names()`: returns retained source snapshot names for a fresh destination seed.
 - `_cleanup_source_cache_for_pruned_snapshot()`: checks one timestamp send-cache parent, deletes tracked app-owned cache subvolumes, performs a final live child-subvolume check below the parent, and deletes the parent only after Btrfs reports no remaining child subvolumes.
 - `build_prune_plan()`: computes retention keep/delete decisions from state, source tags, and config; it does not delete anything.
-- `_delete_destination_snapshot_for_prune()`: deletes destination Btrfs subvolumes for one snapshot and returns true only when destination paths are confirmed gone or already absent.
+- `_delete_destination_snapshot_for_prune()`: deletes destination Btrfs subvolumes for one snapshot, removes only its copied `info.json` after tracked subvolumes are gone and no unknown sibling content remains, and returns true only when the complete destination date directory is confirmed gone.
 - `_delete_prune_item()`: runs coordinated per-snapshot destination cleanup and source send-cache cleanup before removing state.
 - `print_prune_plan()`: prints retention summary and delete plan to terminal and `.succes`.
 - `prune()`: prints the plan and only deletes in real mode with explicit confirmation. It creates a `SourceRunner` for source-cache cleanup.
@@ -630,14 +630,20 @@ This file describes the current command handlers, shell command families, functi
 
 ### `remote_index.py`
 
-- `SourceInventory`: groups one Timeshift list, the complete `source.snapshot_root` Btrfs index, and the complete optional `source.cache_root` Btrfs index from the same inventory generation. It exists so parent/source comparisons do not mix metadata captured by separately timed SSH sessions.
-- `SourceInventory.snapshot_names`: extracts sorted Timeshift timestamp names for inventory-difference reporting.
-- `SourceInventory.meta()`: resolves a source path from the cache index first and then the Timeshift snapshot index; this gives recovery and parent checks one lookup interface for both roots.
-- `_parse_remote_btrfs_index_result()`: parses one marked bulk-index section into `BtrfsIndex`. The standalone one-root builder and the combined source inventory share it so UUID, Received UUID, Parent UUID, read-only, missing-root, and error behavior remain identical.
-- `_remote_source_inventory_script()`: builds the single source shell command that runs Timeshift listing and both bulk Btrfs root scans. In SSH mode it is deliberately wrapped by one SSH invocation to reduce authentication and network round trips.
-- `_split_remote_source_inventory_output()`: separates the marked Timeshift, snapshot-root, and cache-root output sections without confusing normal command output with protocol markers.
-- `build_source_inventory()`: creates one coherent `SourceInventory`. SSH mode uses one source/SSH command for all source views; local mode uses the same parsers and safety rules without network overhead.
-- `describe_source_inventory_changes()`: produces terminal/log descriptions of added/removed Timeshift names, added/removed Btrfs paths, UUID/read-only identity changes, and root availability changes between two inventory generations.
+- `SourceInventory`: groups one Timeshift list, every readable per-date Timeshift `info.json`, the complete `source.snapshot_root` Btrfs index, the complete optional `source.cache_root` Btrfs index, and the effective source account name/UID from one inventory generation. It prevents parent/source comparison and control-file preservation from mixing separately timed SSH results and supplies actionable permission diagnostics without another SSH request.
+- `SourceInventory.snapshot_names`: extracts sorted Timeshift timestamp names for inventory-difference reporting and missing-control-file checks.
+- `SourceInventory.meta()`: resolves a source path from the cache index first and then the Timeshift snapshot index; recovery and parent checks therefore use one lookup interface for both roots.
+- `SourceInventory.info_json()`: returns the exact captured control-file text for one Timeshift snapshot date.
+- `_parse_remote_btrfs_index_result()`: parses one marked bulk-index section into `BtrfsIndex`. The standalone one-root builder and combined inventory share it so UUID, Received UUID, Parent UUID, read-only, missing-root, and error behavior remain identical.
+- `_remote_source_inventory_script()`: builds the single source shell command that records the effective source name/UID with non-sudo `id`, runs Timeshift listing, checks whether the unprivileged account can traverse/list `snapshot_root`, loops over `<snapshot_root>/*/info.json` with shell built-ins plus ordinary non-sudo `cat`, and performs both bulk Btrfs root scans. SSH mode wraps the complete script in one SSH invocation to avoid one request per identity check, metadata file, root, snapshot, or subvolume.
+- `_extract_snapshot_info_json_frames()`: removes and parses the marked `cat` payloads before line-oriented section parsing. It preserves exact file text, including a source final newline, and records nonzero `cat` status or malformed framing.
+- `replace()`: nested `_extract_snapshot_info_json_frames()` callback that stores one successful payload or its `cat` error and removes the complete frame from the remaining line-oriented inventory output.
+- `_split_remote_source_inventory_output()`: separates source account name/UID, Timeshift output, snapshot-root permission diagnostics, parsed control files, snapshot-root Btrfs output, and cache-root Btrfs output without treating JSON lines as protocol sections.
+- `_current_process_identity()`: returns the effective local account name and UID used for direct metadata reads in local source mode so local failures use the same diagnostic model as SSH mode.
+- `_read_local_snapshot_info_json()`: reads the same per-date control files directly with Python in local source mode, avoiding unnecessary subprocesses.
+- `_record_missing_info_json_errors()`: records each Timeshift-listed date whose control file was not captured and carries a root traversal/listing failure onto each affected date, so sync can fail with the exact missing/unreadable date and cause rather than silently omitting metadata.
+- `build_source_inventory()`: creates one coherent `SourceInventory`. SSH mode uses one source/SSH command for Timeshift, all control files, and both Btrfs roots; local mode uses the same result model and safety rules without network overhead.
+- `describe_source_inventory_changes()`: produces terminal/log descriptions of added/removed Timeshift names, added/removed/changed control files, Btrfs path changes, UUID/read-only identity changes, and root availability changes between inventory generations.
 - `compare_index()`: nested helper inside `describe_source_inventory_changes()` that compares one named Btrfs root and explains path or identity differences.
 
 ### `preflight.py`
@@ -650,6 +656,10 @@ This file describes the current command handlers, shell command families, functi
 
 ### `sync.py`
 
+- `_destination_info_json_path()`: returns `<target_root>/snapshots/<date>/info.json`, the one shared Timeshift control-file location beside received subvolumes.
+- `_atomic_write_snapshot_info_json()`: writes the captured text through a mode-0644 same-directory temporary file, flushes and `fsync`s it, then atomically replaces the final path so interruption cannot leave a partial final file.
+- `_require_snapshot_info_json()`: returns captured metadata or raises a detailed `SyncError` naming the source date/path, capture failure, effective source account name/UID, required parent-directory/file permissions, and the stable `/etc/fstab` plus ownership/mode/ACL remedy; sync therefore cannot silently omit a requested control file.
+- `_sync_snapshot_info_json()`: safely creates, refreshes, or backfills one destination control file after the configured subvolume set is complete. It is idempotent, supports paired or single-subvolume configurations, reports dry-run actions, and refuses symlinked final paths.
 - `_snapshots_from_source_inventory()`: converts the Timeshift part of a coherent source inventory into `SnapshotMeta` objects while filling configured children from the already loaded snapshot-root index.
 - `_required_pipeline_source_changes()`: compares only paths required by a failed operation—current source/send path, selected incremental parent, and optional sibling paths—and reports disappearance or UUID replacement. This prevents unrelated Timeshift churn from hiding a network, mbuffer, receive, permission, or destination failure.
 - `load_source_inventory()`: nested `sync_once()` helper that builds one combined source inventory, prints why the generation was needed, and returns the parsed Timeshift snapshot mapping.

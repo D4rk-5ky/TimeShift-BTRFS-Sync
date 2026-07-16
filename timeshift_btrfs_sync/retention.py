@@ -530,12 +530,28 @@ def _delete_destination_snapshot_for_prune(config: AppConfig, state: dict, snaps
         except Exception as exc:
             ok = False
             print(f"  warning: destination subvolume cleanup failed; keeping state entry for retry: {exc}")
-    if snap_path.exists():
+    subvolumes_gone = not any(path.exists() for path in subvol_paths)
+    info_path = snap_path / "info.json"
+    remaining_entries: list[Path] = []
+    if snap_path.exists() and subvolumes_gone:
+        try:
+            remaining_entries = [entry for entry in snap_path.iterdir() if entry.name != "info.json"]
+        except OSError as exc:
+            ok = False
+            print(f"  warning: destination date directory could not be inspected; keeping state entry for retry: {exc}")
+    if ok and subvolumes_gone and not remaining_entries and (info_path.exists() or info_path.is_symlink()):
+        print(f"  destination metadata: deleting {info_path}")
+        try:
+            info_path.unlink()
+        except OSError as exc:
+            ok = False
+            print(f"  warning: destination info.json cleanup failed; keeping state entry for retry: {exc}")
+    if snap_path.exists() and ok and subvolumes_gone and not remaining_entries:
         try:
             snap_path.rmdir()
         except OSError:
             pass
-    destination_gone = not any(path.exists() for path in subvol_paths) and not snap_path.exists()
+    destination_gone = subvolumes_gone and not snap_path.exists()
     if destination_gone:
         print("  destination: confirmed gone")
     elif ok:

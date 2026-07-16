@@ -14,6 +14,8 @@ The important performance/safety rule in this version is:
 from __future__ import annotations
 
 from pathlib import Path
+import os
+import tempfile
 from . import btrfs, timeshift
 from . import preflight, remote_index
 from .commands import CommandError, stream_pipeline
@@ -497,6 +499,118 @@ def _target_snapshot_dir(config: AppConfig, snapshot_name: str) -> Path:
     return config.destination.target_root / "snapshots" / snapshot_name
 
 
+def _destination_info_json_path(config: AppConfig, snapshot_name: str) -> Path:
+    """Return the destination Timeshift control-file path for one snapshot."""
+
+    return _target_snapshot_dir(config, snapshot_name) / "info.json"
+
+
+def _atomic_write_snapshot_info_json(path: Path, content: str) -> None:
+    """Atomically write one captured Timeshift ``info.json`` file.
+
+    The temporary file is created in the destination snapshot directory so the
+    final ``os.replace`` stays on the same filesystem. A failed write therefore
+    leaves either the previous complete file or no file, never a partial JSON
+    document under the final name.
+    """
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=".info.json.", suffix=".tmp", dir=str(path.parent))
+    raw_fd_open = True
+    try:
+        os.fchmod(fd, 0o644)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+            raw_fd_open = False
+            fh.write(content)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_name, path)
+    finally:
+        if raw_fd_open:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        try:
+            os.unlink(tmp_name)
+        except FileNotFoundError:
+            pass
+
+
+def _require_snapshot_info_json(
+    inventory: remote_index.SourceInventory,
+    snapshot_name: str,
+) -> str:
+    """Return captured control-file content or raise a precise sync error."""
+
+    if snapshot_name in inventory.snapshot_info_json:
+        return inventory.snapshot_info_json[snapshot_name]
+    reason = inventory.snapshot_info_errors.get(snapshot_name, "info.json was not captured")
+    source_user_name = inventory.source_user_name or "unknown"
+    source_user_uid = str(inventory.source_user_uid) if inventory.source_user_uid is not None else "unknown"
+    account_role = (
+        "remote SSH source account used by this destination"
+        if inventory.snapshot_index.location == "remote"
+        else "local source process account"
+    )
+    raise SyncError(
+        "Timeshift snapshot metadata could not be copied. The app refuses to complete "
+        "this snapshot without its shared control file:\n"
+        f"  snapshot: {snapshot_name}\n"
+        f"  source:   {inventory.snapshot_index.root}/{snapshot_name}/info.json\n"
+        f"  reason:   {reason}\n"
+        f"  {account_role}: {source_user_name} (uid {source_user_uid})\n\n"
+        "The source inventory reads info.json with ordinary non-sudo cat permissions "
+        "inside the same combined source request used for Timeshift and Btrfs discovery.\n"
+        "The source Timeshift-Btrfs filesystem must be mounted at a path this account "
+        "can traverse and read. The account needs execute/search permission on every "
+        "parent directory and read permission on info.json. A privileged administrator "
+        "can create a stable mount in /etc/fstab and grant this user access by ownership, "
+        "normal mode bits, or a narrow POSIX ACL. For Btrfs, use filesystem permissions "
+        "or ACLs rather than assuming uid=/gid= mount options will change ownership."
+    )
+
+
+def _sync_snapshot_info_json(
+    config: AppConfig,
+    inventory: remote_index.SourceInventory,
+    snapshot_name: str,
+    *,
+    dry_run: bool,
+) -> bool:
+    """Create or refresh destination ``info.json`` for one complete snapshot.
+
+    One Timeshift snapshot date has one shared control file beside its ``@`` and
+    optional ``@home`` subvolumes. The helper is therefore called once only
+    after all subvolumes configured for that date are present and marked synced.
+    It also backfills or refreshes the file for already-complete snapshots.
+    """
+
+    content = _require_snapshot_info_json(inventory, snapshot_name)
+    destination = _destination_info_json_path(config, snapshot_name)
+    if destination.is_symlink():
+        raise SyncError(f"Refusing to read or replace symlinked destination info.json: {destination}")
+    existing: str | None = None
+    if destination.exists():
+        try:
+            existing = destination.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            raise SyncError(f"Could not read existing destination info.json {destination}: {exc}") from exc
+    if existing == content:
+        return False
+    if dry_run:
+        action = "update" if destination.exists() else "create"
+        print(f"  info.json: would {action} {destination}")
+        return True
+    try:
+        _atomic_write_snapshot_info_json(destination, content)
+    except OSError as exc:
+        raise SyncError(f"Could not write destination info.json {destination}: {exc}") from exc
+    action = "updated" if existing is not None else "created"
+    print(f"  info.json: {action} {destination}")
+    return True
+
+
 def _destination_has_existing_snapshots(config: AppConfig) -> bool:
     """Return True when the destination has real received snapshot content.
 
@@ -876,6 +990,20 @@ def _cleanup_destination_snapshot_version(
                 # It may be a non-empty ordinary mountpoint directory left after
                 # Btrfs subvolume deletion. Keep it for the final parent check.
                 pass
+
+    info_json_path = _destination_info_json_path(config, snapshot_name)
+    remaining_entries: list[Path] = []
+    if snapshot_dir.exists():
+        try:
+            remaining_entries = [entry for entry in snapshot_dir.iterdir() if entry.name != "info.json"]
+        except OSError as exc:
+            raise SyncError(f"Could not inspect destination snapshot directory during recovery: {snapshot_dir}: {exc}") from exc
+    if not remaining_entries and (info_json_path.exists() or info_json_path.is_symlink()):
+        try:
+            info_json_path.unlink()
+            print(f"  recovery destination metadata: removed {info_json_path}")
+        except OSError as exc:
+            raise SyncError(f"Could not remove destination snapshot metadata during recovery: {info_json_path}: {exc}") from exc
 
     if snapshot_dir.exists():
         meta = remote_index.refresh_local_path(
@@ -2010,6 +2138,12 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
         print(f"  source snapshots: missing or not listable; indexed 0 subvolumes below {snapshot_root_btrfs_index.root}")
     else:
         print(f"  source snapshots: indexed {len(snapshot_root_btrfs_index.by_path)} subvolume(s) below {snapshot_root_btrfs_index.root}")
+    print(
+        f"  Timeshift metadata: captured {len(source_inventory.snapshot_info_json)} info.json file(s) "
+        "inside the same source inventory request"
+    )
+    if source_inventory.snapshot_info_errors:
+        print(f"  Timeshift metadata warnings: {len(source_inventory.snapshot_info_errors)} unreadable/missing file(s)")
     if source_cache_index is None:
         print("  source cache: disabled; no source.cache_root configured")
     elif source_cache_index.root_missing:
@@ -2029,7 +2163,7 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
         if config.source.verify_subvolumes_at_discovery
         else "Discovery verification: bulk metadata is loaded once; missing paths are handled from the inventory and refreshed only after source change/failure."
     )
-    print("SSH policy: Timeshift list, snapshot_root metadata, and cache_root metadata came from one source inventory command.")
+    print("SSH policy: Timeshift list, all readable per-snapshot info.json files, snapshot_root metadata, and cache_root metadata came from one source inventory command.")
     _human_rule("----")
 
     before_manual_snapshot_names = set(source_by_name)
@@ -2280,11 +2414,23 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
 
     while snapshot_queue:
         snapshot = snapshot_queue.pop(0)
+        expected = list(config.source.subvolumes)
+
+        # Backfill or refresh metadata for every complete destination snapshot
+        # still present in the current source inventory, including snapshots at
+        # or below the prune-safe sync floor.
+        if _snapshot_state_is_complete_with_destination(config, state, snapshot.name):
+            _sync_snapshot_info_json(
+                config,
+                source_inventory,
+                snapshot.name,
+                dry_run=dry_run,
+            )
+
         if sync_floor_name and snapshot.name <= sync_floor_name:
             skipped_by_floor_names.add(snapshot.name)
             continue
 
-        expected = list(config.source.subvolumes)
         if only_missing and snapshot_is_synced(state, snapshot.name, expected):
             if _snapshot_destination_paths_exist(config, snapshot.name, expected):
                 for subvolume_name in expected:
@@ -2296,11 +2442,13 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
         if limit is not None and transferred >= limit:
             break
 
+        _require_snapshot_info_json(source_inventory, snapshot.name)
         target_dir = _target_snapshot_dir(config, snapshot.name)
         print(f"Snapshot {snapshot.name} tags={''.join(snapshot.tags) or '-'}")
         _human_blank()
         if dry_run:
             print(f"  would ensure local directory: {target_dir}")
+            print(f"  info.json: would create or refresh {target_dir / 'info.json'} after all configured subvolumes succeed")
             _human_blank()
 
         if not _prepare_snapshot_for_transfer_or_recover(
@@ -2687,6 +2835,14 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             # short-lived hourly parent was superseded during sync.
 
             transferred += 1
+
+        if _snapshot_state_is_complete_with_destination(config, state, snapshot.name):
+            _sync_snapshot_info_json(
+                config,
+                source_inventory,
+                snapshot.name,
+                dry_run=dry_run,
+            )
 
     _human_rule("----")
     skipped_by_floor = len(skipped_by_floor_names)

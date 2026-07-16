@@ -33,10 +33,17 @@ class CombinedInventoryTests(unittest.TestCase):
         cache_root = "/timeshift/.ts-btrfs-sync/send-cache"
         snapshot_path = f"{snapshot_root}/2026-07-14_01-00-00/@"
         cache_path = f"{cache_root}/2026-07-14_01-00-00/@"
-        output = f"""TSBTRFS_TIMESHIFT_BEGIN
+        output = f"""TSBTRFS_SOURCE_IDENTITY_BEGIN
+TSBTRFS_SOURCE_USER_NAME\tbtrbk-source
+TSBTRFS_SOURCE_USER_UID\t1001
+TSBTRFS_SOURCE_IDENTITY_END
+TSBTRFS_TIMESHIFT_BEGIN
 TSBTRFS_TIMESHIFT_STATUS\t0
 2026-07-14_01-00-00 H hourly
 TSBTRFS_TIMESHIFT_END
+TSBTRFS_INFO_JSON_BEGIN\t2026-07-14_01-00-00
+{{"date":"2026-07-14_01-00-00","tags":["H"]}}
+TSBTRFS_INFO_JSON_END\t2026-07-14_01-00-00\t0
 TSBTRFS_INDEX_SECTION_BEGIN\tsnapshot
 TSBTRFS_ROOT\t{snapshot_root}
 TSBTRFS_ROOT_SHOW_BEGIN
@@ -84,11 +91,53 @@ TSBTRFS_INDEX_SECTION_END\tcache
         self.assertIn("timeshift", source.calls[0])
         self.assertIn(snapshot_root, source.calls[0])
         self.assertIn(cache_root, source.calls[0])
+        self.assertIn("cat", source.calls[0])
+        self.assertIn("id -un", source.calls[0])
+        self.assertIn("id -u", source.calls[0])
+        self.assertNotIn("sudo -n cat", source.calls[0])
+        self.assertNotIn("sudo -n id", source.calls[0])
+        self.assertIn("info.json", source.calls[0])
         self.assertEqual(inventory.snapshot_names, ("2026-07-14_01-00-00",))
+        self.assertEqual(inventory.source_user_name, "btrbk-source")
+        self.assertEqual(inventory.source_user_uid, 1001)
+        self.assertEqual(
+            inventory.snapshot_info_json["2026-07-14_01-00-00"],
+            '{"date":"2026-07-14_01-00-00","tags":["H"]}',
+        )
         self.assertEqual(inventory.snapshot_index.meta(snapshot_path).uuid, "source-uuid")
         self.assertTrue(inventory.snapshot_index.meta(snapshot_path).readonly)
         self.assertEqual(inventory.cache_index.meta(cache_path).uuid, "cache-uuid")
         self.assertTrue(inventory.cache_index.meta(cache_path).readonly)
+
+
+    def test_unreadable_snapshot_root_is_applied_to_each_missing_info_json(self) -> None:
+        output = """TSBTRFS_SOURCE_IDENTITY_BEGIN
+TSBTRFS_SOURCE_USER_NAME\tbtrbk-source
+TSBTRFS_SOURCE_USER_UID\t1001
+TSBTRFS_SOURCE_IDENTITY_END
+TSBTRFS_TIMESHIFT_BEGIN
+TSBTRFS_TIMESHIFT_STATUS\t0
+2026-07-14_01-00-00 H hourly
+TSBTRFS_TIMESHIFT_END
+TSBTRFS_INFO_ROOT_ERROR\tsnapshot_root does not exist or cannot be traversed by the source user
+TSBTRFS_INDEX_SECTION_BEGIN\tsnapshot
+TSBTRFS_ROOT\t/timeshift/snapshots
+TSBTRFS_ROOT_MISSING\t/timeshift/snapshots
+TSBTRFS_INDEX_SECTION_END\tsnapshot
+"""
+        source = FakeSource(Completed("inventory", 0, output, ""))
+        inventory = remote_index.build_source_inventory(
+            source,
+            snapshot_root="/timeshift/snapshots",
+            cache_root=None,
+            sudo="sudo -n",
+            btrfs_command="btrfs",
+            timeshift_command="timeshift",
+            required=False,
+        )
+        self.assertEqual(inventory.source_user_name, "btrbk-source")
+        self.assertEqual(inventory.source_user_uid, 1001)
+        self.assertIn("cannot be traversed", inventory.snapshot_info_errors["2026-07-14_01-00-00"])
 
     def test_required_path_changes_ignore_unrelated_churn(self) -> None:
         current = "/cache/current/@"
@@ -230,6 +279,7 @@ class SyncContinuationTests(unittest.TestCase):
                 "2026-07-14_01-00-00 H",
                 index("/snapshots", SubvolumeMeta("@", source_path, uuid="source-uuid", readonly=True)),
                 index("/cache"),
+                {"2026-07-14_01-00-00": '{"date":"2026-07-14_01-00-00"}\n'},
             )
             after_failure = remote_index.SourceInventory("", index("/snapshots"), index("/cache"))
             after_cleanup = remote_index.SourceInventory("", index("/snapshots"), index("/cache"))

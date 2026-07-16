@@ -1,6 +1,6 @@
 # Installation
 
-This project runs on the backup/destination machine. The source machine is reached over SSH and only needs `btrfs`, `timeshift`, SSH access, and the minimal sudo rules described in the README.
+This project runs on the backup/destination machine. The source machine is reached over SSH and needs `btrfs`, `timeshift`, `cat`, `id`, SSH access, and the minimal sudo rules described in the README. `cat` and `id` are not run through sudo. The configured SSH account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
 
 The executable or Python install does **not** include system tools such as `btrfs`, `timeshift`, `ssh`, `sudo`, `mbuffer`, or `sshpass`. Those must be installed on the relevant machines.
 

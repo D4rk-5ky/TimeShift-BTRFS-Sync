@@ -24,7 +24,7 @@ MIT License. See [`LICENSE`](LICENSE).
 
 `timeshift-btrfs-sync` is a destination-pull backup tool for Timeshift Btrfs snapshots. It runs on the backup/destination machine, connects to the source over SSH by default, or uses local source mode on the same machine, and transfers Timeshift snapshots with `btrfs send` / `btrfs receive`.
 
-It supports full and incremental sends, Timeshift snapshot discovery, writable source snapshots through a read-only send cache, safe destination pruning, optional automatic Timeshift on-demand snapshots, split logs, MQTT notifications, and email notifications with optional log attachments.
+It supports full and incremental sends, Timeshift snapshot discovery, copying each snapshot date’s shared Timeshift `info.json`, writable source snapshots through a read-only send cache, safe destination pruning, optional automatic Timeshift on-demand snapshots, split logs, MQTT notifications, and email notifications with optional log attachments.
 
 The complete commented config template is packaged at `timeshift_btrfs_sync/data/config.example.toml` and can be copied with `ts-btrfs init-config`.
 
@@ -56,7 +56,65 @@ ts-btrfs-sync-user ALL=(root) NOPASSWD: /usr/bin/btrfs *
 ts-btrfs-sync-user ALL=(root) NOPASSWD: /usr/bin/timeshift *
 ```
 
-This is needed because Timeshift listing/creation, Btrfs send, Btrfs metadata checks, read-only cache creation, and source send-cache cleanup require elevated source access.
+This is needed because Timeshift listing/creation, Btrfs send, Btrfs metadata checks, read-only cache creation, and source send-cache cleanup require elevated source access. Per-snapshot Timeshift `info.json` files are read with ordinary non-sudo `cat`; the SSH/source user therefore needs normal path traversal and file read permission. No passwordless sudo rule for `cat`, `cp`, `find`, or `rm` is required.
+
+## Remote `info.json` permissions and persistent source mount
+
+The app runs on the backup/destination machine, but `info.json` is read on the source machine by the unprivileged account configured as `[ssh].user`. This is the account the destination uses for the SSH connection. It is not necessarily the local user or `root` account running `ts-btrfs` on the destination.
+
+The combined inventory records the effective source account name and UID without opening another SSH connection. If a required `info.json` cannot be read, the terminal and normal log error include a line like:
+
+```text
+remote SSH source account used by this destination: btrbk-source (uid 1001)
+```
+
+That exact account must be able to:
+
+- traverse every parent directory leading to `source.snapshot_root` (`x`/search permission);
+- list `source.snapshot_root` (`r-x`), because the combined inventory enumerates the timestamp directories in one shell loop;
+- traverse each timestamp directory;
+- read `<source.snapshot_root>/<date>/info.json`.
+
+A file can be mode `0644` and still be unreadable when one parent such as `/media/<desktop-user>` is mode `0750`. Root may read it locally while the unprivileged SSH account receives `Permission denied`. Diagnose the first blocked component on the source host with:
+
+```bash
+sudo -u btrbk-source -- namei -l \
+  /path/to/timeshift-btrfs/snapshots/<date>/info.json
+```
+
+For a reliable unattended backup source, a privileged administrator should mount the Btrfs filesystem at a stable system path through `/etc/fstab` instead of relying on a private desktop mount below `/media/<user>`. Example for the Btrfs top-level tree:
+
+```bash
+sudo install -d -m 0755 /mnt/OS-Root
+sudo blkid
+sudoedit /etc/fstab
+```
+
+Example `/etc/fstab` entry:
+
+```fstab
+UUID=<BTRFS-FILESYSTEM-UUID> /mnt/OS-Root btrfs defaults,subvolid=5 0 0
+```
+
+Mount it and grant the configured SSH account only the access it needs:
+
+```bash
+sudo mount /mnt/OS-Root
+
+# Search-only permission through private parent directories.
+sudo setfacl -m u:btrbk-source:--x /mnt/OS-Root
+sudo setfacl -m u:btrbk-source:--x /mnt/OS-Root/timeshift-btrfs
+
+# The inventory must be able to list the snapshot dates.
+sudo setfacl -m u:btrbk-source:r-x \
+  /mnt/OS-Root/timeshift-btrfs/snapshots
+
+# Confirm the exact file is readable as the SSH account.
+sudo -u btrbk-source -- cat \
+  /mnt/OS-Root/timeshift-btrfs/snapshots/<date>/info.json
+```
+
+Replace `btrbk-source` with the name printed by the application and use its printed UID when checking ownership or ACL results. The mount does not have to be owned by the backup account; it only has to be accessible to that account by name/UID through normal mode bits or a narrow ACL. Btrfs normally keeps Unix ownership in filesystem metadata, so do not rely on FAT/NTFS-style `uid=` or `gid=` mount options to remap ownership. After changing the mount path, update `source.snapshot_root` and `source.cache_root` in the config.
 
 ## Source sudoers and source cleanup
 
@@ -72,9 +130,14 @@ When Btrfs leaves an empty ordinary directory behind after deleting a source cac
 The destination `target_root` is the backup job folder. The app creates and owns:
 
 ```text
-<target_root>/snapshots/       received Btrfs snapshots
-<target_root>/.ts-btrfs-sync/  state.json, lock file, logs
+<target_root>/snapshots/                         received snapshot dates
+<target_root>/snapshots/<date>/info.json         shared Timeshift control file
+<target_root>/snapshots/<date>/@                 received root subvolume, when configured
+<target_root>/snapshots/<date>/@home             received home subvolume, when configured
+<target_root>/.ts-btrfs-sync/                    state.json, lock file, logs
 ```
+
+Timeshift uses one `info.json` for the whole snapshot date. It sits beside `@` and optional `@home`; there is not a second combined metadata file to create. The app captures that one file once and writes it once after every subvolume configured for the date has completed. This works with `subvolumes = ["@", "@home"]`, `subvolumes = ["@"]`, or `subvolumes = ["@home"]`.
 
 The destination `target_root` must be a Btrfs subvolume. If it is missing and `destination.create_target_root = true`, the app creates it with `btrfs subvolume create`. The lock-file parent is prepared before the rest of the sync/prune checks so a real job can acquire the lock early. Helper folders such as `snapshots/`, `.ts-btrfs-sync/`, the lock-file parent, and optional `log_dir` may be ordinary directories or Btrfs subvolumes. When a helper folder is missing during a real run, the app tries `btrfs subvolume create` first because the app works on Btrfs storage, then falls back to normal `mkdir` if Btrfs creation is not possible at that location. After creation, the helper path must still be writable by the app user because lock, state, logs, and per-snapshot receive folders are created before or around sudo Btrfs operations.
 
@@ -97,7 +160,7 @@ Normal sync flow:
 2. Acquire the lock file.
 3. Run sync path preflight for source.snapshot_root, source.cache_root, and destination.target_root. The Timeshift-owned snapshot_root must already exist and may be an ordinary directory on Btrfs. Missing source.cache_root and destination.target_root are created only by their own rules.
 4. Prepare destination helper folders such as snapshots/, state_file.parent, lock_file.parent, and log_dir. Existing directories and Btrfs subvolumes are both accepted. Missing helpers are created with Btrfs subvolume creation first, then mkdir fallback if Btrfs creation is not possible.
-5. Build one coherent source inventory. In SSH mode one SSH command runs Timeshift listing plus bulk Btrfs metadata scans for both source.snapshot_root and source.cache_root. In local mode the same information is collected locally.
+5. Build one coherent source inventory. In SSH mode one SSH command runs Timeshift listing, reads every readable `<snapshot_root>/<date>/info.json` with ordinary `cat`, and performs bulk Btrfs metadata scans for both source.snapshot_root and source.cache_root. In local mode the same information is collected locally.
 6. Build one local bulk Btrfs index for destination.target_root.
 7. Compare Timeshift names, snapshot-root UUIDs, cache UUIDs, destination Received UUIDs, and state.json to find the newest safe common parent.
 8. Skip snapshots already received or older than the confirmed sync floor.
@@ -105,8 +168,9 @@ Normal sync flow:
 10. Use incremental send when a UUID-confirmed parent is available.
 11. Error out if the destination already has snapshots but no matching parent can be proven.
 12. Receive into <target_root>/snapshots/<snapshot>/<subvolume>.
-13. Save metadata to state.json after each successful receive.
-14. If a required source/cache/parent path disappears or changes UUID during preparation or transfer, rebuild the complete combined source inventory, clean the incomplete whole date version, rebuild the queue, and continue within source.source_change_retry_count.
+13. Save state after each successful receive, but treat all configured subvolumes for one Timeshift date as one complete version.
+14. After the configured `@`, `@home`, or single selected subvolume set is complete, atomically create or refresh `<target_root>/snapshots/<snapshot>/info.json` from the content captured in the same source inventory generation.
+15. If a required source/cache/parent path disappears or changes UUID during preparation or transfer, rebuild the complete combined source inventory, clean the incomplete whole date version including its copied `info.json`, rebuild the queue, and continue within source.source_change_retry_count.
 ```
 
 Normal `sync` always bulk-loads source Btrfs metadata; it does not open one SSH connection per snapshot or subvolume. `source.verify_subvolumes_at_discovery` controls whether missing bulk-index entries are omitted immediately or represented as expected paths for later recovery handling. `list-source` remains a lightweight Timeshift-only command unless `--verify-btrfs` is requested.
@@ -169,11 +233,11 @@ A missing result from that pre-create metadata refresh is expected when the cach
 
 Every read-only cache snapshot created by `sync` is kept until retention runs. This preserves more possible source/destination UUID common ground when short-lived snapshots, such as hourly snapshots, disappear later. For each pruned snapshot, `prune` attempts both destination deletion and matching source send-cache deletion in one coordinated item. It removes the `state.json` entry only after destination subvolumes and source send-cache are both confirmed gone or already absent. If either side is unavailable, it still attempts the available side and keeps state so the next prune can retry.
 
-Prune only deletes send paths that are explicitly app-owned source-cache paths below `source.cache_root`. Before deleting a timestamp cache parent such as `send-cache/<snapshot>`, prune re-reads live Btrfs children under that parent and deletes any remaining child subvolumes deepest-first, even if the run-start index or state had already considered `@` or `@home` gone. The parent delete also removes only empty ordinary child directories with normal non-sudo `rmdir` before retrying Btrfs deletion, so stale mountpoint directories do not block cleanup. It never uses source-side sudo `rm`, `find`, `chmod`, or `chown`, and it refuses any source delete candidate that is `source.snapshot_root` or below it. If a snapshot was sent directly from a read-only Timeshift original, prune prints it as a protected original send path and never deletes it.
+Prune only deletes send paths that are explicitly app-owned source-cache paths below `source.cache_root`. On the destination, prune deletes the copied `snapshots/<date>/info.json` only after every tracked Btrfs subvolume for that date is confirmed gone and no unknown content remains beside the control file, then removes the now-empty date directory. Before deleting a timestamp cache parent such as `send-cache/<snapshot>`, prune re-reads live Btrfs children under that parent and deletes any remaining child subvolumes deepest-first, even if the run-start index or state had already considered `@` or `@home` gone. The parent delete also removes only empty ordinary child directories with normal non-sudo `rmdir` before retrying Btrfs deletion, so stale mountpoint directories do not block cleanup. It never uses source-side sudo `rm`, `find`, `chmod`, or `chown`, and it refuses any source delete candidate that is `source.snapshot_root` or below it. If a snapshot was sent directly from a read-only Timeshift original, prune prints it as a protected original send path and never deletes it.
 
 ## Source/destination Btrfs index optimization
 
-At the beginning of a sync run, the app builds one coherent source inventory and one local destination index. The source inventory contains the Timeshift list plus short-lived Btrfs indexes for `source.snapshot_root` and `source.cache_root`. Each source root uses bulk UUID/parent/received-UUID and read-only lists, but in SSH mode all source scans run inside one SSH session for the complete inventory generation—not one connection per root, snapshot, or subvolume. `destination.target_root` is indexed locally in bulk. Later Timeshift discovery, parent checks, sync-floor checks, and send-path checks can use dictionary lookups instead of repeatedly starting new source-side `btrfs subvolume list/show` probes. Destructive source send-cache parent cleanup still does a final live child-subvolume listing under the timestamp parent before deleting it, because the index is a performance cache and must not be the final emptiness authority for deletion.
+At the beginning of a sync run, the app builds one coherent source inventory and one local destination index. The source inventory contains the Timeshift list, the contents of every readable per-date `<source.snapshot_root>/<date>/info.json`, and short-lived Btrfs indexes for `source.snapshot_root` and `source.cache_root`. In SSH mode one source shell/SSH request runs Timeshift, loops over the date folders, reads each control file with ordinary non-sudo `cat`, and performs both Btrfs root scans—not one connection per root, snapshot, metadata file, or subvolume. `destination.target_root` is indexed locally in bulk. Later Timeshift discovery, parent checks, sync-floor checks, and send-path checks can use dictionary lookups instead of repeatedly starting new source-side `btrfs subvolume list/show` probes. Destructive source send-cache parent cleanup still does a final live child-subvolume listing under the timestamp parent before deleting it, because the index is a performance cache and must not be the final emptiness authority for deletion.
 
 The index is deliberately per-run only. Successful cache creation performs snapshot creation and metadata verification in one source command and inserts the result into the cache index. Successful receive refreshes the new destination path, and prune removes deleted source-cache paths from the index. A concurrent cache creator or a failed operation may trigger a targeted exceptional probe, but normal discovery and parent comparison use the bulk inventory without per-parent SSH metadata reads. Safety-critical incremental matching still requires the same identity rule:
 
@@ -207,7 +271,9 @@ If a transfer is interrupted while `btrfs receive` has already created the desti
 
 If Timeshift or another process changes the source while a snapshot is being prepared or streamed—for example, an hourly snapshot or selected parent is deleted—the failed command is followed by one complete combined source inventory rebuild. The app compares the before/after UUID identities of the exact current, parent, and configured sibling paths. Unrelated Timeshift churn does not hide a network, mbuffer, or destination error. When a required path really disappeared or changed UUID, the terminal and logs show the complete inventory difference, the app removes the incomplete app-owned cache/destination/state version for that date, rebuilds all source lists and the oldest-to-newest queue, and continues. If the vanished snapshot is no longer available it is skipped; if it still exists with a valid new inventory it can be retried. This is bounded per snapshot/subvolume by `source.source_change_retry_count`; `0` disables automatic continuation. The same snapshot-level cleanup is used at the start of a later sync for stale incomplete state entries whose source Timeshift snapshot is no longer listed.
 
-Recovery cleanup never deletes `source.snapshot_root` or anything below it. Source cleanup is limited to app-owned paths under `source.cache_root`, and destination cleanup removes only Btrfs subvolumes and empty ordinary directories below the current `snapshots/<date>` folder. Complete destination snapshots remain valid even after Timeshift later prunes the original source snapshot; they are not removed merely because the source no longer lists the old hourly date.
+Recovery cleanup never deletes `source.snapshot_root` or anything below it. Source cleanup is limited to app-owned paths under `source.cache_root`, and destination cleanup removes only Btrfs subvolumes, the specific copied `snapshots/<date>/info.json`, and empty ordinary directories below the current snapshot-date folder. Complete destination snapshots remain valid even after Timeshift later prunes the original source snapshot; they are not removed merely because the source no longer lists the old hourly date.
+
+The copied control file is required for every snapshot date processed by sync. If the source `info.json` is absent, unreadable, malformed in transport framing, or cannot be written safely on the destination, the sync run raises an error instead of silently reporting success for a metadata-less snapshot. For source read failures, the error names the effective SSH/source account and UID and explains the required mount-path traversal/read permissions and persistent `/etc/fstab` option. Existing complete destination snapshots are backfilled or refreshed from the current source inventory when their source snapshot is still available. Destination writes use a temporary file plus atomic replacement, and a symlink at the final `info.json` path is refused.
 
 This also applies when the failed snapshot is an app-created on-demand snapshot. The app does not move the on-demand snapshot to the front of the queue. It keeps the already sorted source snapshot list, recovers or skips the failed snapshot only when that snapshot date is reached, and then continues in the existing oldest-to-newest order. If automatic on-demand creation is enabled, a fresh on-demand snapshot for the current run is still created and then added to the same sorted queue.
 

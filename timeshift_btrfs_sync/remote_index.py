@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 import os
+import pwd
 import re
 import shlex
 
@@ -100,17 +101,21 @@ class BtrfsIndex:
 class SourceInventory:
     """One coherent source-side Timeshift/Btrfs inventory.
 
-    In SSH mode the Timeshift list, snapshot-root Btrfs index, and cache-root
-    Btrfs index are captured inside one SSH session. Keeping those three views
-    together is important when short-lived snapshots are created or deleted:
-    parent selection compares metadata that was observed in the same inventory
-    generation instead of mixing results from several separately timed SSH
-    commands.
+    In SSH mode the Timeshift list, all readable per-date ``info.json``
+    contents, the snapshot-root Btrfs index, and the cache-root Btrfs index are
+    captured inside one SSH session. Keeping these views together is important
+    when short-lived snapshots are created or deleted: parent selection and
+    metadata preservation use one inventory generation instead of mixing
+    results from several separately timed SSH commands.
     """
 
     timeshift_output: str
     snapshot_index: BtrfsIndex
     cache_index: BtrfsIndex | None
+    snapshot_info_json: dict[str, str] = field(default_factory=dict)
+    snapshot_info_errors: dict[str, str] = field(default_factory=dict)
+    source_user_name: str | None = None
+    source_user_uid: int | None = None
 
     @property
     def snapshot_names(self) -> tuple[str, ...]:
@@ -129,6 +134,11 @@ class SourceInventory:
             if meta is not None:
                 return meta
         return self.snapshot_index.meta(path)
+
+    def info_json(self, snapshot_name: str) -> str | None:
+        """Return captured Timeshift ``info.json`` content for one snapshot."""
+
+        return self.snapshot_info_json.get(snapshot_name)
 
 
 def normalize_path(path: str | Path) -> str:
@@ -527,14 +537,17 @@ def _remote_source_inventory_script(
     btrfs_command: str,
     timeshift_command: str,
 ) -> str:
-    """Return one remote script for Timeshift plus both source Btrfs roots.
+    """Return one remote script for Timeshift, info.json, and both Btrfs roots.
 
     Several source commands run inside the script, but SSH mode opens only one
-    SSH session for the complete inventory generation.
+    SSH session for the complete inventory generation. Snapshot control files
+    are ordinary readable files, so the script reads them with ``cat`` and does
+    not require any extra sudo permission beyond Timeshift and Btrfs.
     """
 
     timeshift_command_text = quote_join(sudo_prefix(sudo) + [timeshift_command, "--list"])
-    snapshot_script = _remote_bulk_index_script(normalize_path(snapshot_root), sudo, btrfs_command)
+    snapshot_root_normalized = normalize_path(snapshot_root)
+    snapshot_script = _remote_bulk_index_script(snapshot_root_normalized, sudo, btrfs_command)
     cache_block = ""
     if cache_root:
         cache_script = _remote_bulk_index_script(normalize_path(cache_root), sudo, btrfs_command)
@@ -543,14 +556,54 @@ def _remote_source_inventory_script(
             + cache_script
             + "\nprintf 'TSBTRFS_INDEX_SECTION_END\\tcache\\n'\n"
         )
+
+    prefix = """printf 'TSBTRFS_SOURCE_IDENTITY_BEGIN\n'
+source_user_name=$(id -un 2>/dev/null || printf 'unknown')
+source_user_uid=$(id -u 2>/dev/null || printf 'unknown')
+printf 'TSBTRFS_SOURCE_USER_NAME\t%s\n' "$source_user_name"
+printf 'TSBTRFS_SOURCE_USER_UID\t%s\n' "$source_user_uid"
+printf 'TSBTRFS_SOURCE_IDENTITY_END\n'
+
+printf 'TSBTRFS_TIMESHIFT_BEGIN\n'
+timeshift_output=$(__TIMESHIFT_COMMAND__ 2>&1)
+timeshift_status=$?
+printf 'TSBTRFS_TIMESHIFT_STATUS\t%s\n' "$timeshift_status"
+printf '%s\n' "$timeshift_output"
+printf 'TSBTRFS_TIMESHIFT_END\n'
+
+""".replace("__TIMESHIFT_COMMAND__", timeshift_command_text)
+
+    info_block = """snapshot_info_root=__SNAPSHOT_ROOT__
+if [ ! -e "$snapshot_info_root" ]; then
+    printf 'TSBTRFS_INFO_ROOT_ERROR\t%s\n' 'snapshot_root does not exist or cannot be traversed by the source user'
+elif [ ! -d "$snapshot_info_root" ]; then
+    printf 'TSBTRFS_INFO_ROOT_ERROR\t%s\n' 'snapshot_root is not a directory'
+elif [ ! -x "$snapshot_info_root" ]; then
+    printf 'TSBTRFS_INFO_ROOT_ERROR\t%s\n' 'snapshot_root cannot be traversed by the source user'
+elif [ ! -r "$snapshot_info_root" ]; then
+    printf 'TSBTRFS_INFO_ROOT_ERROR\t%s\n' 'snapshot_root cannot be listed by the source user'
+else
+    for info_path in "$snapshot_info_root"/*/info.json; do
+        [ -e "$info_path" ] || continue
+        snapshot_dir=${info_path%/info.json}
+        snapshot_name=${snapshot_dir##*/}
+        printf 'TSBTRFS_INFO_JSON_BEGIN\t%s\n' "$snapshot_name"
+        if [ -r "$info_path" ]; then
+            cat "$info_path"
+            info_status=$?
+        else
+            info_status=126
+        fi
+        printf '\nTSBTRFS_INFO_JSON_END\t%s\t%s\n' "$snapshot_name" "$info_status"
+    done
+fi
+
+""".replace("__SNAPSHOT_ROOT__", shlex.quote(snapshot_root_normalized))
+
     return (
-        "printf 'TSBTRFS_TIMESHIFT_BEGIN\\n'\n"
-        f"timeshift_output=$({timeshift_command_text} 2>&1)\n"
-        "timeshift_status=$?\n"
-        "printf 'TSBTRFS_TIMESHIFT_STATUS\\t%s\\n' \"$timeshift_status\"\n"
-        "printf '%s\\n' \"$timeshift_output\"\n"
-        "printf 'TSBTRFS_TIMESHIFT_END\\n'\n\n"
-        "printf 'TSBTRFS_INDEX_SECTION_BEGIN\\tsnapshot\\n'\n"
+        prefix
+        + info_block
+        + "printf 'TSBTRFS_INDEX_SECTION_BEGIN\\tsnapshot\\n'\n"
         + snapshot_script
         + "\nprintf 'TSBTRFS_INDEX_SECTION_END\\tsnapshot\\n'\n"
         + cache_block
@@ -558,16 +611,78 @@ def _remote_source_inventory_script(
     )
 
 
-def _split_remote_source_inventory_output(output: str) -> tuple[str, int | None, dict[str, str]]:
-    """Split combined inventory output into Timeshift and named Btrfs sections."""
+def _extract_snapshot_info_json_frames(output: str) -> tuple[str, dict[str, str], dict[str, str]]:
+    """Remove and parse the ``cat`` payloads from combined SSH output.
 
+    The remote script inserts one separator newline immediately before each end
+    marker. The non-greedy parser removes that separator while preserving the
+    control file's own final newline, when present.
+    """
+
+    pattern = re.compile(
+        r"TSBTRFS_INFO_JSON_BEGIN\t(?P<name>[^\r\n]+)\n"
+        r"(?P<content>.*?)\n"
+        r"TSBTRFS_INFO_JSON_END\t(?P=name)\t(?P<status>\d+)(?:\r?\n|$)",
+        re.DOTALL,
+    )
+    captured: dict[str, str] = {}
+    errors: dict[str, str] = {}
+
+    def replace(match: re.Match[str]) -> str:
+        name = match.group("name")
+        status = int(match.group("status"))
+        if status == 0:
+            captured[name] = match.group("content")
+        elif status == 126:
+            errors[name] = "info.json exists but is not readable by the source user"
+        else:
+            errors[name] = f"cat returned status {status}"
+        return ""
+
+    cleaned = pattern.sub(replace, output)
+    if "TSBTRFS_INFO_JSON_BEGIN\t" in cleaned or "TSBTRFS_INFO_JSON_END\t" in cleaned:
+        errors["<inventory>"] = "malformed info.json framing in combined source inventory output"
+    return cleaned, captured, errors
+
+
+def _split_remote_source_inventory_output(
+    output: str,
+) -> tuple[
+    str,
+    int | None,
+    dict[str, str],
+    dict[str, str],
+    dict[str, str],
+    str | None,
+    int | None,
+]:
+    """Split combined output into identity, Timeshift, info.json, and Btrfs sections."""
+
+    output, snapshot_info_json, snapshot_info_errors = _extract_snapshot_info_json_frames(output)
     timeshift_lines: list[str] = []
     timeshift_status: int | None = None
+    source_user_name: str | None = None
+    source_user_uid: int | None = None
     in_timeshift = False
     current_section: str | None = None
     section_lines: dict[str, list[str]] = {}
 
     for line in output.splitlines():
+        if line.startswith("TSBTRFS_SOURCE_USER_NAME\t"):
+            source_user_name = line.split("\t", 1)[1] or None
+            continue
+        if line.startswith("TSBTRFS_SOURCE_USER_UID\t"):
+            raw_uid = line.split("\t", 1)[1]
+            try:
+                source_user_uid = int(raw_uid)
+            except ValueError:
+                source_user_uid = None
+            continue
+        if line.startswith("TSBTRFS_INFO_ROOT_ERROR\t"):
+            snapshot_info_errors["<info-root>"] = line.split("\t", 1)[1]
+            continue
+        if line in {"TSBTRFS_SOURCE_IDENTITY_BEGIN", "TSBTRFS_SOURCE_IDENTITY_END"}:
+            continue
         if line == "TSBTRFS_TIMESHIFT_BEGIN":
             in_timeshift = True
             continue
@@ -592,9 +707,67 @@ def _split_remote_source_inventory_output(output: str) -> tuple[str, int | None,
         elif current_section is not None:
             section_lines[current_section].append(line)
 
-    return "\n".join(timeshift_lines), timeshift_status, {
-        name: "\n".join(lines) for name, lines in section_lines.items()
-    }
+    return (
+        "\n".join(timeshift_lines),
+        timeshift_status,
+        {name: "\n".join(lines) for name, lines in section_lines.items()},
+        snapshot_info_json,
+        snapshot_info_errors,
+        source_user_name,
+        source_user_uid,
+    )
+
+
+def _current_process_identity() -> tuple[str, int]:
+    """Return the effective local account name and UID used to read metadata."""
+
+    uid = os.geteuid()
+    try:
+        name = pwd.getpwuid(uid).pw_name
+    except KeyError:
+        name = str(uid)
+    return name, uid
+
+
+def _read_local_snapshot_info_json(snapshot_root: str) -> tuple[dict[str, str], dict[str, str]]:
+    """Read all local Timeshift control files without spawning commands."""
+
+    captured: dict[str, str] = {}
+    errors: dict[str, str] = {}
+    root = Path(snapshot_root)
+    if not root.is_dir():
+        return captured, errors
+    try:
+        children = sorted(root.iterdir(), key=lambda child: child.name)
+    except OSError as exc:
+        errors["<inventory>"] = str(exc)
+        return captured, errors
+    timestamp_pattern = re.compile(r"\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}")
+    for child in children:
+        if not child.is_dir() or timestamp_pattern.fullmatch(child.name) is None:
+            continue
+        info_path = child / "info.json"
+        if not info_path.exists():
+            continue
+        try:
+            captured[child.name] = info_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            errors[child.name] = str(exc)
+    return captured, errors
+
+
+def _record_missing_info_json_errors(
+    timeshift_output: str,
+    captured: dict[str, str],
+    errors: dict[str, str],
+) -> None:
+    """Record listed Timeshift dates that had no readable control file."""
+
+    pattern = re.compile(r"\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}")
+    root_reason = errors.get("<info-root>")
+    for name in sorted(set(pattern.findall(timeshift_output))):
+        if name not in captured and name not in errors:
+            errors[name] = root_reason or "info.json was not found or was not readable"
 
 
 def build_source_inventory(
@@ -643,7 +816,18 @@ def build_source_inventory(
             if cache_root_normalized
             else None
         )
-        return SourceInventory(timeshift_result.stdout, snapshot_index, cache_index)
+        snapshot_info_json, snapshot_info_errors = _read_local_snapshot_info_json(snapshot_root_normalized)
+        _record_missing_info_json_errors(timeshift_result.stdout, snapshot_info_json, snapshot_info_errors)
+        source_user_name, source_user_uid = _current_process_identity()
+        return SourceInventory(
+            timeshift_result.stdout,
+            snapshot_index,
+            cache_index,
+            snapshot_info_json,
+            snapshot_info_errors,
+            source_user_name,
+            source_user_uid,
+        )
 
     script = _remote_source_inventory_script(
         snapshot_root_normalized,
@@ -662,7 +846,15 @@ def build_source_inventory(
         detail = result.stderr.strip() or result.stdout.strip() or f"return code {result.returncode}"
         raise RuntimeError(f"Source inventory SSH command failed: {detail}")
 
-    timeshift_output, timeshift_status, sections = _split_remote_source_inventory_output(result.stdout)
+    (
+        timeshift_output,
+        timeshift_status,
+        sections,
+        snapshot_info_json,
+        snapshot_info_errors,
+        source_user_name,
+        source_user_uid,
+    ) = _split_remote_source_inventory_output(result.stdout)
     if timeshift_status != 0 and required:
         detail = timeshift_output.strip() or f"return code {timeshift_status}"
         raise RuntimeError(f"Source Timeshift --list failed while building inventory: {detail}")
@@ -687,7 +879,18 @@ def build_source_inventory(
             include_root=True,
             required=required,
         )
-    return SourceInventory(timeshift_output, snapshot_index, cache_index)
+    _record_missing_info_json_errors(timeshift_output, snapshot_info_json, snapshot_info_errors)
+    if "<inventory>" in snapshot_info_errors and required:
+        raise RuntimeError(snapshot_info_errors["<inventory>"])
+    return SourceInventory(
+        timeshift_output,
+        snapshot_index,
+        cache_index,
+        snapshot_info_json,
+        snapshot_info_errors,
+        source_user_name,
+        source_user_uid,
+    )
 
 
 def describe_source_inventory_changes(before: SourceInventory, after: SourceInventory) -> list[str]:
@@ -727,7 +930,20 @@ def describe_source_inventory_changes(before: SourceInventory, after: SourceInve
 
     compare_index("snapshot_root", before.snapshot_index, after.snapshot_index)
     compare_index("cache_root", before.cache_index, after.cache_index)
+
+    old_info_names = set(before.snapshot_info_json)
+    new_info_names = set(after.snapshot_info_json)
+    added_info = sorted(new_info_names - old_info_names)
+    removed_info = sorted(old_info_names - new_info_names)
+    if added_info:
+        changes.append("Timeshift info.json added: " + ", ".join(added_info))
+    if removed_info:
+        changes.append("Timeshift info.json removed: " + ", ".join(removed_info))
+    for name in sorted(old_info_names & new_info_names):
+        if before.snapshot_info_json[name] != after.snapshot_info_json[name]:
+            changes.append(f"Timeshift info.json changed: {name}")
     return changes
+
 
 def refresh_source_path(
     index: BtrfsIndex | None,
