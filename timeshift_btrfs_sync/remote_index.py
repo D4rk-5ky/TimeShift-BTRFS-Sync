@@ -158,11 +158,13 @@ def is_under(path: str | Path, root: str | Path) -> bool:
 def listed_path_to_absolute(root_path: str | Path, listed_path: str) -> str | None:
     """Convert a Btrfs-listed path to an absolute path under ``root_path``.
 
-    ``btrfs subvolume list`` reports paths relative to the filesystem tree, not
-    necessarily the user supplied mount path. The converter accepts full paths,
-    paths ending with the configured root suffix, and paths starting at the root
-    basename. This mirrors the older suffix-based cache matching but produces a
-    concrete absolute path for dictionary lookups.
+    ``btrfs subvolume list`` reports paths relative to the filesystem top-level,
+    not necessarily relative to the mount path supplied by the user. A mounted
+    subvolume can therefore add an on-disk prefix such as ``@/`` that is absent
+    from the configured mount path. The converter locates the longest matching
+    suffix of the configured root anywhere inside the listed path, then appends
+    only the descendant portion below that match. This keeps one bulk index
+    usable after remounting the same Btrfs tree at a different path.
     """
 
     root = normalize_path(root_path)
@@ -178,19 +180,25 @@ def listed_path_to_absolute(root_path: str | Path, listed_path: str) -> str | No
     if not listed_parts:
         return None
 
-    # Full configured path without leading slash, for example
-    # media/disk/timeshift-btrfs/.ts-btrfs-sync/send-cache/...
+    # Full configured path without a leading slash.
     if listed_parts[: len(root_parts)] == root_parts:
         candidate = "/" + "/".join(listed_parts)
         return normalize_path(candidate) if is_under(candidate, root) else None
 
-    # Any suffix of the configured root, for example
-    # .ts-btrfs-sync/send-cache/... or send-cache/...
-    for index in range(1, len(root_parts)):
-        suffix = root_parts[index:]
-        if listed_parts[: len(suffix)] == suffix:
-            candidate = "/" + "/".join(root_parts[:index] + listed_parts)
-            candidate = normalize_path(candidate)
+    # Search for the longest suffix of the configured root anywhere in the
+    # filesystem-relative path. Example:
+    #   configured root: /media/user/OS-Root/timeshift-btrfs/.../send-cache
+    #   listed path:     @/timeshift-btrfs/.../send-cache/DATE/@
+    # The on-disk ``@`` prefix and the mount-only ``media/user/OS-Root`` prefix
+    # differ, but the shared ``timeshift-btrfs/.../send-cache`` suffix provides
+    # an unambiguous anchor for the descendant ``DATE/@``.
+    for suffix_length in range(len(root_parts), 0, -1):
+        suffix = root_parts[-suffix_length:]
+        for start in range(0, len(listed_parts) - suffix_length + 1):
+            if listed_parts[start : start + suffix_length] != suffix:
+                continue
+            descendant = listed_parts[start + suffix_length :]
+            candidate = normalize_path(Path(root, *descendant))
             return candidate if is_under(candidate, root) else None
 
     return None

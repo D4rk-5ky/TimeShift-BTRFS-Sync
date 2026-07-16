@@ -226,7 +226,7 @@ This file describes the current command handlers, shell command families, functi
 - `BtrfsIndex.remove_tree()`: removes a deleted root and descendants from the index.
 - `normalize_path()`: normalizes path strings for stable dictionary keys.
 - `is_under()`: confirms path/root containment without broad matching.
-- `listed_path_to_absolute()`: converts Btrfs relative list paths back to configured absolute paths.
+- `listed_path_to_absolute()`: converts filesystem-relative Btrfs list paths back below the configured mount root. It searches for the longest matching configured-root suffix anywhere in the listed path, so an on-disk prefix such as `@/` does not hide existing cache/snapshot subvolumes after remounting.
 - `_clean_uuid()`: normalizes Btrfs `-` UUID fields to `None`.
 - `parse_subvolume_list()`: parses `btrfs subvolume list -u -q -R` output into metadata.
 - `_index_from_list_output()`: helper for constructing an index from list output.
@@ -304,12 +304,8 @@ This file describes the current command handlers, shell command families, functi
 - `_source_refresh_cache_path()`: refreshes one source cache path in the optional
   per-run Btrfs index after cache-root/parent/snapshot creation or before
   deciding whether an existing cache snapshot can be reused.
-- `_reuse_existing_cache_snapshot()`: checks one exact source-cache send path
-  before creation. It reuses the path only when Btrfs proves it is an existing
-  read-only subvolume and, when parent UUID metadata is available, that it was
-  created from the requested original Timeshift subvolume. This prevents
-  recreate attempts after interrupted runs or state recovery.
-- `_reuse_existing_cache_snapshot.validate()`: nested identity check that refuses writable cache subvolumes or cache snapshots whose Parent UUID belongs to a different Timeshift original.
+- `_validate_readonly_cache_snapshot()`: validates one exact cache child before reuse. It requires a read-only Btrfs subvolume and, when available, a Parent UUID belonging to the requested Timeshift original; paths are only location hints, not identity proof.
+- `_reuse_existing_cache_snapshot()`: checks the coherent bulk cache index first and reuses a safe exact source-cache child without another source command. If the bulk index missed the child, the later combined exact-probe/create/show command performs the authoritative fallback before creation.
 - `source_ensure_cache_root()`: lazily creates the configured `source.cache_root`
   as a Btrfs subvolume when cache is actually needed. It creates only the exact
   configured root, requires the parent to already exist, and refuses an existing
@@ -587,10 +583,9 @@ This file describes the current command handlers, shell command families, functi
 
 ### `destroy.py`
 
-- `DestroyResult`: summary object for one destructive cleanup root.
-- `DestroyResult.success`: true when a target has no cleanup errors.
+- `DestroyResult`: summary object for one destructive cleanup root, including the planned paths, exact confirmed deletion paths, final configured-root absence verification, remaining-subvolume inventory, and errors.
+- `DestroyResult.success`: true only when there are no cleanup errors and every required real-run configured-root absence check succeeded. Dry-run results do not require post-deletion verification.
 - `_safe_cleanup_path()`: refuses relative paths, `/`, and broad system roots before any destructive delete.
-- `_listed_path_to_absolute()`: converts Btrfs `subvolume list` relative paths back to absolute paths below the configured root.
 - `_is_under()`: verifies a candidate path stays inside the selected cleanup root.
 - `_sort_deepest_first()`: orders subvolumes deepest-first so child subvolumes are deleted before parents.
 - `_collect_recursive_subvolumes()`: walks Btrfs child subvolumes one level at a time so nested cache children are found before deleting the timestamp parent.
@@ -604,16 +599,22 @@ This file describes the current command handlers, shell command families, functi
 - `_local_child_subvolumes()`: lists local child Btrfs subvolumes below a cleanup root.
 - `_source_child_subvolumes()`: lists source child Btrfs subvolumes below a cleanup root.
 - `_confirm_or_raise()`: requires exact typed confirmation instead of yes/no.
-- `_delete_local_tree()`: recursively discovers and deletes a managed local Btrfs tree deepest-first using only `btrfs subvolume delete`. An ordinary non-empty configured root is refused for manual inspection; only an already-empty ordinary root may be removed with exact-path `rmdir`.
-- `_source_delete_subvolumes_batched()`: deletes many source-cache subvolumes in one source command during `destroy-leftovers`; the generated shell contains only guarded `btrfs subvolume delete` operations.
-- `_delete_source_tree()`: checks the source send-cache root with configured sudo+Btrfs metadata, recursively discovers nested cache subvolumes, deletes payload children before timestamp/container parents in one batched source command, protects `source.snapshot_root`, and refuses any ordinary non-empty cache root instead of recursively deleting it.
+- `_append_delete_count_error()`: compares the exact planned and confirmed subvolume path sets, records zero/partial/unexpected confirmations, and lists every planned path that lacked a deletion confirmation.
+- `_inventory_remaining_local_subvolumes()`: rebuilds the local Btrfs inventory when a destination root survives deletion so every remaining root/child subvolume can be reported.
+- `_inventory_remaining_source_subvolumes()`: rebuilds the source-cache Btrfs inventory when the configured cache root survives deletion.
+- `_verify_local_root_absent()`: performs the final local existence check, marks the target verified only when the configured destination root is absent, and inventories leftovers when it remains.
+- `_verify_source_root_absent()`: performs the final source-shell existence check plus a configured Btrfs root probe, marks the cache target verified only when absent, and inventories leftovers when it remains.
+- `_delete_local_tree()`: recursively discovers and deletes a managed local Btrfs tree deepest-first using only `btrfs subvolume delete`, records exact successful paths, requires every planned path to be confirmed, and verifies the configured root is absent before completion. An ordinary non-empty configured root is refused for manual inspection; only an already-empty ordinary root may be removed with exact-path `rmdir` and then verified absent.
+- `_source_delete_subvolumes_batched()`: deletes many source-cache subvolumes in one source command during `destroy-leftovers`; the generated shell contains only guarded `btrfs subvolume delete` operations and the parser returns exact unique confirmed paths while rejecting duplicate, malformed, or unexpected confirmations.
+- `_delete_source_tree()`: checks the source send-cache root with configured sudo+Btrfs metadata, recursively discovers nested cache subvolumes, deletes payload children before timestamp/container parents in one batched source command, requires exact confirmation for every planned path, performs a final root-absence check, inventories any remaining subvolumes, protects `source.snapshot_root`, and refuses any ordinary non-empty cache root instead of recursively deleting it.
 - `_mode_text()`: returns the exact typed phrase for the chosen destructive mode.
 - `_print_target()`: prints one configured cleanup root before any deletion.
-- `_print_result()`: prints one target result with subvolume count and errors.
+- `_print_result()`: prints planned/confirmed deletion counts, the explicit `verified configured root absent` result, every remaining Btrfs subvolume, and either complete or incomplete status.
 - `_result_by_label()`: finds the source or destination destroy result used for normalized payload reporting.
 - `_load_payload_state()`: loads and root-normalizes state.json only for reporting protected direct-send payloads; destroy-leftovers still ignores state for delete decisions.
 - `_print_payload_match_if_available()`: prints the normalized source/destination payload match block when both source cache and destination target were selected.
-- `destroy_leftovers()`: main retirement cleanup entry point. It ignores retention/state by design, prints progress before each source/destination target, and attempts source/destination targets independently so one failing side does not prevent the other side from being cleaned.
+- `_listed_path_to_absolute()`: converts one destroy-time filesystem-relative Btrfs list path to the configured absolute cleanup root without broad path matching.
+- `destroy_leftovers()`: main retirement cleanup entry point. It ignores retention/state by design, prints progress before each source/destination target, attempts source/destination targets independently, and counts a target complete only when `DestroyResult.success` includes required final root-absence verification.
 
 ### `preflight.py`
 
@@ -657,7 +658,8 @@ This file describes the current command handlers, shell command families, functi
 
 ### `btrfs.py`
 
-- `_source_create_readonly_cache_snapshot()`: creates a read-only send-cache snapshot and immediately reads its Btrfs metadata inside one source command/SSH session. It verifies read-only state and available Parent UUID identity before returning metadata for the in-memory cache index.
+- `_source_create_readonly_cache_snapshot()`: probes the exact cache child, reuses it when read-only and Parent UUID checks pass, otherwise creates and verifies it—all inside one source command/SSH session. It refuses ordinary/writable/mismatched targets and performs a same-command post-failure probe for a concurrent creator, preventing an existing `<date>/@` from being treated as a destination directory and becoming `<date>/@/@`.
+- `_source_create_readonly_cache_snapshot.parsed_meta()`: nested parser helper that converts one framed exact-probe, post-create, or race-probe `btrfs subvolume show` section into metadata for the same cache child path.
 
 ### `sync.py`
 

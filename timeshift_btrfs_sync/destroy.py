@@ -42,14 +42,19 @@ class DestroyResult:
     root_is_subvolume: bool = False
     subvolumes: list[str] = field(default_factory=list)
     deleted_subvolumes: int = 0
+    confirmed_subvolumes: list[str] = field(default_factory=list)
     removed_tree: bool = False
+    verification_required: bool = False
+    verification_attempted: bool = False
+    verified_root_absent: bool = False
+    remaining_subvolumes: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
     @property
     def success(self) -> bool:
-        """Return True when the target is gone or dry-run found no blocking errors."""
+        """Return True only when cleanup has no errors and required absence was verified."""
 
-        return not self.errors
+        return not self.errors and (not self.verification_required or self.verified_root_absent)
 
 
 def _safe_cleanup_path(path: str | Path, label: str) -> str:
@@ -204,6 +209,137 @@ def _confirm_or_raise(prompt: str, expected: str) -> None:
         raise RuntimeError("Confirmation did not match; destructive cleanup aborted")
 
 
+def _append_delete_count_error(result: DestroyResult) -> None:
+    """Require an exact confirmed deletion result for every planned subvolume."""
+
+    planned_paths = list(dict.fromkeys(result.subvolumes))
+    confirmed_paths = list(dict.fromkeys(result.confirmed_subvolumes))
+    result.deleted_subvolumes = len(confirmed_paths)
+
+    missing = [path for path in planned_paths if path not in set(confirmed_paths)]
+    unexpected = [path for path in confirmed_paths if path not in set(planned_paths)]
+    if not missing and not unexpected:
+        return
+
+    if not confirmed_paths and planned_paths:
+        result.errors.append(
+            f"no subvolume deletions were confirmed; planned {len(planned_paths)}, confirmed 0"
+        )
+    else:
+        result.errors.append(
+            "not every planned subvolume deletion was confirmed; "
+            f"planned {len(planned_paths)}, confirmed {len(confirmed_paths)}"
+        )
+    if missing:
+        result.errors.append("unconfirmed planned subvolume deletion(s): " + ", ".join(missing))
+    if unexpected:
+        result.errors.append("unexpected confirmed subvolume deletion(s): " + ", ".join(unexpected))
+
+
+def _inventory_remaining_local_subvolumes(
+    path: str,
+    sudo: str,
+    btrfs_command: str,
+) -> tuple[list[str], str]:
+    """Rebuild a local Btrfs index below a root that still exists."""
+
+    root_meta = _local_subvolume_meta(path, sudo, btrfs_command)
+    children = _collect_recursive_subvolumes(
+        path,
+        lambda current: _local_child_subvolumes(current, sudo, btrfs_command),
+    )
+    if children is None:
+        return [], "could not rebuild the local Btrfs index for the remaining configured root"
+    remaining = list(children)
+    if root_meta is not None:
+        remaining.append(path)
+    return _sort_deepest_first(remaining), ""
+
+
+def _inventory_remaining_source_subvolumes(
+    source: SourceRunner,
+    path: str,
+    sudo: str,
+    btrfs_command: str,
+) -> tuple[list[str], str]:
+    """Rebuild a source Btrfs index below a cache root that still exists."""
+
+    root_meta = _source_subvolume_meta(source, path, sudo, btrfs_command)
+    children = _collect_recursive_subvolumes(
+        path,
+        lambda current: _source_child_subvolumes(source, current, sudo, btrfs_command),
+    )
+    if children is None:
+        return [], "could not rebuild the source Btrfs index for the remaining configured root"
+    remaining = list(children)
+    if root_meta is not None:
+        remaining.append(path)
+    return _sort_deepest_first(remaining), ""
+
+
+def _verify_local_root_absent(
+    result: DestroyResult,
+    sudo: str,
+    btrfs_command: str,
+) -> None:
+    """Verify the configured local root is gone and inventory anything remaining."""
+
+    result.verification_attempted = True
+    exists, exists_error = _local_exists(result.path, sudo)
+    if exists is None:
+        result.errors.append(f"final configured-root existence check failed: {exists_error}")
+        return
+    if not exists:
+        result.verified_root_absent = True
+        result.removed_tree = True
+        return
+
+    result.errors.append(f"configured destination root still exists after deletion: {result.path}")
+    remaining, inventory_error = _inventory_remaining_local_subvolumes(result.path, sudo, btrfs_command)
+    result.remaining_subvolumes = remaining
+    if inventory_error:
+        result.errors.append(inventory_error)
+    if remaining:
+        result.errors.append(f"remaining destination Btrfs subvolumes: {len(remaining)}")
+
+
+def _verify_source_root_absent(
+    result: DestroyResult,
+    source: SourceRunner,
+    sudo: str,
+    btrfs_command: str,
+) -> None:
+    """Verify the configured source-cache root is gone and inventory leftovers."""
+
+    result.verification_attempted = True
+    exists, exists_error = _source_exists(source, result.path, sudo)
+    if exists is None:
+        result.errors.append(f"final configured-root existence check failed: {exists_error}")
+        return
+
+    # A normal shell test can report false when the unprivileged source account
+    # cannot traverse a parent. Confirm absence with the configured Btrfs command
+    # before accepting that result.
+    root_meta = _source_subvolume_meta(source, result.path, sudo, btrfs_command)
+    if not exists and root_meta is None:
+        result.verified_root_absent = True
+        result.removed_tree = True
+        return
+
+    result.errors.append(f"configured source cache root still exists after deletion: {result.path}")
+    remaining, inventory_error = _inventory_remaining_source_subvolumes(
+        source,
+        result.path,
+        sudo,
+        btrfs_command,
+    )
+    result.remaining_subvolumes = remaining
+    if inventory_error:
+        result.errors.append(inventory_error)
+    if remaining:
+        result.errors.append(f"remaining source Btrfs subvolumes: {len(remaining)}")
+
+
 def _delete_local_tree(path: str, sudo: str, btrfs_command: str, *, dry_run: bool, label: str) -> DestroyResult:
     """Delete one local managed tree using Btrfs subvolume deletion only.
 
@@ -212,7 +348,12 @@ def _delete_local_tree(path: str, sudo: str, btrfs_command: str, *, dry_run: boo
     layout/safety error that requires manual inspection.
     """
 
-    result = DestroyResult(label=label, path=path, location="destination")
+    result = DestroyResult(
+        label=label,
+        path=path,
+        location="destination",
+        verification_required=not dry_run,
+    )
     print(f"  checking destination path existence: {path}", flush=True)
     exists, exists_error = _local_exists(path, sudo)
     if exists is None:
@@ -220,6 +361,9 @@ def _delete_local_tree(path: str, sudo: str, btrfs_command: str, *, dry_run: boo
         return result
     result.exists = exists
     if not result.exists:
+        if not dry_run:
+            result.verification_attempted = True
+            result.verified_root_absent = True
         return result
 
     meta = _local_subvolume_meta(path, sudo, btrfs_command)
@@ -241,9 +385,9 @@ def _delete_local_tree(path: str, sudo: str, btrfs_command: str, *, dry_run: boo
             return result
         try:
             Path(path).rmdir()
-            result.removed_tree = True
         except OSError as exc:
             result.errors.append(f"failed removing empty ordinary destination root {path}: {exc}")
+        _verify_local_root_absent(result, sudo, btrfs_command)
         return result
 
     print(f"  discovering destination Btrfs subvolumes below: {path}", flush=True)
@@ -261,9 +405,11 @@ def _delete_local_tree(path: str, sudo: str, btrfs_command: str, *, dry_run: boo
     for subvol in result.subvolumes:
         try:
             btrfs.delete_local_subvolume(Path(subvol), sudo, btrfs_command)
-            result.deleted_subvolumes += 1
+            result.confirmed_subvolumes.append(subvol)
         except Exception as exc:
             result.errors.append(f"failed deleting local subvolume {subvol}: {exc}")
+    _append_delete_count_error(result)
+    _verify_local_root_absent(result, sudo, btrfs_command)
     return result
 
 
@@ -275,7 +421,7 @@ def _source_delete_subvolumes_batched(
     btrfs_command: str,
     *,
     protected_snapshot_root: str | None = None,
-) -> tuple[int, list[str]]:
+) -> tuple[list[str], list[str]]:
     """Delete many source Btrfs subvolumes in one source command.
 
     Refuse the complete batch if any path is ``source.snapshot_root`` or below
@@ -284,10 +430,10 @@ def _source_delete_subvolumes_batched(
     """
 
     if not paths:
-        return 0, []
+        return [], []
     protected = [path for path in paths if btrfs.path_is_same_or_under(path, protected_snapshot_root)]
     if protected:
-        return 0, [
+        return [], [
             "refusing to delete Timeshift-owned source.snapshot_root path(s): "
             + ", ".join(protected)
             + f"; protected root: {protected_snapshot_root}"
@@ -320,18 +466,31 @@ done <<'TSBTRFS_PATHS'
 TSBTRFS_PATHS
 """.strip()
     result = _run_source_quiet(source, "sh -c " + shlex.quote(script))
-    deleted = 0
+    confirmed: list[str] = []
+    confirmed_set: set[str] = set()
+    expected = set(paths)
     errors: list[str] = []
     if result.returncode != 0:
         errors.append(result.stderr.strip() or result.stdout.strip() or f"return code {result.returncode}")
-        return deleted, errors
+        return confirmed, errors
     for line in result.stdout.splitlines():
         if line.startswith("TSBTRFS_DELETED\t"):
-            deleted += 1
+            subvol = line.split("\t", 1)[1]
+            if subvol not in expected:
+                errors.append(f"unexpected deletion confirmation for source subvolume {subvol}")
+            elif subvol in confirmed_set:
+                errors.append(f"duplicate deletion confirmation for source subvolume {subvol}")
+            else:
+                confirmed.append(subvol)
+                confirmed_set.add(subvol)
         elif line.startswith("TSBTRFS_DELETE_ERROR\t"):
-            _tag, subvol, detail = line.split("\t", 2)
-            errors.append(f"failed deleting source subvolume {subvol}: {detail}")
-    return deleted, errors
+            parts = line.split("\t", 2)
+            if len(parts) == 3:
+                _tag, subvol, detail = parts
+                errors.append(f"failed deleting source subvolume {subvol}: {detail}")
+            else:
+                errors.append(f"malformed source deletion error line: {line}")
+    return confirmed, errors
 
 def _delete_source_tree(
     source: SourceRunner,
@@ -350,7 +509,12 @@ def _delete_source_tree(
     ordinary root may be removed with the source user's normal ``rmdir``.
     """
 
-    result = DestroyResult(label=label, path=path, location="source")
+    result = DestroyResult(
+        label=label,
+        path=path,
+        location="source",
+        verification_required=not dry_run,
+    )
     if btrfs.path_is_same_or_under(path, protected_snapshot_root):
         result.errors.append(
             f"refusing to destroy Timeshift-owned source.snapshot_root path {path}; "
@@ -369,6 +533,9 @@ def _delete_source_tree(
             return result
         result.exists = exists
         if not result.exists:
+            if not dry_run:
+                result.verification_attempted = True
+                result.verified_root_absent = True
             return result
         inspect_script = f"""
 path={shlex.quote(path)}
@@ -401,13 +568,12 @@ exit 0
         if dry_run:
             return result
         removed = _run_source_quiet(source, quote_join(["rmdir", "--", path]))
-        if removed.returncode == 0:
-            result.removed_tree = True
-        else:
+        if removed.returncode != 0:
             result.errors.append(
                 f"failed removing empty ordinary source cache root {path}: "
                 f"{removed.stderr.strip() or removed.stdout.strip() or removed.returncode}"
             )
+        _verify_source_root_absent(result, source, sudo, btrfs_command)
         return result
 
     result.exists = True
@@ -426,15 +592,17 @@ exit 0
         return result
 
     print(f"  deleting source subvolumes deepest-first in one source command: {len(result.subvolumes)}", flush=True)
-    deleted, errors = _source_delete_subvolumes_batched(
+    confirmed, errors = _source_delete_subvolumes_batched(
         source,
         result.subvolumes,
         sudo,
         btrfs_command,
         protected_snapshot_root=protected_snapshot_root,
     )
-    result.deleted_subvolumes = deleted
+    result.confirmed_subvolumes = confirmed
     result.errors.extend(errors)
+    _append_delete_count_error(result)
+    _verify_source_root_absent(result, source, sudo, btrfs_command)
     return result
 
 def _mode_text(delete_source: bool, delete_destination: bool) -> str:
@@ -461,7 +629,14 @@ def _print_result(result: DestroyResult, *, dry_run: bool) -> None:
     print(f"{result.label}:")
     print(f"  path:       {result.path}")
     if not result.exists:
-        print("  result:     already missing")
+        if not dry_run:
+            print(f"  verified configured root absent: {'yes' if result.verified_root_absent else 'no'}")
+        if result.success:
+            print("  result:     already missing")
+        else:
+            print("  result:     incomplete")
+            for error in result.errors:
+                print(f"    error: {error}")
         return
     print(f"  subvolumes: {len(result.subvolumes)}")
     if dry_run:
@@ -473,13 +648,17 @@ def _print_result(result: DestroyResult, *, dry_run: bool) -> None:
             print(f"  result:     {action} the configured root only if it is an empty ordinary directory")
         return
     print(f"  deleted subvolumes: {result.deleted_subvolumes}")
-    print(f"  removed configured root: {'yes' if result.removed_tree or result.root_is_subvolume else 'no'}")
-    if result.errors:
+    print(f"  verified configured root absent: {'yes' if result.verified_root_absent else 'no'}")
+    if result.remaining_subvolumes:
+        print("  remaining Btrfs subvolumes:")
+        for remaining in result.remaining_subvolumes:
+            print(f"    {remaining}")
+    if result.success:
+        print("  result:     complete")
+    else:
         print("  result:     incomplete")
         for error in result.errors:
             print(f"    error: {error}")
-    else:
-        print("  result:     complete")
 
 
 def _result_by_label(results: list[DestroyResult], label: str) -> DestroyResult | None:
@@ -565,7 +744,7 @@ def destroy_leftovers(
     print("============================")
     print("This command is for permanently removing a ts-btrfs setup.")
     print("It ignores state.json and retention rules.")
-    print("It recursively deletes Btrfs subvolumes and leftover files/directories.")
+    print("It recursively deletes managed Btrfs subvolumes deepest-first.")
     print("It only deletes app-created source send-cache paths when --delete-source is used.")
     print("It must never delete, prune, destroy, or clean source.snapshot_root or anything below it.")
     print()
@@ -619,7 +798,7 @@ def destroy_leftovers(
 
     _print_payload_match_if_available(config, results, payload_state)
 
-    failures = [result for result in results if result.errors]
+    failures = [result for result in results if not result.success]
     print("DESTROY SUMMARY")
     print("===============")
     print(f"  targets:    {len(results)}")

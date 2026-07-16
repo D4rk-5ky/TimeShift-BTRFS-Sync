@@ -1,3 +1,27 @@
+## 0.1.46
+
+- Fixed source send-cache reuse after remounting or moving the configured source paths. Bulk Btrfs list-path resolution now recognizes the longest configured-root suffix anywhere inside filesystem-relative paths, including on-disk prefixes such as `@/` that are absent from the mount path.
+- Changed cache child preparation so the exact `<source.cache_root>/<snapshot>/<subvolume>` target is probed before snapshot creation inside the same source command/SSH session. A valid existing read-only cache snapshot is reused even when the earlier bulk cache index missed it.
+- Prevented Btrfs from interpreting an existing cache child such as `<date>/@` as a destination directory and attempting the nested path `<date>/@/@`, which previously produced a misleading `Read-only file system` error because the existing cache snapshot was read-only.
+- Refused exact cache targets that exist as ordinary paths, writable subvolumes, or read-only snapshots with a mismatching Parent UUID instead of overwriting or nesting below them.
+- Added a post-create-failure exact metadata probe in the same source command so a concurrently created safe cache snapshot can be reused without another SSH request.
+- Preserved fresh-destination behavior: retention selects the source snapshots to seed, the queue remains oldest-to-newest, existing safe cache snapshots are reused, and only missing cache children are created.
+- Added regression coverage for stale bulk-index cache reuse, no nested `@/@` target, ordinary-target refusal, concurrent creation reuse, and remounted Btrfs list paths with extra on-disk prefixes.
+- Updated README.md, INSTALL.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
+## 0.1.45
+
+- Tightened `destroy-leftovers` so a real target can be complete only after every planned Btrfs subvolume path has an exact unique deletion confirmation and the configured root is independently verified absent.
+- Added exact source deletion-confirmation parsing. Duplicate, malformed, and unexpected confirmation lines are errors, and every unconfirmed planned path is listed.
+- Added final local destination and source-cache root existence checks after deletion, including verification after removing an empty ordinary configured root with exact-path `rmdir`.
+- When a configured root remains, rebuild its Btrfs inventory and print every remaining root/child subvolume. A surviving root is incomplete even when all deletion commands returned success.
+- Mark zero confirmed deletions, fewer confirmations than planned, final existence-check failures, surviving roots, and remaining child subvolumes as incomplete.
+- Changed the terminal result so `result: complete` is printed only after `verified configured root absent: yes`.
+- Changed the final destroy summary to use verified `DestroyResult.success`, preventing an empty error list from counting an unverified target as complete.
+- Applied the same post-deletion completion checks to both source-cache and local destination cleanup.
+- Added regression tests for zero/partial source confirmations, failed final checks, surviving source/destination roots, remaining-subvolume reporting, and verified successful cleanup.
+- Updated README.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
 ## 0.1.44
 
 - Upgraded persistent state to schema version 2 and made source-side paths relocatable.

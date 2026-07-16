@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.1.44 config
+# timeshift-btrfs-sync v0.1.46 config
 # Run this config on the BACKUP/DESTINATION machine.
 # source.mode = "ssh" pulls from another machine over SSH.
 # source.mode = "local" copies from Timeshift snapshots on this same machine and skips SSH.
@@ -329,10 +329,12 @@ source_change_retry_count = 5
 # Read-only send snapshots are then created with:
 #   sudo -n btrfs subvolume snapshot -r <original> <cache_root>/<snapshot>/<subvolume>
 # Existing cache snapshots are bulk-indexed once and reused only when UUID,
-# read-only state, and available parent identity are safe. New snapshot creation
-# and its confirming `btrfs subvolume show` run in one source command. A targeted
-# probe is reserved for exceptional races where another process creates the path
-# after the coherent inventory was captured.
+# read-only state, and available parent identity are safe. Before creating a
+# missing child, one source command probes the exact target, reuses it if safe,
+# or creates and confirms it when absent. This prevents an existing <date>/@
+# from being passed as a destination directory and becoming a nested <date>/@/@.
+# The same exact probe also recovers safely when a remounted Btrfs path was not
+# represented correctly by the earlier bulk list or another process created it.
 # destroy-leftovers checks cache_root with configured sudo+Btrfs before relying
 # on source-shell `test -e`, so the source user does not need ordinary directory
 # traversal permission just to prove the app-owned cache subvolume exists.

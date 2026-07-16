@@ -131,7 +131,7 @@ class DestroyBtrfsOnlyTests(unittest.TestCase):
             return Completed(command, 0, "TSBTRFS_DELETED\t/cache/date/@\n", "")
 
         with patch.object(destroy, "_run_source_quiet", side_effect=fake_run):
-            deleted, errors = destroy._source_delete_subvolumes_batched(
+            confirmed, errors = destroy._source_delete_subvolumes_batched(
                 source,
                 ["/cache/date/@"],
                 "sudo -n",
@@ -139,12 +139,43 @@ class DestroyBtrfsOnlyTests(unittest.TestCase):
                 protected_snapshot_root="/timeshift/snapshots",
             )
 
-        self.assertEqual(deleted, 1)
+        self.assertEqual(confirmed, ["/cache/date/@"])
         self.assertEqual(errors, [])
         self.assertEqual(len(captured), 1)
         self.assertIn("subvolume delete", captured[0])
         self.assertNotIn("rm -rf", captured[0])
         self.assertNotIn("rmdir", captured[0])
+
+    def test_source_batch_rejects_duplicate_and_unexpected_confirmations(self) -> None:
+        class FakeSource:
+            def command(self, source_command: str):
+                return ["sh", "-c", source_command]
+
+            def environment(self):
+                return None
+
+        source = FakeSource()
+        output = (
+            "TSBTRFS_DELETED\t/cache/a\n"
+            "TSBTRFS_DELETED\t/cache/a\n"
+            "TSBTRFS_DELETED\t/cache/unexpected\n"
+        )
+        with patch.object(
+            destroy,
+            "_run_source_quiet",
+            return_value=Completed("delete", 0, output, ""),
+        ):
+            confirmed, errors = destroy._source_delete_subvolumes_batched(
+                source,
+                ["/cache/a", "/cache/b"],
+                "sudo -n",
+                "btrfs",
+                protected_snapshot_root="/timeshift/snapshots",
+            )
+
+        self.assertEqual(confirmed, ["/cache/a"])
+        self.assertTrue(any("duplicate deletion confirmation" in item for item in errors))
+        self.assertTrue(any("unexpected deletion confirmation" in item for item in errors))
 
     def test_runtime_package_contains_no_recursive_rm_fallback(self) -> None:
         package_root = Path("timeshift_btrfs_sync")

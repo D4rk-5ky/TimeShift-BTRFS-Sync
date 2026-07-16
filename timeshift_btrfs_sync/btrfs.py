@@ -440,6 +440,38 @@ def source_ensure_cache_root(
     )
 
 
+def _validate_readonly_cache_snapshot(
+    meta: SubvolumeMeta | None,
+    *,
+    cache_path: str,
+    original_meta: SubvolumeMeta,
+) -> str | None:
+    """Validate one exact cache snapshot path before it is reused.
+
+    The path is only a location hint. Read-only state and Btrfs parent UUID
+    prove that it is a safe send copy of the requested Timeshift subvolume.
+    """
+
+    if not meta:
+        return None
+    if meta.readonly is not True:
+        raise RuntimeError(
+            "Existing source cache path is a Btrfs subvolume but is not read-only:\n"
+            f"  {cache_path}\n"
+            "Refusing to use or overwrite it. Inspect the send-cache path manually."
+        )
+    if original_meta.uuid and meta.parent_uuid and meta.parent_uuid != original_meta.uuid:
+        raise RuntimeError(
+            "Existing source cache snapshot does not belong to the requested Timeshift snapshot:\n"
+            f"  original: {original_meta.path}\n"
+            f"  original UUID: {original_meta.uuid}\n"
+            f"  cache:    {cache_path}\n"
+            f"  cache Parent UUID: {meta.parent_uuid}\n"
+            "Refusing to use it as a send source."
+        )
+    return cache_path
+
+
 def _reuse_existing_cache_snapshot(
     source: SourceRunner,
     *,
@@ -453,48 +485,32 @@ def _reuse_existing_cache_snapshot(
 ) -> str | None:
     """Return an existing safe read-only cache snapshot, or None when absent.
 
-    The app must not try to recreate ``send-cache/<snapshot>/<subvolume>``
-    when it already exists. Recreating a Btrfs snapshot either fails or produces
-    a new UUID that cannot be used for previously received incremental parents.
-    Existing cache snapshots are reused only after Btrfs metadata proves they are
-    real read-only subvolumes and, when parent UUIDs are available, descended
-    from the requested original Timeshift subvolume.
+    The coherent bulk cache index is preferred. A later exact-path probe inside
+    the create-or-reuse command protects against an incomplete/stale index and
+    against mount-path representations that were not resolved by the bulk list.
     """
 
-    def validate(meta: SubvolumeMeta | None) -> str | None:
-        if not meta:
-            return None
-        if meta.readonly is not True:
-            raise RuntimeError(
-                "Existing source cache path is a Btrfs subvolume but is not read-only:\n"
-                f"  {cache_path}\n"
-                "Refusing to use or overwrite it. Inspect the send-cache path manually."
-            )
-        if original_meta.uuid and meta.parent_uuid and meta.parent_uuid != original_meta.uuid:
-            raise RuntimeError(
-                "Existing source cache snapshot does not belong to the requested Timeshift snapshot:\n"
-                f"  original: {original_meta.path}\n"
-                f"  original UUID: {original_meta.uuid}\n"
-                f"  cache:    {cache_path}\n"
-                f"  cache Parent UUID: {meta.parent_uuid}\n"
-                "Refusing to use it as a send source."
-            )
-        return cache_path
-
     indexed = cache_index.meta(cache_path) if cache_index is not None else None
-    reused = validate(indexed)
+    reused = _validate_readonly_cache_snapshot(
+        indexed,
+        cache_path=cache_path,
+        original_meta=original_meta,
+    )
     if reused:
         return reused
 
-    # A coherent bulk cache index is authoritative for this inventory
-    # generation. If the path was absent, attempt creation directly instead of
-    # opening another SSH session just to repeat the same metadata lookup. A
-    # concurrent creator is handled safely by the target-already-exists branch.
+    # A coherent index normally avoids another source command. If it missed the
+    # exact path, source_ensure_readonly_send_path performs one combined
+    # exact-probe/create/show command before any snapshot creation is attempted.
     if cache_index is not None:
         return None
 
     refreshed = _source_refresh_cache_path(cache_index, source, cache_path, sudo=sudo, btrfs_command=btrfs_command)
-    reused = validate(refreshed)
+    reused = _validate_readonly_cache_snapshot(
+        refreshed,
+        cache_path=cache_path,
+        original_meta=original_meta,
+    )
     if reused:
         return reused
 
@@ -507,7 +523,11 @@ def _reuse_existing_cache_snapshot(
             btrfs_command,
             required=False,
         )
-        reused = validate(meta)
+        reused = _validate_readonly_cache_snapshot(
+            meta,
+            cache_path=cache_path,
+            original_meta=original_meta,
+        )
         if reused:
             return reused
     return None
@@ -571,24 +591,43 @@ def _source_create_readonly_cache_snapshot(
     subvolume_name: str,
     original_meta: SubvolumeMeta,
 ) -> tuple[int, str, SubvolumeMeta | None]:
-    """Create and verify one read-only cache snapshot in one source command.
+    """Probe, create if missing, and verify one exact cache path in one command.
 
-    In SSH mode both ``btrfs subvolume snapshot -r`` and the confirming
-    ``btrfs subvolume show`` execute in the same SSH session. The returned
-    metadata is safe to insert directly into the coherent per-run cache index.
+    ``btrfs subvolume snapshot SOURCE DEST`` treats an already existing DEST as
+    a destination directory and appends the source basename. For ``@`` that can
+    become ``<cache>/<date>/@/@``. An existing read-only ``@`` then causes the
+    misleading ``Read-only file system`` error. This helper first probes the
+    exact target path, reuses it when UUID/read-only checks pass, and only runs
+    snapshot creation when the exact target is absent. The post-failure probe
+    also handles a concurrent creator without opening another SSH session.
     """
 
-    create_cmd = remote_btrfs_cmd(
-        sudo,
-        btrfs_command,
-        ["subvolume", "snapshot", "-r", original_path, cache_path],
-    )
     show_cmd = remote_btrfs_cmd(
         sudo,
         btrfs_command,
         ["subvolume", "show", cache_path],
     )
+    create_cmd = remote_btrfs_cmd(
+        sudo,
+        btrfs_command,
+        ["subvolume", "snapshot", "-r", original_path, cache_path],
+    )
+    cache_path_q = shlex.quote(cache_path)
     script = f"""
+existing_output=$({show_cmd} 2>&1)
+existing_status=$?
+printf 'TSBTRFS_CACHE_EXISTING_STATUS\t%s\n' "$existing_status"
+printf 'TSBTRFS_CACHE_EXISTING_OUTPUT_BEGIN\n%s\nTSBTRFS_CACHE_EXISTING_OUTPUT_END\n' "$existing_output"
+if [ "$existing_status" -eq 0 ]; then
+    exit 0
+fi
+
+if [ -e {cache_path_q} ]; then
+    printf 'TSBTRFS_CACHE_PATH_EXISTS\t1\n'
+    exit 0
+fi
+printf 'TSBTRFS_CACHE_PATH_EXISTS\t0\n'
+
 create_output=$({create_cmd} 2>&1)
 create_status=$?
 printf 'TSBTRFS_CACHE_CREATE_STATUS\t%s\n' "$create_status"
@@ -598,6 +637,11 @@ if [ "$create_status" -eq 0 ]; then
     show_status=$?
     printf 'TSBTRFS_CACHE_SHOW_STATUS\t%s\n' "$show_status"
     printf 'TSBTRFS_CACHE_SHOW_OUTPUT_BEGIN\n%s\nTSBTRFS_CACHE_SHOW_OUTPUT_END\n' "$show_output"
+else
+    race_output=$({show_cmd} 2>&1)
+    race_status=$?
+    printf 'TSBTRFS_CACHE_RACE_SHOW_STATUS\t%s\n' "$race_status"
+    printf 'TSBTRFS_CACHE_RACE_SHOW_OUTPUT_BEGIN\n%s\nTSBTRFS_CACHE_RACE_SHOW_OUTPUT_END\n' "$race_output"
 fi
 exit 0
 """.strip()
@@ -611,65 +655,115 @@ exit 0
         detail = result.stderr.strip() or result.stdout.strip() or f"return code {result.returncode}"
         return result.returncode, detail, None
 
-    create_status: int | None = None
-    show_status: int | None = None
-    create_lines: list[str] = []
-    show_lines: list[str] = []
+    statuses: dict[str, int | None] = {
+        "existing": None,
+        "create": None,
+        "show": None,
+        "race_show": None,
+    }
+    outputs: dict[str, list[str]] = {key: [] for key in statuses}
+    path_exists: bool | None = None
     section: str | None = None
+    status_markers = {
+        "TSBTRFS_CACHE_EXISTING_STATUS\t": "existing",
+        "TSBTRFS_CACHE_CREATE_STATUS\t": "create",
+        "TSBTRFS_CACHE_SHOW_STATUS\t": "show",
+        "TSBTRFS_CACHE_RACE_SHOW_STATUS\t": "race_show",
+    }
+    begin_markers = {
+        "TSBTRFS_CACHE_EXISTING_OUTPUT_BEGIN": "existing",
+        "TSBTRFS_CACHE_CREATE_OUTPUT_BEGIN": "create",
+        "TSBTRFS_CACHE_SHOW_OUTPUT_BEGIN": "show",
+        "TSBTRFS_CACHE_RACE_SHOW_OUTPUT_BEGIN": "race_show",
+    }
+    end_markers = {
+        "TSBTRFS_CACHE_EXISTING_OUTPUT_END",
+        "TSBTRFS_CACHE_CREATE_OUTPUT_END",
+        "TSBTRFS_CACHE_SHOW_OUTPUT_END",
+        "TSBTRFS_CACHE_RACE_SHOW_OUTPUT_END",
+    }
+
     for line in result.stdout.splitlines():
-        if line.startswith("TSBTRFS_CACHE_CREATE_STATUS\t"):
-            try:
-                create_status = int(line.split("\t", 1)[1])
-            except ValueError:
-                create_status = None
+        matched_status = False
+        for marker, key in status_markers.items():
+            if line.startswith(marker):
+                try:
+                    statuses[key] = int(line.split("\t", 1)[1])
+                except ValueError:
+                    statuses[key] = None
+                matched_status = True
+                break
+        if matched_status:
             continue
-        if line.startswith("TSBTRFS_CACHE_SHOW_STATUS\t"):
-            try:
-                show_status = int(line.split("\t", 1)[1])
-            except ValueError:
-                show_status = None
+        if line.startswith("TSBTRFS_CACHE_PATH_EXISTS\t"):
+            path_exists = line.split("\t", 1)[1] == "1"
             continue
-        if line == "TSBTRFS_CACHE_CREATE_OUTPUT_BEGIN":
-            section = "create"
+        if line in begin_markers:
+            section = begin_markers[line]
             continue
-        if line == "TSBTRFS_CACHE_CREATE_OUTPUT_END":
+        if line in end_markers:
             section = None
             continue
-        if line == "TSBTRFS_CACHE_SHOW_OUTPUT_BEGIN":
-            section = "show"
-            continue
-        if line == "TSBTRFS_CACHE_SHOW_OUTPUT_END":
-            section = None
-            continue
-        if section == "create":
-            create_lines.append(line)
-        elif section == "show":
-            show_lines.append(line)
+        if section is not None:
+            outputs[section].append(line)
 
-    create_text = "\n".join(create_lines).strip()
-    if create_status != 0:
-        return create_status if create_status is not None else 1, create_text, None
-    if show_status != 0:
-        raise RuntimeError(
-            "Created read-only source cache snapshot, but metadata verification failed:\n"
-            f"  {cache_path}\n"
-            + ("\n".join(show_lines).strip() or f"return code {show_status}")
+    def parsed_meta(section_name: str) -> SubvolumeMeta:
+        return parse_subvolume_show(
+            "\n".join(outputs[section_name]),
+            subvolume_name,
+            cache_path,
         )
 
-    meta = parse_subvolume_show("\n".join(show_lines), subvolume_name, cache_path)
-    if meta.readonly is not True:
-        raise RuntimeError(
-            "Created source cache snapshot was not confirmed read-only:\n"
-            f"  {cache_path}"
+    if statuses["existing"] == 0:
+        meta = parsed_meta("existing")
+        _validate_readonly_cache_snapshot(
+            meta,
+            cache_path=cache_path,
+            original_meta=original_meta,
         )
-    if original_meta.uuid and meta.parent_uuid and meta.parent_uuid != original_meta.uuid:
-        raise RuntimeError(
-            "Created source cache snapshot has an unexpected Parent UUID:\n"
-            f"  original UUID: {original_meta.uuid}\n"
-            f"  cache Parent UUID: {meta.parent_uuid}\n"
-            f"  cache: {cache_path}"
+        return 0, "reused existing exact source cache snapshot", meta
+
+    if path_exists is True:
+        detail = "\n".join(outputs["existing"]).strip()
+        return (
+            125,
+            "Exact source cache target already exists but is not a reusable read-only "
+            "Btrfs snapshot. Refusing to pass it to `btrfs subvolume snapshot`, because "
+            "Btrfs would treat it as a destination directory and could create a nested "
+            f"{subvolume_name!r} path:\n  {cache_path}"
+            + (f"\n{detail}" if detail else ""),
+            None,
         )
-    return 0, create_text, meta
+
+    create_status = statuses["create"]
+    create_text = "\n".join(outputs["create"]).strip()
+    if create_status == 0:
+        if statuses["show"] != 0:
+            raise RuntimeError(
+                "Created read-only source cache snapshot, but metadata verification failed:\n"
+                f"  {cache_path}\n"
+                + ("\n".join(outputs["show"]).strip() or f"return code {statuses['show']}")
+            )
+        meta = parsed_meta("show")
+        _validate_readonly_cache_snapshot(
+            meta,
+            cache_path=cache_path,
+            original_meta=original_meta,
+        )
+        return 0, create_text, meta
+
+    # The exact target may have appeared between the first probe and create.
+    # Reuse it only when the same read-only/Parent-UUID checks pass.
+    if statuses["race_show"] == 0:
+        meta = parsed_meta("race_show")
+        _validate_readonly_cache_snapshot(
+            meta,
+            cache_path=cache_path,
+            original_meta=original_meta,
+        )
+        return 0, "reused exact source cache snapshot created concurrently", meta
+
+    return create_status if create_status is not None else 1, create_text, None
 
 
 def source_ensure_readonly_send_path(
