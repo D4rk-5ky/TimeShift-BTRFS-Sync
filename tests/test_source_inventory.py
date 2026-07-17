@@ -5,7 +5,10 @@ import unittest
 
 from timeshift_btrfs_sync.commands import Completed
 from timeshift_btrfs_sync.models import SubvolumeMeta
-from timeshift_btrfs_sync import btrfs, preflight, remote_index, sync
+from timeshift_btrfs_sync import preflight, inventory, sync
+from timeshift_btrfs_sync.btrfs_ops import BtrfsOps
+from timeshift_btrfs_sync.cache_ops import CacheManager
+from timeshift_btrfs_sync.endpoint import CommandEndpoint
 
 
 class FakeSource:
@@ -20,8 +23,8 @@ class FakeSource:
         return self._result
 
 
-def index(root: str, *metas: SubvolumeMeta) -> remote_index.BtrfsIndex:
-    value = remote_index.BtrfsIndex(root=root, location="remote")
+def index(root: str, *metas: SubvolumeMeta) -> inventory.BtrfsIndex:
+    value = inventory.BtrfsIndex(root=root, location="remote")
     for meta in metas:
         value.add(meta)
     return value
@@ -78,7 +81,7 @@ TSBTRFS_INDEX_SECTION_END\tcache
 """
         source = FakeSource(Completed("inventory", 0, output, ""))
 
-        inventory = remote_index.build_source_inventory(
+        built_inventory = inventory.build_source_inventory(
             source,
             snapshot_root=snapshot_root,
             cache_root=cache_root,
@@ -97,17 +100,17 @@ TSBTRFS_INDEX_SECTION_END\tcache
         self.assertNotIn("sudo -n cat", source.calls[0])
         self.assertNotIn("sudo -n id", source.calls[0])
         self.assertIn("info.json", source.calls[0])
-        self.assertEqual(inventory.snapshot_names, ("2026-07-14_01-00-00",))
-        self.assertEqual(inventory.source_user_name, "btrbk-source")
-        self.assertEqual(inventory.source_user_uid, 1001)
+        self.assertEqual(built_inventory.snapshot_names, ("2026-07-14_01-00-00",))
+        self.assertEqual(built_inventory.source_user_name, "btrbk-source")
+        self.assertEqual(built_inventory.source_user_uid, 1001)
         self.assertEqual(
-            inventory.snapshot_info_json["2026-07-14_01-00-00"],
+            built_inventory.snapshot_info_json["2026-07-14_01-00-00"],
             '{"date":"2026-07-14_01-00-00","tags":["H"]}',
         )
-        self.assertEqual(inventory.snapshot_index.meta(snapshot_path).uuid, "source-uuid")
-        self.assertTrue(inventory.snapshot_index.meta(snapshot_path).readonly)
-        self.assertEqual(inventory.cache_index.meta(cache_path).uuid, "cache-uuid")
-        self.assertTrue(inventory.cache_index.meta(cache_path).readonly)
+        self.assertEqual(built_inventory.snapshot_index.meta(snapshot_path).uuid, "source-uuid")
+        self.assertTrue(built_inventory.snapshot_index.meta(snapshot_path).readonly)
+        self.assertEqual(built_inventory.cache_index.meta(cache_path).uuid, "cache-uuid")
+        self.assertTrue(built_inventory.cache_index.meta(cache_path).readonly)
 
 
     def test_unreadable_snapshot_root_is_applied_to_each_missing_info_json(self) -> None:
@@ -126,7 +129,7 @@ TSBTRFS_ROOT_MISSING\t/timeshift/snapshots
 TSBTRFS_INDEX_SECTION_END\tsnapshot
 """
         source = FakeSource(Completed("inventory", 0, output, ""))
-        inventory = remote_index.build_source_inventory(
+        built_inventory = inventory.build_source_inventory(
             source,
             snapshot_root="/timeshift/snapshots",
             cache_root=None,
@@ -135,15 +138,15 @@ TSBTRFS_INDEX_SECTION_END\tsnapshot
             timeshift_command="timeshift",
             required=False,
         )
-        self.assertEqual(inventory.source_user_name, "btrbk-source")
-        self.assertEqual(inventory.source_user_uid, 1001)
-        self.assertIn("cannot be traversed", inventory.snapshot_info_errors["2026-07-14_01-00-00"])
+        self.assertEqual(built_inventory.source_user_name, "btrbk-source")
+        self.assertEqual(built_inventory.source_user_uid, 1001)
+        self.assertIn("cannot be traversed", built_inventory.snapshot_info_errors["2026-07-14_01-00-00"])
 
     def test_required_path_changes_ignore_unrelated_churn(self) -> None:
         current = "/cache/current/@"
         parent = "/cache/parent/@"
         unrelated = "/snapshots/unrelated/@"
-        before = remote_index.SourceInventory(
+        before = inventory.SourceInventory(
             "2026-07-14_01-00-00 H",
             index("/snapshots", SubvolumeMeta("@", unrelated, uuid="u1")),
             index(
@@ -152,7 +155,7 @@ TSBTRFS_INDEX_SECTION_END\tsnapshot
                 SubvolumeMeta("@", parent, uuid="p1"),
             ),
         )
-        after = remote_index.SourceInventory(
+        after = inventory.SourceInventory(
             "2026-07-14_02-00-00 H",
             index("/snapshots"),
             index(
@@ -174,7 +177,7 @@ TSBTRFS_INDEX_SECTION_END\tsnapshot
     def test_required_path_changes_detect_disappearance_and_uuid_replacement(self) -> None:
         current = "/cache/current/@"
         parent = "/cache/parent/@"
-        before = remote_index.SourceInventory(
+        before = inventory.SourceInventory(
             "",
             index("/snapshots"),
             index(
@@ -183,7 +186,7 @@ TSBTRFS_INDEX_SECTION_END\tsnapshot
                 SubvolumeMeta("@", parent, uuid="p1"),
             ),
         )
-        after = remote_index.SourceInventory(
+        after = inventory.SourceInventory(
             "",
             index("/snapshots"),
             index("/cache", SubvolumeMeta("@", parent, uuid="p2")),
@@ -235,20 +238,21 @@ Flags: readonly
 TSBTRFS_CACHE_SHOW_OUTPUT_END
 """
         source = FakeSource(Completed("create", 0, output, ""))
-        status, _detail, meta = btrfs._source_create_readonly_cache_snapshot(
-            source,
-            sudo="sudo -n",
-            btrfs_command="btrfs",
-            original_path="/snapshots/date/@",
+        manager = CacheManager(
+            BtrfsOps(CommandEndpoint.for_source(source), "sudo -n", "btrfs"),
+            cache_root="/cache",
+            create_enabled=True,
+        )
+        cache_result = manager._probe_create_verify(
+            original=SubvolumeMeta("@", "/snapshots/date/@", uuid="original-uuid"),
             cache_path="/cache/date/@",
             subvolume_name="@",
-            original_meta=SubvolumeMeta("@", "/snapshots/date/@", uuid="original-uuid"),
         )
-        self.assertEqual(status, 0)
+        self.assertEqual(cache_result.status, "created")
         self.assertEqual(len(source.calls), 1)
-        self.assertEqual(meta.uuid, "cache-uuid")
-        self.assertEqual(meta.parent_uuid, "original-uuid")
-        self.assertTrue(meta.readonly)
+        self.assertEqual(cache_result.meta.uuid, "cache-uuid")
+        self.assertEqual(cache_result.meta.parent_uuid, "original-uuid")
+        self.assertTrue(cache_result.meta.readonly)
 
 
 if __name__ == "__main__":
@@ -276,14 +280,14 @@ class SyncContinuationTests(unittest.TestCase):
             config.state_file = Path(tmp) / "state.json"
 
             source_path = "/snapshots/2026-07-14_01-00-00/@"
-            initial = remote_index.SourceInventory(
+            initial = inventory.SourceInventory(
                 "2026-07-14_01-00-00 H",
                 index("/snapshots", SubvolumeMeta("@", source_path, uuid="source-uuid", readonly=True)),
                 index("/cache"),
                 {"2026-07-14_01-00-00": '{"date":"2026-07-14_01-00-00"}\n'},
             )
-            after_failure = remote_index.SourceInventory("", index("/snapshots"), index("/cache"))
-            after_cleanup = remote_index.SourceInventory("", index("/snapshots"), index("/cache"))
+            after_failure = inventory.SourceInventory("", index("/snapshots"), index("/cache"))
+            after_cleanup = inventory.SourceInventory("", index("/snapshots"), index("/cache"))
 
             class SyncSource:
                 uses_ssh = False
@@ -297,14 +301,14 @@ class SyncContinuationTests(unittest.TestCase):
 
             recovered: list[str] = []
             pipeline_error = CommandError(["btrfs", "send"], 1, "", "source vanished")
-            empty_destination_index = remote_index.BtrfsIndex(str(config.destination.target_root), "local")
+            empty_destination_index = inventory.BtrfsIndex(str(config.destination.target_root), "local")
 
             with (
                 patch.object(sync.SourceRunner, "from_config", return_value=SyncSource()),
                 patch.object(sync.preflight, "check_required_sync_paths"),
                 patch.object(sync, "prepare_destination"),
-                patch.object(sync.remote_index, "build_source_inventory", side_effect=[initial, after_failure, after_cleanup]),
-                patch.object(sync.remote_index, "build_local_btrfs_index", return_value=empty_destination_index),
+                patch.object(sync.inventory, "build_source_inventory", side_effect=[initial, after_failure, after_cleanup]),
+                patch.object(sync.inventory, "build_local_btrfs_index", return_value=empty_destination_index),
                 patch.object(sync, "_recover_stale_state_snapshots_missing_from_source", return_value=0),
                 patch.object(sync, "_verify_sync_viability_before_manual_snapshot"),
                 patch.object(sync, "_maybe_create_manual_snapshot", return_value=False),

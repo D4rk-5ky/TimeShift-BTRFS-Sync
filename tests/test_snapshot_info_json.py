@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from timeshift_btrfs_sync import remote_index, retention, sync
+from timeshift_btrfs_sync import inventory, retention, sync, tree_ops
 from timeshift_btrfs_sync.config import load_config
 from timeshift_btrfs_sync.models import SubvolumeMeta
 from timeshift_btrfs_sync.sync import SyncError
@@ -15,11 +15,11 @@ SNAPSHOT = "2026-07-14_01-00-00"
 INFO_CONTENT = '{"date":"2026-07-14_01-00-00","tags":["H"]}\n'
 
 
-def inventory_with_info(content: str = INFO_CONTENT) -> remote_index.SourceInventory:
-    return remote_index.SourceInventory(
+def inventory_with_info(content: str = INFO_CONTENT) -> inventory.SourceInventory:
+    return inventory.SourceInventory(
         timeshift_output=f"{SNAPSHOT} H hourly",
-        snapshot_index=remote_index.BtrfsIndex("/snapshots", "remote"),
-        cache_index=remote_index.BtrfsIndex("/cache", "remote"),
+        snapshot_index=inventory.BtrfsIndex("/snapshots", "remote"),
+        cache_index=inventory.BtrfsIndex("/cache", "remote"),
         snapshot_info_json={SNAPSHOT: content},
     )
 
@@ -31,7 +31,7 @@ class InfoJsonFrameTests(unittest.TestCase):
             f"{INFO_CONTENT}"
             f"\nTSBTRFS_INFO_JSON_END\t{SNAPSHOT}\t0\nafter\n"
         )
-        cleaned, captured, errors = remote_index._extract_snapshot_info_json_frames(output)
+        cleaned, captured, errors = inventory._extract_snapshot_info_json_frames(output)
         self.assertEqual(captured[SNAPSHOT], INFO_CONTENT)
         self.assertEqual(errors, {})
         self.assertEqual(cleaned, "before\nafter\n")
@@ -45,7 +45,7 @@ class InfoJsonFrameTests(unittest.TestCase):
             other = root / "not-a-timeshift-date"
             other.mkdir()
             (other / "info.json").write_text("other", encoding="utf-8")
-            captured, errors = remote_index._read_local_snapshot_info_json(str(root))
+            captured, errors = inventory._read_local_snapshot_info_json(str(root))
             self.assertEqual(captured, {SNAPSHOT: INFO_CONTENT})
             self.assertEqual(errors, {})
 
@@ -56,7 +56,7 @@ class InfoJsonFrameTests(unittest.TestCase):
             f"{content}\n"
             f"TSBTRFS_INFO_JSON_END\t{SNAPSHOT}\t0\n"
         )
-        _cleaned, captured, errors = remote_index._extract_snapshot_info_json_frames(output)
+        _cleaned, captured, errors = inventory._extract_snapshot_info_json_frames(output)
         self.assertEqual(captured[SNAPSHOT], content)
         self.assertEqual(errors, {})
 
@@ -174,9 +174,9 @@ class DestinationInfoJsonTests(unittest.TestCase):
             info_path.write_text(INFO_CONTENT, encoding="utf-8")
             (snapshot_dir / "unknown-file").write_text("keep", encoding="utf-8")
             state = {"snapshots": {SNAPSHOT: {"subvolumes": {}}}}
-            live = remote_index.BtrfsIndex(str(snapshot_dir), "local")
-            live.add(SubvolumeMeta(snapshot_dir.name, str(snapshot_dir), uuid="date-uuid"))
-            with patch.object(retention.remote_index, "build_local_btrfs_index", return_value=live):
+            failed = tree_ops.TreeDeleteResult(str(snapshot_dir), "destination", existed=True)
+            failed.errors.append("unexpected ordinary content")
+            with patch.object(retention, "delete_subvolume_tree", return_value=failed):
                 self.assertFalse(retention._delete_destination_snapshot_for_prune(config, state, SNAPSHOT))
             self.assertEqual(info_path.read_text(encoding="utf-8"), INFO_CONTENT)
 
@@ -189,23 +189,16 @@ class DestinationInfoJsonTests(unittest.TestCase):
             state = {"snapshots": {SNAPSHOT: {"subvolumes": {}}}}
             child = snapshot_dir / "@"
             child.mkdir()
-            live = remote_index.BtrfsIndex(str(snapshot_dir), "local")
-            live.add(SubvolumeMeta(snapshot_dir.name, str(snapshot_dir), uuid="date-uuid"))
-            live.add(SubvolumeMeta(child.name, str(child), uuid="child-uuid"))
-            deleted: list[Path] = []
-
-            def fake_delete(path: Path, *_args) -> None:
-                deleted.append(path)
-                if path == child:
-                    child.rmdir()
-                elif path == snapshot_dir:
-                    (snapshot_dir / "info.json").unlink()
-                    snapshot_dir.rmdir()
-
-            with (
-                patch.object(retention.remote_index, "build_local_btrfs_index", return_value=live),
-                patch.object(retention.btrfs, "delete_local_subvolume", side_effect=fake_delete),
-            ):
+            deleted = [child, snapshot_dir]
+            (snapshot_dir / "info.json").unlink()
+            child.rmdir()
+            snapshot_dir.rmdir()
+            succeeded = tree_ops.TreeDeleteResult(
+                str(snapshot_dir), "destination", existed=True, root_is_subvolume=True,
+                planned=[str(child), str(snapshot_dir)], confirmed=[str(child), str(snapshot_dir)],
+                verification_attempted=True, verified_root_absent=True,
+            )
+            with patch.object(retention, "delete_subvolume_tree", return_value=succeeded):
                 self.assertTrue(retention._delete_destination_snapshot_for_prune(config, state, SNAPSHOT))
             self.assertEqual(deleted, [child, snapshot_dir])
             self.assertFalse(snapshot_dir.exists())
@@ -217,8 +210,9 @@ class DestinationInfoJsonTests(unittest.TestCase):
             snapshot_dir.mkdir(parents=True)
             (snapshot_dir / "info.json").write_text(INFO_CONTENT, encoding="utf-8")
             state = {"snapshots": {SNAPSHOT: {"subvolumes": {}}}}
-            empty = remote_index.BtrfsIndex(str(snapshot_dir), "local")
-            with patch.object(retention.remote_index, "build_local_btrfs_index", return_value=empty):
+            failed = tree_ops.TreeDeleteResult(str(snapshot_dir), "destination", existed=True)
+            failed.errors.append("ordinary path")
+            with patch.object(retention, "delete_subvolume_tree", return_value=failed):
                 self.assertFalse(retention._delete_destination_snapshot_for_prune(config, state, SNAPSHOT))
             self.assertTrue(snapshot_dir.exists())
 

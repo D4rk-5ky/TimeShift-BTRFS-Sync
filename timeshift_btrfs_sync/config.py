@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-import posixpath
+from .paths import normalize_source_path as _normalize_source_path, is_same_or_under as _source_path_is_same_or_under
 from typing import Any
 import tomllib
 
@@ -236,21 +236,6 @@ def _string_list(value: Any, field_name: str) -> list[str]:
         raise ConfigError(f"{field_name} must be a list of non-empty strings")
     return value
 
-
-def _normalize_source_path(value: str) -> str:
-    """Return a normalized POSIX-style source path without a trailing slash."""
-
-    text = str(value).strip()
-    if not text:
-        return ""
-    return posixpath.normpath(text).rstrip("/") or "/"
-
-def _source_path_is_same_or_under(path: str, root: str) -> bool:
-    """Return True when a source path is the root itself or below it."""
-
-    normalized_path = _normalize_source_path(path)
-    normalized_root = _normalize_source_path(root)
-    return normalized_path == normalized_root or normalized_path.startswith(normalized_root.rstrip("/") + "/")
 
 def load_config(path: str | Path) -> AppConfig:
     """Read and validate TOML config."""

@@ -1,695 +1,568 @@
 # Commented code map
 
-This file describes the current command handlers, shell command families, functions, and classes. Each entry explains what the item does and why it exists in the sync workflow.
+This map describes the **current 0.1.49 implementation only**. It names every
+runtime class, function, method, property, and nested command helper, and
+explains its role. The architecture intentionally keeps each low-level Btrfs,
+inventory, cache, path, planning, execution, and deletion operation in one
+authoritative module. Sync, prune, recovery, and destroy workflows compose
+those shared operations in different orders instead of maintaining separate
+local/SSH implementations.
+
+## Architecture layers
+
+1. **Transport — `endpoint.py`**: one local/source/SSH execution abstraction.
+2. **Btrfs operations — `btrfs_ops.py`**: one probe/list/create/snapshot/delete/send/receive command facade.
+3. **Inventory — `inventory.py`**: one coherent Timeshift, `info.json`, snapshot-root, and cache-root inventory. `remote_index.py` only re-exports it for compatibility.
+4. **Combined records — `snapshot_records.py`**: joins source, cache, destination, and state into one `SnapshotRecord` per date.
+5. **Planning — `planning.py`**: pure ordered action plans with no filesystem changes.
+6. **Execution — `executor.py`**: runs or previews plans through registered handlers.
+7. **Shared safety operations — `cache_ops.py`, `tree_ops.py`, and `paths.py`**: exact cache creation/reuse, verified deepest-first tree deletion, and one path-safety implementation.
+8. **Workflows — `sync.py`, `retention.py`, and `destroy.py`**: arrange inventory, plans, and shared operations according to the requested job.
 
 ## CLI commands
 
-| Command | What it does | Important safety behavior |
-| --- | --- | --- |
-| `init-config` | Writes the packaged commented TOML template. | Does not overwrite unless `--force` is used. |
-| `test-source` | Verifies the configured source endpoint and source sudo commands. | In SSH mode it tests SSH first; in local mode SSH is skipped. |
-| `test-ssh` | Alias for `test-source`. | Local mode skips SSH and checks the local source endpoint. |
-| `list-source` | Lists source Timeshift snapshots. | Fast by default; `--verify-btrfs` performs slower UUID/read-only checks. |
-| `sync` | Pulls/copies missing Timeshift Btrfs subvolumes. | Defaults can dry-run; real transfer requires run mode; incremental parents must match UUIDs. |
-| `prune` | Applies destination retention rules. | Real deletion requires `--run --yes-delete`. |
-| `create-manual` | Creates a source Timeshift on-demand snapshot. | Runs path preflight first; existing destination also requires UUID-confirmed source identity. |
-| `show-state` | Prints local `state.json`. | Read-only; can show raw JSON with `--json`. |
-| `clear-state` | Removes the configured state file after guarded confirmation. | Dry-run by default; real removal requires `--run`, `--i-understand-this-clears-state`, app lock acquisition, and two typed confirmations. It never deletes snapshots. |
-| `delete-lock` | Removes the configured lock file only when it is stale. | Dry-run by default; real removal requires `--run`, `--i-understand-this-deletes-lock`, and two typed confirmations; it refuses an actively held lock. |
-| `destroy-leftovers` | Destroys configured source send-cache/destination leftovers when retiring the app setup. | Dry-run by default; real deletion requires explicit target flag, `--run`, long danger flag, and two typed confirmations. It never deletes `source.snapshot_root`. |
+- `init-config`: writes the complete current example TOML and refuses overwrite unless `--force` is given.
+- `test-source` / `test-ssh`: checks the configured source transport plus Timeshift and Btrfs command access.
+- `list-source`: lists Timeshift snapshots, optionally forcing Btrfs verification.
+- `sync`: discovers once, plans oldest-to-newest full/incremental work, executes transfers, copies `info.json`, recovers source-change races, and optionally prunes.
+- `prune`: applies the same retention policy and shared Btrfs deletion engine without running sync.
+- `create-manual`: creates one guarded Timeshift on-demand snapshot after source identity and chain viability checks.
+- `show-state`: prints the relocatable state summary or raw JSON.
+- `clear-state`: removes only the guarded state file after explicit confirmation.
+- `delete-lock`: removes only a confirmed stale app lock after explicit confirmation.
+- `destroy-leftovers`: plans selected source-cache/destination tree retirement and succeeds only after exact deletion confirmations and root-absence verification.
 
-## Source, destination, and helper commands
+## Runtime modules and symbols
 
-| Command family | What it does | Why it does it |
-| --- | --- | --- |
-| `ssh ... <source command>` | Runs source-side Timeshift and Btrfs commands on the configured SSH source when `source.mode = "ssh"`. | Keeps the destination-pull model: the backup machine controls the run and receives the stream. |
-| `sh -c <source command>` | Runs the same source-side commands locally when `source.mode = "local"`. | Allows local sync without duplicating the sync engine or weakening the safety checks. |
-| `sudo -n timeshift --list` | Lists source Timeshift snapshots, tags, comments, and snapshot names. | The app needs Timeshift metadata to decide what exists, what order to process snapshots in, and what retention tags apply. |
-| `sudo -n timeshift --create --comments <text>` | Creates an optional source on-demand snapshot. | Lets a sync run start by capturing the current system state before the normal oldest-to-newest send loop. |
-| `sudo -n btrfs subvolume show <path>` | Reads UUID, parent UUID, received UUID, and read-only state for a subvolume. Optional existence probes are quiet when missing; required checks still print/log stderr. | Incremental sends are only safe when source and destination Btrfs identities match, while not-yet-created cache paths such as `@home` should not look like real errors. |
-| `sudo -n btrfs subvolume list ... <root>` | Builds source-cache and destination indexes of known subvolume paths and UUID metadata. | Reduces repeated metadata probes and helps cleanup find nested subvolumes safely. |
-| `sudo -n btrfs subvolume create <path>` | Creates the source cache root, per-snapshot cache parent, destination target root, helper subvolumes, or destination `snapshots/<date>` container. | Managed cache roots and every destination date container must be explicit Btrfs subvolumes. |
-| `sudo -n btrfs subvolume snapshot -r <src> <dst>` | Creates a read-only source-cache snapshot from a writable Timeshift snapshot child. | `btrfs send` requires the send source to be read-only. |
-| `sudo -n btrfs send [-p <parent>] <current>` | Streams a full or incremental Btrfs snapshot from the chosen source path. | This is the actual payload transfer mechanism. Incremental mode saves time and space by sending only changes since the verified parent. |
-| `sudo -n btrfs receive <destination folder>` | Receives the Btrfs stream into the destination snapshot folder. | Recreates the source snapshot subvolume on the backup filesystem. |
-| `sudo -n btrfs subvolume delete <path>` | Deletes destination snapshots or app-owned source cache subvolumes during cleanup. | Btrfs subvolumes must be deleted with Btrfs, not ordinary `rm`. |
-| `mbuffer` | Optional middle stage between `btrfs send` and `btrfs receive`. | Gives buffering, rate limiting, and transfer statistics when enabled. |
-| `sudo -n btrfs subvolume create <helper path>` | First attempt for missing destination helper folders such as the lock/state/log or snapshots folder. | Prefer Btrfs subvolumes because the app manages Btrfs backup storage. |
-| `mkdir` / `rmdir` | `mkdir` is limited to general helper-folder fallback; `rmdir` may remove only an empty ordinary configured root. | Backup/cache payload trees and destination date containers are never recursively deleted as ordinary directories. Non-empty ordinary configured roots require manual inspection. |
-| `unlink state_file` | Removes only the configured state metadata file during `clear-state`. | Lets a controlled recovery run rebuild state from exact Btrfs UUID matches without deleting snapshots. |
-| `flock lock_file` + `unlink lock_file` | Checks that the configured lock file is not currently held, then removes it during `delete-lock`. | Allows stale lock cleanup without bypassing an active running job. |
+### `__init__.py`
+Timeshift Btrfs sync package.
+- Contains no independent runtime class/function implementation; it provides metadata, entry-point wiring, or compatibility exports.
 
-| `timeshift_btrfs_sync/data/config.example.toml` | Packaged package-data config template used by `init-config`. | Keeps the example config available after normal install and PyInstaller packaging. The `data` path must remain a directory so import/package-data lookup works correctly. |
-
-## Functions and classes
-
-### `maintenance.py`
-
-- `MaintenanceResult`: records the target file, existence, action, and whether a guarded maintenance command changed anything.
-- `_confirm_or_raise()`: requires exact typed confirmation before real state or lock removal.
-- `_safe_configured_file()`: validates that the configured target is a single file and not a broad cleanup path.
-- `_looks_like_state_file()`: refuses to clear a custom state path unless it looks like a ts-btrfs state document.
-- `_looks_like_lock_file()`: refuses to delete a lock target that does not look like the app's simple lock file.
-- `_print_header()`: prints the shared warning block for guarded metadata maintenance.
-- `_require_real_confirmation()`: enforces real-mode danger flags and typed confirmations.
-- `clear_state_file()`: removes only the configured `state_file` after confirmation; the CLI runs it inside normal logging and acquires the app lock before calling it in real mode.
-- `delete_lock_file()`: removes only the configured `lock_file` when `flock` proves no running process currently holds it; the CLI runs it inside normal logging so stale-lock cleanup is auditable.
-
-### `models.py`
-
-- `SubvolumeMeta`: metadata returned by `btrfs subvolume show`; stores UUID,
-  parent UUID, received UUID, and read-only flag.
-- `SnapshotMeta`: parsed Timeshift snapshot with name, created text, tags,
-  comment, path, and subvolume metadata list.
-- `SnapshotMeta.sort_key()`: sorts timestamp-named snapshots oldest-to-newest;
-  falls back safely when a name is not a normal Timeshift timestamp.
-- `tags_text()`: shared display helper; formats tags as `O H D W M` or `none`.
-
-### `config.py`
-
-- `ManualSnapshotConfig`: automatic source Timeshift on-demand snapshot settings.
-- `SourceConfig`: source mode, Timeshift root, subvolume names, command paths,
-  sudo prefix, cache root, and discovery/cache behavior. `mode` is `ssh` by
-  default and may be `local` to run source commands on the same machine.
-- `DestinationConfig`: destination root, snapshot folder, and receive behavior.
-- `StreamConfig`: optional stream helper settings such as `mbuffer`.
-- `StreamConfig.command()`: returns the configured stream helper argv or `None`.
-- `RetentionConfig`: destination retention counts and pruning options.
-- `RetentionConfig.counts_by_tag()`: maps native Timeshift tags `H/D/W/M/B/O` to
-  configured keep counts.
-- `AppConfig`: full validated config object passed through the app.
-- `ConfigError`: raised when TOML is invalid or unsafe.
-- `_table()`: validates that a TOML section is a table; avoids silently accepting
-  wrong section types. Missing optional sections become empty tables.
-- `_optional_str()`: reads optional strings while preserving current behavior for
-  fields where non-strings are ignored rather than fatal.
-- `_positive_int()`: validates positive integer settings.
-- `_stripped()`: converts values to stripped strings for legacy-compatible fields.
-- `_bool()`: reads booleans without accepting strings like `yes` or `no`.
-- `_int()`: reads integer fields with explicit type checks.
-- `_as_str()`: strict string reader for required string values.
-- `_as_path()`: strict path reader built on `_as_str()`.
-- `_as_bool()`: strict boolean reader used where wrong types must error.
-- `_as_int()`: strict integer reader with optional minimum value.
-- `_string_list()`: validates list-of-string config fields such as subvolumes.
-- `_normalize_source_path()`: normalizes source-side POSIX paths so safety comparisons do not depend on trailing slashes or redundant components.
-- `_source_path_is_same_or_under()`: checks whether a configured source path is the protected root or a descendant; used to refuse a cache root inside Timeshift-owned snapshot storage.
-- `load_config()`: reads TOML, explicitly rejects the removed unsafe `source.allow_incremental_without_parent_match` key, builds dataclasses, validates `source.mode`, and
-  validates SSH only when `source.mode = "ssh"`. In local mode, `[ssh]` may be
-  omitted and a placeholder SSH config is kept only so shared code can safely access `config.ssh`.
-
-### `ssh.py`
-
-- `_is_relative_to()`: path containment helper used to reject shared temporary
-  ControlPath locations without broad string matching.
-- `validate_control_path_safety()`: verifies that SSH ControlMaster has an
-  explicit absolute ControlPath. If the parent directory is missing, it creates
-  it with owner-only permissions. Existing parents must be owned by the user
-  running the app, private, and not under shared temporary storage.
-- `SSHConfig`: immutable SSH connection/auth settings.
-- `SSHConfig.target()`: returns the `user@host` or `host` target string.
-- `SSHConfig.uses_password_auth()`: reports whether password/sshpass mode is
-  configured.
-- `SSHConfig._read_password()`: reads password text from either inline config or
-  password file.
-- `SSHConfig.environment()`: builds environment variables for password auth.
-- `SSHConfig.base_command()`: builds the base `ssh`/`sshpass ssh` argv, including
-  optional ControlMaster/ControlPersist connection reuse.
-- `SSHRunner`: helper that owns an `SSHConfig` and remote command defaults.
-- `SSHRunner.__init__()`: stores SSH config for later command building.
-- `SSHRunner.command()`: wraps a source shell command in the configured SSH argv.
-- `SSHRunner.run()`: executes a source shell command through SSH with the shared
-  command runner.
-- `SSHRunner.environment()`: exposes SSH password environment variables.
-- `SSHRunner.test()`: runs a simple remote command to confirm SSH works.
-
-### `source.py`
-
-- `SourceRunner`: source command endpoint wrapper used by sync, prune, preflight,
-  Timeshift helpers, Btrfs helpers, and destroy-leftovers.
-- `SourceRunner.from_config()`: creates `mode="ssh"` with `SSHRunner` or
-  `mode="local"` without SSH from validated config.
-- `SourceRunner.uses_ssh`: true when source commands are executed through SSH.
-- `SourceRunner.location`: returns `remote` for SSH or `local` for local mode;
-  Btrfs metadata helpers use this label in error messages.
-- `SourceRunner.display_location`: human-readable source endpoint label.
-- `SourceRunner.command()`: builds argv for one source shell command. SSH mode
-  returns `ssh ... <command>`; local mode returns `sh -c <command>`.
-- `SourceRunner.run()`: runs one source command and captures stdout/stderr using
-  either `SSHRunner.run()` or local `run_local()`.
-- `SourceRunner.environment()`: returns SSH password environment variables when
-  needed; local mode returns `None`.
-- `SourceRunner.test()`: verifies the source endpoint. SSH mode tests SSH;
-  local mode verifies that local shell execution works.
-
-### `preflight.py`
-
-- `PathPreflightError`: raised before on-demand creation or send/receive when a
-  required configured root is unavailable.
-- `PathCheck`: one path availability result for terminal reporting.
-- `_normalize_source_path()`: normalizes source POSIX paths before containment checks and shell-script generation.
-- `_source_path_is_same_or_under()`: prevents source cache creation inside the protected Timeshift snapshot root.
-- `_shell_words()`: shell-quotes configured command-prefix words such as
-  `sudo -n` for embedded POSIX shell scripts.
-- `_btrfs_path_check_script()`: builds a small POSIX shell script that checks
-  required paths with `btrfs subvolume list -o` instead of generic sudo
-  filesystem commands.
-- `_parse_path_check_output()`: parses structured path-check sentinel lines,
-  including OK/FAIL details from creation attempts.
-- `_source_snapshot_root_script()`: verifies the Timeshift-owned
-  `source.snapshot_root` on the selected source endpoint. In SSH mode the check
-  runs through the configured SSH/sshpass command; in local mode it runs
-  locally. The path must already exist and may be an ordinary directory on a
-  Btrfs filesystem. The check first tries `btrfs subvolume list -o`, then falls
-  back to `btrfs filesystem df` for Btrfs versions/layouts that reject ordinary
-  directories for subvolume listing. The app never creates or deletes this path,
-  because Timeshift owns the original snapshots.
-- `_cache_root_check_script()`: runs only after `source.snapshot_root` has been verified; verifies `source.cache_root` is already a Btrfs
-  subvolume; in real-run mode, if it is missing and `create_readonly_cache =
-  true`, it verifies the parent and creates the exact configured path with
-  `btrfs subvolume create <cache_root>`. It refuses ordinary directories at
-  `cache_root`.
-- `_source_path_checks()`: runs the source snapshot-root and cache-root scripts
-  through SSH or local source mode and turns their sentinel output into
-  `PathCheck` objects.
-- `_parent_of_path()`: returns the parent directory text used when checking whether an exact missing target can be created safely.
-- `_local_btrfs_result()`: runs a local configured Btrfs command without raising so preflight can convert success/failure into one `PathCheck`.
-- `_compact_process_error()`: reduces command stdout/stderr and return code to a concise path-check explanation.
-- `_compact_os_error()`: converts local filesystem exceptions into concise preflight details.
-- `_print_check_block()`: prints one readable preflight result block with location, path, status, and detail.
-- `_raise_for_failed_checks()`: combines failed `PathCheck` objects into one hard `PathPreflightError` after all relevant checks are reported.
-- `_local_target_path_check()`: verifies `destination.target_root`; in real-run
-  mode, if it is missing and `destination.create_target_root = true`, it creates
-  the exact target root as a Btrfs subvolume after verifying that the parent
-  already exists and is Btrfs-accessible. Existing target roots must pass
-  `btrfs subvolume show`; ordinary directories inside Btrfs are refused so the
-  backup root cannot be misidentified as a valid app-owned subvolume.
-- `_path_is_within()`: normalizes local paths and checks containment before lock/helper preparation crosses configured roots.
-- `check_required_sync_paths()`: prints the sync path preflight and refuses to
-  continue before manual snapshot creation or send/receive when a configured
-  path cannot be verified or created.
-
-### `commands.py`
-
-- `CommandError`: exception containing command text, return code, stdout, stderr.
-- `CommandError.__init__()`: stores command failure details for CLI summaries and
-  notifications.
-- `Completed`: minimal successful command result with return code/stdout/stderr.
-- `sudo_prefix()`: returns `sudo -n` prefix when a command must run as root
-  without prompting.
-- `quote_join()`: shell-quotes argv for readable logs.
-- `remote_double_quote()`: quotes a source shell string for nested SSH commands.
-- `_merged_env()`: merges optional command environment with the current process.
-- `run_local()`: runs a normal local command, logs command/result, honors
-  `log_stderr` / `mirror_stderr` for expected negative probes, and raises
-  `CommandError` on required failures.
-- `_start_pipeline_readers()`: starts tee threads from one stream-routing table.
-- `_failed_stderr()`: combines captured stderr-like streams that belong in an
-  error message after a failed pipeline.
-- `_log_failed_streams()`: copies captured pipeline streams into `.err` only when
-  the pipeline actually fails.
-- `stream_pipeline()`: runs `<source btrfs send> | optional mbuffer | <local
-  btrfs receive>`. It buffers normal Btrfs/mbuffer stderr because successful
-  `btrfs send` writes status like `At subvol ...` to stderr. That status goes to
-  `.btrfs`/`.mbuffer` during success and is copied to `.err` only if the
-  pipeline fails.
-
-### `remote_index.py`
-
-- `BtrfsIndex`: short-lived path/UUID lookup table for one Btrfs root.
-- `BtrfsIndex.add()`: stores one `SubvolumeMeta` by path, UUID, and received UUID.
-- `BtrfsIndex.discard()`: removes one path and its UUID lookup entries after deletion.
-- `BtrfsIndex.contains()`: checks if a path is indexed as a Btrfs subvolume.
-- `BtrfsIndex.meta()`: returns indexed metadata for a path.
-- `BtrfsIndex.child_paths()`: returns indexed descendants deepest-first.
-- `BtrfsIndex.is_empty()`: checks whether an indexed path has indexed child subvolumes.
-- `BtrfsIndex.remove_tree()`: removes a deleted root and descendants from the index.
-- `normalize_path()`: normalizes path strings for stable dictionary keys.
-- `is_under()`: confirms path/root containment without broad matching.
-- `listed_path_to_absolute()`: converts filesystem-relative Btrfs list paths back below the configured mount root. It searches for the longest matching configured-root suffix anywhere in the listed path, so an on-disk prefix such as `@/` does not hide existing cache/snapshot subvolumes after remounting.
-- `_clean_uuid()`: normalizes Btrfs `-` UUID fields to `None`.
-- `parse_subvolume_list()`: parses `btrfs subvolume list -u -q -R` output into metadata.
-- `_index_from_list_output()`: helper for constructing an index from list output.
-- `_paths_from_list_output()`: parses path-only Btrfs list output, used by read-only detection.
-- `_mark_readonly_from_list()`: marks indexed subvolumes read-only or writable from one `btrfs subvolume list -r` result.
-- `build_local_btrfs_index()`: builds a local Btrfs index with bulk list commands instead of one `subvolume show` per child.
-- `_remote_bulk_index_script()`: builds the single source shell script used to list UUID metadata and read-only paths below one source root in one SSH session.
-- `build_source_btrfs_index()`: builds a source snapshot-root or cache-root index using either SSH mode or local mode through `SourceRunner`.
-- `build_remote_btrfs_index()`: compatibility wrapper for SSH source indexes.
-- `_parse_remote_btrfs_index_result.flush_list()`: nested parser helper that commits the current remote subvolume-list section to the index before starting another section.
-- `_parse_remote_btrfs_index_result.flush_readonly()`: nested parser helper that applies the current remote read-only-list section to indexed paths before resetting its buffer.
-- `refresh_source_path()`: refreshes one source path after creation/deletion-sensitive work.
-- `refresh_remote_path()`: compatibility wrapper for refreshing one SSH source path.
-- `refresh_local_path()`: refreshes one destination path after receive/delete-sensitive work.
-
-### `payload_stats.py`
-
-- `PayloadTreeStats`: normalized count object for a source cache, direct-send
-  state view, or destination tree. It separates raw subvolume totals from real
-  `@`/`@home` payload entries.
-- `PayloadTreeStats.total_payload`: number of normalized payload entries.
-- `PayloadTreeStats.total_cache_payload`: number of source payload entries coming
-  from app-owned source cache.
-- `PayloadTreeStats.total_direct_payload`: number of source payload entries coming
-  from protected direct Timeshift sends.
-- `normalize_path()`: normalizes path strings before relative matching.
-- `_relative_parts()`: returns path parts below a configured root, or `None` for outside paths.
-- `_recount_payload()`: rebuilds per-subvolume counters from the normalized payload set.
-- `_add_payload()`: recognizes paths ending in configured subvolume names such as `@` and `@home`.
-- `source_send_cache_stats()`: classifies source cache paths into real payload subvolumes and helper/container subvolumes.
-- `destination_payload_stats()`: classifies destination paths into received payload subvolumes.
-- `direct_send_payload_stats()`: reads state only for reporting and counts protected Timeshift original direct-send entries as source-side payload; it does not make deletion decisions.
-- `merge_source_payload_stats()`: combines app-owned source-cache payload with protected direct-send payload before comparison.
-- `PayloadMatchStats`: comparison object for normalized source and destination payload sets.
-- `PayloadMatchStats.source_only`: source payload entries not present on the destination.
-- `PayloadMatchStats.destination_only`: destination payload entries not present on the source side.
-- `PayloadMatchStats.ok`: true when normalized source and destination payload sets match.
-- `compare_payloads()`: builds a `PayloadMatchStats` object.
-- `_format_count_line()`: creates aligned text output lines.
-- `render_payload_match()`: renders the `SOURCE / DESTINATION SNAPSHOT MATCH` block.
+### `__main__.py`
+Run the CLI with: python -m timeshift_btrfs_sync.
+- Contains no independent runtime class/function implementation; it provides metadata, entry-point wiring, or compatibility exports.
 
 ### `btrfs.py`
+Compatibility exports for the shared Btrfs architecture.
+- Contains no independent runtime class/function implementation; it provides metadata, entry-point wiring, or compatibility exports.
 
-- `_clean_uuid()`: normalizes Btrfs `-` UUID output to `None`.
-- `parse_subvolume_show()`: parses `btrfs subvolume show` into `SubvolumeMeta`.
-- `remote_btrfs_cmd()`: builds source-side Btrfs argv with optional sudo. The name
-  is kept for compatibility; local source mode can still reuse the command text.
-- `local_btrfs_cmd()`: builds destination-side Btrfs argv with optional sudo.
-- `get_subvolume_meta()`: shared metadata reader for local/remote metadata checks;
-  avoids separate parser paths that could disagree and keeps optional
-  `required=False` probes quiet when paths are expected to be absent.
-- `source_get_subvolume_meta()`: reads source Btrfs metadata through `SourceRunner`;
-  with `required=False`, missing cache paths such as a not-yet-created `@home`
-  send-cache child return `None` without terminal/.err noise.
-- `_validate_cache_snapshot_name()`: rejects unsafe cache snapshot names.
-- `_validate_cache_subvolume_name()`: rejects unsafe cache child names.
-- `readonly_cache_parent_path()`: path for one timestamp folder inside cache root.
-- `readonly_cache_path()`: path for one cached read-only subvolume.
-- `_subvolume_list_paths()`: parses paths from `btrfs subvolume list -o`.
-- `_cache_path_suffixes()`: computes allowed relative/absolute match suffixes.
-- `_listed_cache_path_matches()`: checks a listed subvolume is the intended cache
-  path, not a similarly named Timeshift path elsewhere.
-- `source_list_child_subvolumes()`: lists existing child subvolumes below a source
-  cache parent through SSH or local source mode.
-- `source_cache_existing_paths()`: lists `source.cache_root` once and returns
-  requested timestamp cache parent subvolumes that currently exist.
-- `source_cache_existing_child_paths()`: lists one timestamp cache parent and
-  returns nested `@`/`@home` cache children that actually exist.
-- `source_cache_contains()`: tests if a specific source cache subvolume exists.
-- `source_cache_is_empty()`: checks whether a source cache parent has any children left.
-- `remote_list_child_subvolumes()`, `remote_cache_existing_paths()`,
-  `remote_cache_existing_child_paths()`, `remote_cache_contains()`, and
-  `remote_cache_is_empty()`: SSH compatibility wrappers around the source helpers.
-- `cache_child_display_path()`: formats cache child paths for logs.
-- `_source_refresh_cache_path()`: refreshes one source cache path in the optional
-  per-run Btrfs index after cache-root/parent/snapshot creation or before
-  deciding whether an existing cache snapshot can be reused.
-- `_validate_readonly_cache_snapshot()`: validates one exact cache child before reuse. It requires a read-only Btrfs subvolume and, when available, a Parent UUID belonging to the requested Timeshift original; paths are only location hints, not identity proof.
-- `_reuse_existing_cache_snapshot()`: checks the coherent bulk cache index first and reuses a safe exact source-cache child without another source command. If the bulk index missed the child, the later combined exact-probe/create/show command performs the authoritative fallback before creation.
-- `source_ensure_cache_root()`: lazily creates the configured `source.cache_root`
-  as a Btrfs subvolume when cache is actually needed. It creates only the exact
-  configured root, requires the parent to already exist, and refuses an existing
-  ordinary directory at that path.
-- `source_ensure_cache_parent()`: first ensures the top-level cache root exists
-  as a Btrfs subvolume, then creates the timestamp cache parent if missing and
-  updates the source cache index when one is supplied.
-- `source_ensure_readonly_send_path()`: returns the original Timeshift path when
-  indexed or probed metadata proves it is already read-only, otherwise creates/reuses
-  an app-owned read-only cache snapshot for the current send.
-- `source_delete_subvolume()`: deletes exactly one source Btrfs subvolume through SSH or local source mode after enforcing the protected Timeshift-root guard; it has no ordinary-directory cleanup fallback.
-- `source_send_cmd()`: builds the argv for `btrfs send`, including `-p` for
-  incremental sends, wrapped through SSH or local source mode.
-- `remote_ensure_cache_parent()`, `remote_ensure_readonly_send_path()`,
-  `remote_delete_subvolume()`, and `remote_send_cmd()`: SSH compatibility wrappers.
-- `reject_protected_source_snapshot_path()`: refuses any source-side deletion aimed at `source.snapshot_root` or a descendant before a Btrfs delete command is built.
-- `path_is_same_or_under()`: normalized destructive-safety comparison used to identify the protected Timeshift root itself and every descendant.
-- `path_is_under_cache()`: tells cleanup whether a path belongs to cache root.
-- `local_receive_cmd()`: builds `btrfs receive` argv for the destination folder.
-- `create_local_subvolume()`: creates one local Btrfs subvolume, used for each managed destination date container before receive.
-- `delete_local_subvolume()`: deletes a destination Btrfs subvolume.
+### `btrfs_ops.py`
+Reusable Btrfs operations independent of workflow order.
+- `clean_uuid` (function/method): Perform clean uuid for the owning module's workflow boundary.
+- `parse_subvolume_show` (function/method): Parse UUID and read-only fields from ``btrfs subvolume show``.
+- `parse_subvolume_list_paths` (function/method): Extract raw path fields from ``btrfs subvolume list`` output.
+- `BtrfsOps` (class): Btrfs command facade for one local or source endpoint.
+- `BtrfsOps.prefix` (property): Expose the calculated prefix value without duplicating it at call sites.
+- `BtrfsOps.argv` (function/method): Perform argv for the owning module's workflow boundary.
+- `BtrfsOps.run` (function/method): Perform run for the owning module's workflow boundary.
+- `BtrfsOps.meta` (function/method): Return exact-path subvolume metadata or ``None`` for an optional miss.
+- `_ListedSubvolume` (class): Internal numeric ID, containing-parent ID, and raw-path record from one filesystem-wide Btrfs list.
+- `_parse_listed_subvolumes` (function/method): Parse numeric containment records from ``btrfs subvolume list -a -p`` output.
+- `_descendant_list_paths` (function/method): Follow numeric parent IDs from the exact configured root and return only true descendant raw paths.
+- `BtrfsOps.list_children` (function/method): Return every nested descendant using one ``subvolume list -a -p`` endpoint command, with a root-scoped ``-o`` fallback only when no numeric root ID is available.
+- `BtrfsOps.create` (function/method): Perform create for the owning module's workflow boundary.
+- `BtrfsOps.delete` (function/method): Perform delete for the owning module's workflow boundary.
+- `BtrfsOps.send_command` (function/method): Perform send command for the owning module's workflow boundary.
+- `BtrfsOps.receive_command` (function/method): Perform receive command for the owning module's workflow boundary.
+- `BtrfsOps.batch_delete` (function/method): Delete exact paths in one endpoint command and validate confirmations.
 
-### `timeshift.py`
-
-- `timeshift_cmd()`: builds source-side Timeshift argv with optional sudo.
-- `normalize_tags()`: keeps only native Timeshift tags `H/D/W/M/B/O`.
-- `parse_timeshift_list()`: parses `timeshift --list` into snapshots while
-  keeping tags/comment/path mutable.
-- `list_source_snapshots()`: runs Timeshift through `SourceRunner`, parses the
-  result, and fills configured subvolume metadata from the bulk snapshot-root
-  index before falling back to individual Btrfs probes when verification is enabled.
-- `list_remote_snapshots()`: compatibility wrapper for SSH source listing.
-- `create_remote_manual_snapshot_cmd()`: builds `timeshift --create --comments`.
-- `create_source_manual_snapshot()`: runs manual creation through `SourceRunner`.
-  It intentionally does not pass explicit `--tags O` because Timeshift on-demand
-  snapshots are already tag `O`, and some versions reject explicit `--tags O`.
-- `create_remote_manual_snapshot()`: compatibility wrapper for SSH manual creation.
-
-### `state.py`
-
-- `empty_state()`: creates a new state schema-version-2 document.
-- `_safe_relative_path()`: rejects destination-relative paths that are absolute, empty, or escape `destination.target_root`.
-- `_safe_source_relative_path()`: validates remote/local POSIX source-relative paths and rejects absolute, empty, or parent-escaping values.
-- `_normalize_source_root()`: normalizes configured source roots with POSIX semantics so SSH paths are not interpreted through destination-host path rules.
-- `_source_path_relative_to_root()`: converts a current absolute source path to a relative candidate only when it is below the configured root.
-- `_expected_snapshot_relative_path()`: builds the canonical `<snapshot-name>/<subvolume>` source-state suffix.
-- `_absolute_source_path_ends_with()`: validates whether an older absolute state path ends in the exact expected snapshot/subvolume identity before relocation migration.
-- `source_path_to_relative()`: stores source/cache paths as canonical root-relative strings and migrates valid older absolute paths even after the configured root moved.
-- `resolve_source_path()`: resolves one stored source-relative suffix under the current configured source root.
-- `destination_path_to_relative()`: stores destination paths relative to `destination.target_root`, including safe migration of older absolute destination paths.
-- `resolve_destination_path()`: resolves one stored destination path under the current target root.
-- `send_path_kind_for_state_subvolume()`: determines whether `send_path` belongs to app-owned source cache or protected Timeshift storage, preferring explicit schema fields and conservative legacy fallbacks.
-- `_source_root_for_kind()`: maps `source-cache` to `source.cache_root` and `timeshift-original-readonly` to `source.snapshot_root`.
-- `resolve_state_source_path()`: resolves state `source_path` under the current `source.snapshot_root`.
-- `resolve_state_send_path()`: resolves state `send_path` under the current root selected by `send_path_kind`.
-- `resolve_state_parent_source_path()`: resolves state `parent_source_path` under the current root selected by `parent_source_path_kind`.
-- `normalize_destination_paths()`: converts loaded destination paths to target-root-relative form in memory.
-- `normalize_source_paths()`: converts loaded `source_path`, `send_path`, and `parent_source_path` fields to root-relative form, adds missing ownership-kind fields where safely inferable, and preserves invalid values for precise later errors.
-- `normalize_state_paths()`: applies destination/source migration together and upgrades the in-memory state schema version.
-- `load_state()`: reads JSON state or creates empty state, then resolves/migrates paths against the complete current config roots.
-- `save_state()`: atomically writes pretty JSON state and records the current state schema version.
-- `refresh_snapshot_metadata_from_source()`: updates only mutable Timeshift metadata: `tags`, `comment`, `created`, and destination-relative snapshot `path`.
-- `snapshot_is_synced()`: returns whether all expected subvolumes are marked `ok`.
-- `_kind_for_absolute_source_path()`: classifies a live absolute source path against the configured snapshot/cache roots before it is stored.
-- `mark_subvolume_synced()`: records successful receive metadata with source, cache, parent, and destination paths stored relative to their owning roots while retaining UUID identity fields.
-- `state_send_path_is_app_cache()`: returns true only for app-owned cache paths that prune may delete.
-- `state_send_path_is_protected_timeshift_original()`: returns true for Timeshift-owned direct-send paths that prune must never delete.
-- `remove_snapshot_from_state()`: removes a snapshot after coordinated destination/cache pruning succeeds.
-- `refresh_state_metadata_and_report()`: refreshes mutable metadata, reports changes, and writes state only outside dry-run.
-- `latest_synced_before()`: finds the newest older synced parent candidate, including relative saved cache parents when Timeshift already pruned the original.
-
-### `sync.py`
-
-- `SyncError`: fatal sync safety/logic error.
-- `_local_meta()`: reads destination Btrfs metadata through the shared parser.
-- `_source_meta()`: reads source Btrfs metadata, preferring bulk snapshot/cache indexes before falling back to a targeted `subvolume show`.
-- `_human_blank()`: prints a blank line in human-readable summaries.
-- `_human_rule()`: prints section dividers for terminal/log summaries.
-- `_record_sync_event()`: adds one sync/full/incremental/skipped event to the run
-  summary without changing state.
-- `_print_sync_summary()`: writes the readable `SYNC SUMMARY` to terminal and `.succes`.
-- `prepare_destination()`: creates destination directories needed for a real run.
-- `list_source_snapshots()`: runs Timeshift source discovery and uses the bulk source snapshot-root index to avoid one SSH `subvolume show` per configured subvolume.
-- `source_snapshot_index()`: builds a name-to-snapshot dict for the current source list stage.
-- `confirm_source_identity_before_manual_snapshot()`: shared source identity guard
-  for automatic and standalone manual snapshot creation. Empty destinations may
-  create a first full seed; non-empty destinations require a UUID-confirmed anchor.
-- `_is_app_manual_snapshot()`: identifies source Timeshift tag `O` snapshots whose
-  comment contains `manual_snapshot.marker`.
-- `_pending_app_manual_snapshots()`: finds existing app-created on-demand snapshots
-  that are not fully synced yet, so retry runs keep them in normal order.
-- `_verify_sync_viability_before_manual_snapshot()`: proves the current
-  source/destination chain can continue before changing the source by creating
-  a new Timeshift snapshot. It checks a UUID-confirmed sync floor and a usable
-  incremental parent for the next pending transfer, or for a future manual
-  snapshot when nothing is currently pending.
-- `_verify_sync_viability_before_manual_snapshot.verify_parent_for()`: nested wrapper that runs strict parent selection for one pending/future subvolume and rewrites failures with manual-snapshot context before any source snapshot is created.
-- `_maybe_create_manual_snapshot()`: optionally creates a Timeshift manual
-  snapshot only after preflight, state recovery, source identity, and sync
-  viability checks have proven it is safe to change the source. It still
-  preserves older pending app-created snapshots in the send queue.
-- `_snapshots_in_sync_order()`: sorts source snapshots oldest-to-newest.
-- `_select_initial_sync_snapshots()`: on a fresh destination, applies the retention
-  planner and selects only snapshots that would be kept.
-- `print_snapshot_table()`: displays source snapshots and tags.
-- `_dest_subvolume_path()`: destination path for one received subvolume.
-- `_target_snapshot_dir()`: destination path for one snapshot folder.
-- `_destination_has_existing_snapshots()`: records whether destination snapshots existed at run start. That run-start result fixes full-seed permission for the whole transaction, so later recovery cleanup cannot turn an existing backup into a new seed.
-- `_snapshot_destination_paths_exist()`: verifies expected destination paths before skipping a state-complete snapshot.
-- `_preview_send_path()`: predicts direct read-only send versus cache use during dry-run previews.
-- `_send_path_kind_text()`: explains whether the selected send path is protected Timeshift original or app-owned cache.
-- `_ensure_source_send_path()`: verifies/creates the current read-only send path
-  through `SourceRunner`.
-- `_cleanup_incomplete_destination_receive()`: deletes only the current partial received Btrfs child subvolume before retry; it refuses ordinary paths and keeps the date subvolume in place.
-- `_source_cache_live_child_paths()`: performs a fresh Btrfs child-subvolume list below one source send-cache date parent for recovery cleanup, converting listed paths back under `source.cache_root` before any delete is allowed.
-- `_cleanup_source_cache_snapshot_version()`: removes the app-owned `source.cache_root/<snapshot>` recovery version using Btrfs child-first deletion only, while refusing every Timeshift-owned source path.
-- `_cleanup_destination_snapshot_version()`: requires `snapshots/<date>` to be a Btrfs subvolume, refuses unexpected content or an ordinary legacy folder, deletes configured child subvolumes first, then deletes the date subvolume so `info.json` disappears with it.
-- `_ensure_destination_snapshot_subvolume()`: creates each missing destination date container with `btrfs subvolume create`, reuses an indexed existing date subvolume without an extra probe, and refuses ordinary legacy date folders.
-- `_validate_destination_snapshot_layout()`: checks every direct entry below destination `snapshots/` against the bulk destination index and stops before sync when any entry is not a Btrfs date subvolume.
-- `_refresh_snapshot_source_subvolumes_live()`: targeted live-probes every configured source subvolume for one Timeshift date and updates the per-run source snapshot index so stale hourly entries are not trusted.
-- `_snapshot_destination_has_any_path()`: detects whether a destination date subvolume or configured child path exists and may require recovery.
-- `_snapshot_state_is_complete_with_destination()`: checks that both state and destination contain all configured subvolumes before treating a snapshot as complete.
-- `_recover_snapshot_version()`: central sync recovery reporter/dispatcher that cleans source cache, destination, and state for a failed or vanished current snapshot date and refreshes metadata indexes.
-- `_prepare_snapshot_for_transfer_or_recover()`: snapshot-level pre-transfer guard that verifies all configured source subvolumes still exist; if the source still exists it clears a failed current version for retry, and if the source vanished it removes stale traces and skips that date.
-- `_recover_stale_state_snapshots_missing_from_source()`: start-of-run cleanup for stale incomplete state entries whose Timeshift source snapshot is no longer listed.
-- `_read_local_destination_parent_metadata()`: reads metadata for a candidate destination parent.
-- `_match_source_path_to_destination_received_uuid()`: compares source path UUID to destination `received_uuid`; this is the core incremental identity rule.
-- `_select_verified_parent_send_path()`: chooses a safe source parent for incremental send. It first tries an indexed source-cache UUID match, then resolves the saved root-relative `send_path` under the current configured root, then tries indexed UUID candidates and the original Timeshift path. It never recreates a missing parent cache snapshot because recreated cache snapshots get new UUIDs.
-- `_select_verified_parent_send_path.add_candidate()`: nested deduplication helper that records each possible parent path only once while preserving safest-first order.
-- `_state_uuid_values_for_path()`: returns trusted UUID values remembered for a state path.
-- `_state_uuid_values_for_path.add_key()`: nested state-reader helper that adds one non-empty UUID field to the allowed identity set.
-- `_find_confirmed_sync_floor()`: finds a safe high-watermark after pruning by confirming source/destination UUID history.
-- `_filesystem_parent_candidates()`: finds older candidates present in both source and state.
-- `_destination_snapshot_names()`: lists destination snapshot folders oldest-to-newest for state recovery.
-- `_expected_original_source_path()`: builds the expected Timeshift-owned source path for a snapshot/subvolume without creating it.
-- `_source_cache_meta_by_uuid()`: finds an existing source-cache subvolume by exact UUID and refreshes its metadata so recovery can prove read-only cache identity.
-- `_match_existing_destination_to_source()`: compares one existing destination subvolume's `Received UUID` with the matching source Timeshift subvolume and source-cache index. It returns a send path only for exact UUID matches.
-- `_recover_state_from_existing_destination()`: rebuilds missing or empty state from already-existing destination snapshots. It adopts only exact UUID matches and refuses to treat unadopted existing destination paths as incomplete receives.
-- `_select_parent()`: chooses full seed or a verified incremental parent. Full sends
-  are allowed only when the destination was empty at run start. It never re-checks
-  current emptiness after recovery cleanup, so a temporarily emptied existing target
-  cannot become a new full-send chain. Without a usable UUID match it raises a clear
-  source/destination mismatch error.
-- `sync_once.discover_source_index()`: nested discovery helper that prints the selected verification mode and rebuilds the Timeshift name index before and after optional manual snapshot creation.
-- `sync_once()`: complete sync transaction for one config/run. It creates the
-  `SourceRunner`, skips SSH tests in local mode, runs preflight, discovers source
-  snapshots, and conservatively recovers missing state when possible. If the
-  destination was populated at run start, it must prove a complete UUID-confirmed
-  source/destination anchor before stale or partial snapshot recovery may delete
-  anything. It then proves manual-snapshot viability, sends/receives data, writes
-  state, and optionally prunes.
-
-### `retention.py`
-
-- `PrunePlan`: stores retention keep/delete decisions for reporting and execution.
-- `PrunePlan.add_keep()`: records a snapshot and reason to keep.
-- `PrunePlan.add_delete()`: records a snapshot and reason to delete.
-- `_is_app_created_ondemand()`: distinguishes app-created on-demand snapshots from normal user-created Timeshift on-demand snapshots.
-- `_delete_reason_for_snapshot()`: explains the first applicable delete reason.
-- `_delete_reasons()`: returns all human-readable delete reasons.
-- `_source_cache_delete_paths()`: resolves root-relative cached `send_path` entries under the current `source.cache_root` and returns only app-owned, root-contained prune candidates.
-- `_protected_timeshift_send_paths()`: resolves root-relative direct Timeshift send paths under the current `source.snapshot_root` so prune can report them as protected.
-- `_destination_delete_paths()`: returns tracked destination subvolume paths for the same prune item.
-- `_source_cache_child_subvolume_paths()`: re-reads live Btrfs child subvolumes below one app-owned timestamp cache parent and converts listed paths back to safe absolute paths under `source.cache_root`.
-- `_delete_live_source_cache_children()`: deletes any remaining live child subvolumes below one cache parent deepest-first before the parent is deleted, even when the run-start cache index or state thought `@`/`@home` were already gone.
-- `source_snapshot_state()`: builds temporary state-like data from the source Timeshift list so fresh/full sync can reuse the retention planner.
-- `initial_sync_keep_names()`: returns retained source snapshot names for a fresh destination seed.
-- `_cleanup_source_cache_for_pruned_snapshot()`: checks one timestamp send-cache parent, deletes tracked app-owned cache subvolumes, performs a final live child-subvolume check below the parent, and deletes the parent only after Btrfs reports no remaining child subvolumes.
-- `build_prune_plan()`: computes retention keep/delete decisions from state, source tags, and config; it does not delete anything.
-- `_delete_destination_snapshot_for_prune()`: requires a Btrfs date subvolume, refuses ordinary legacy layout or unexpected content, deletes child payload subvolumes first, then deletes the date subvolume so `info.json` is removed by Btrfs.
-- `_delete_prune_item()`: runs coordinated per-snapshot destination cleanup and source send-cache cleanup before removing state.
-- `print_prune_plan()`: prints retention summary and delete plan to terminal and `.succes`.
-- `prune()`: prints the plan and only deletes in real mode with explicit confirmation. It creates a `SourceRunner` for source-cache cleanup.
-
-### `log.py`
-
-- `RunLogger`: owns one run's split log files.
-- `RunLogger.__post_init__()`: creates file handles after dataclass construction.
-- `RunLogger.close()`: closes all opened log handles.
-- `RunLogger.attachment_paths()`: returns log files that exist and are non-empty.
-- `RunLogger._write()`: low-level write/flush helper.
-- `RunLogger._remember_stderr()`: stores recent stderr lines for failure emails.
-- `RunLogger.last_stderr_tail()`: returns the latest stderr tail.
-- `RunLogger._line()`: writes one labeled line.
-- `RunLogger.info()`: writes normal log lines.
-- `RunLogger.mbuffer()`: writes mbuffer progress to `.mbuffer`.
-- `RunLogger.btrfs_out()`: writes Btrfs send/receive status to `.btrfs`.
-- `RunLogger.success()`: writes readable summaries to `.succes`. The misspelling is intentionally kept because the project already exposed this filename.
-- `RunLogger.success_text()`: reads `.succes` for notification bodies.
-- `RunLogger.err()`: writes real failure text to `.err` and remembers the tail.
-- `RunLogger.command()`: logs a command before running it.
-- `RunLogger.completed()`: logs command return code and output, but keeps stderr
-  out of `.err` when the caller marks the command as an expected probe.
-- `RunLogger.pipeline_commands()`: logs the send/mbuffer/receive pipeline argv.
-- `RunLogger.pipeline_summary()`: logs pipeline return codes.
-- `RunLogger.stream_text()`: routes streamed text to `.btrfs`, `.mbuffer`, `.err`, and/or terminal.
-- `emit_success_summary()`: writes summary text to terminal and `.succes`.
-- `TeeTextIO`: file-like object that writes to two text streams.
-- `TeeTextIO.__init__()`: stores primary and secondary streams.
-- `TeeTextIO.write()`: writes to both streams.
-- `TeeTextIO.flush()`: flushes both streams.
-- `TeeTextIO.isatty()`: follows the primary stream terminal status.
-- `TeeTextIO.fileno()`: exposes the primary file descriptor.
-- `TeeTextIO.writable()`: reports writable stream behavior.
-- `TeeTextIO.__getattr__()`: delegates unknown attributes to the primary stream.
-- `terminal_stdout()`: returns stdout or logger tee for normal output.
-- `terminal_stderr()`: returns stderr or logger tee for error/status output.
-- `get_logger()`: returns the active run logger, if any.
-- `active_logger()`: context manager that installs one active logger.
-- `create_run_logger()`: creates one timestamped logger under the configured log directory.
-- `tee_pipe_to_log()`: starts a background reader used by the pipeline to stream command output without deadlocking pipes.
-- `tee_pipe_to_log._reader()`: nested thread target that reads one pipe line-by-line, mirrors it to the selected terminal stream, and copies it to the configured log channels.
-
-### `notify.py`
-
-- `utc_timestamp()`: returns one UTC ISO timestamp for notification payloads.
-- `build_notification_payload()`: builds the shared status dictionary used by both MQTT and email so the two notification channels stay consistent.
-
-### `mail.py`
-
-- `MailConfig`: SMTP notification settings.
-- `MailConfig.resolved_password()`: returns password from inline config or file.
-- `_subject()`: builds success/failure email subject.
-- `_body()`: builds fallback plain-text email body.
-- `_success_body_from_paths()`: uses `.succes` as readable success body when it is available.
-- `_filter_attachments()`: includes only existing non-empty log files.
-- `_attach_file()`: attaches one log file to an email.
-- `send_status()`: sends SMTP notification and optional attachments.
-
-### `mqtt.py`
-
-- `MQTTConfig`: MQTT notification settings.
-- `MQTTConfig.resolved_password()`: returns password from inline config or file.
-- `publish_status()`: publishes the shared JSON status payload to MQTT.
+### `cache_ops.py`
+Single source send-cache operation used by sync and recovery.
+- `CacheResult` (class): Shared CacheResult model or service used as the single representation for this responsibility.
+- `_safe_name` (function/method): Internal safe name helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `cache_parent_path` (function/method): Perform cache parent path for the owning module's workflow boundary.
+- `cache_child_path` (function/method): Perform cache child path for the owning module's workflow boundary.
+- `validate_cache_snapshot` (function/method): Prove an exact cache child is a safe read-only snapshot of ``original``.
+- `CacheManager` (class): Ensure exact reusable send snapshots without nested cache creation.
+- `CacheManager.__init__` (function/method): Internal init helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `CacheManager._ensure_subvolume` (function/method): Internal ensure subvolume helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `CacheManager._probe_create_verify` (function/method): Probe, create if absent, and verify exact cache path in one command.
+- `CacheManager._probe_create_verify.meta` (function/method): Perform meta for the owning module's workflow boundary.
+- `CacheManager.ensure_send_snapshot` (function/method): Return original read-only source or create/reuse one exact cache child.
 
 ### `cli.py`
+Command-line interface for timeshift-btrfs-sync.
+- `new_subparser` (function/method): Perform new subparser for the owning module's workflow boundary.
+- `add_config_arg` (function/method): Perform add config arg for the owning module's workflow boundary.
+- `add_run_mode_args` (function/method): Perform add run mode args for the owning module's workflow boundary.
+- `add_yes_delete_arg` (function/method): Perform add yes delete arg for the owning module's workflow boundary.
+- `_load_config_state` (function/method): Load state and resolve all root-relative paths against this config.
+- `_failure_exit_code` (function/method): Return a stable CLI exit code for failure notifications.
+- `_stderr_tail_for_exception` (function/method): Return the best available recent stderr text for failure notifications.
+- `_send_notifications` (function/method): Send optional MQTT/email status without changing the command exit code.
+- `_mail_attachment_paths` (function/method): Return current run log paths for optional email attachment.
+- `_safe_destroy_log_dir` (function/method): Return a log directory that will survive a destructive cleanup.
+- `_with_logging` (function/method): Run a command with optional logging and MQTT notification.
+- `_resolve_dry_run` (function/method): Internal resolve dry run helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `cmd_init_config` (function/method): Perform cmd init config for the owning module's workflow boundary.
+- `cmd_test_ssh` (function/method): Perform cmd test ssh for the owning module's workflow boundary.
+- `cmd_test_ssh._run` (function/method): Internal run helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_refresh_state_metadata_from_timeshift` (function/method): Refresh mutable state metadata from one fast Timeshift list read.
+- `cmd_list_source` (function/method): List snapshots on the source machine.
+- `cmd_list_source._run` (function/method): Internal run helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `cmd_sync` (function/method): Perform cmd sync for the owning module's workflow boundary.
+- `cmd_sync._run_dry` (function/method): Internal run dry helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `cmd_sync._run_locked` (function/method): Internal run locked helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `cmd_prune` (function/method): Perform cmd prune for the owning module's workflow boundary.
+- `cmd_prune._run_dry` (function/method): Internal run dry helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `cmd_prune._run_locked` (function/method): Internal run locked helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `cmd_create_manual` (function/method): Perform cmd create manual for the owning module's workflow boundary.
+- `cmd_create_manual._run` (function/method): Internal run helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `cmd_clear_state` (function/method): Guardedly remove the configured state_file with normal run logging.
+- `cmd_clear_state._run` (function/method): Internal run helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `cmd_delete_lock` (function/method): Guardedly remove the configured lock_file if it is stale, with logging.
+- `cmd_delete_lock._run` (function/method): Internal run helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `cmd_destroy_leftovers` (function/method): Destroy configured leftovers with normal run logging enabled.
+- `cmd_destroy_leftovers._run` (function/method): Internal run helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `cmd_show_state` (function/method): Perform cmd show state for the owning module's workflow boundary.
+- `cmd_show_state._run` (function/method): Internal run helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `build_parser` (function/method): Create the argparse parser and command-specific flag help.
+- `main` (function/method): Perform main for the owning module's workflow boundary.
 
-- `new_subparser()`: creates one subcommand parser with the shared raw-text help formatter and handler assignment.
-- `add_config_arg()`: adds common `--config/-c`.
-- `add_run_mode_args()`: adds paired `--dry-run` and `--run` flags.
-- `add_yes_delete_arg()`: adds explicit deletion confirmation flag.
-- `_load_config_state()`: loads state with destination, Timeshift snapshot, and source-cache roots so all relative paths resolve against the current config before a command uses them.
-- `_failure_exit_code()`: maps known exceptions to stable process exit codes.
-- `_stderr_tail_for_exception()`: chooses useful stderr tail text for failure notifications.
-- `_send_notifications()`: sends MQTT/email status after logged commands.
-- `_mail_attachment_paths()`: selects non-empty log files for email attachments.
-- `_path_is_same_or_under()`: checks whether a candidate log directory is inside a selected destroy target without relying on loose string matching.
-- `_safe_destroy_log_dir()`: chooses a log directory for `destroy-leftovers`; it keeps the configured `log_dir` when safe, but switches to a survivor log directory when the configured logs would be deleted with the target.
-- `_with_logging()`: shared wrapper for log creation, command execution, notification sending, and exit code handling. It accepts an optional log-directory override for commands such as `destroy-leftovers` that may delete the configured log path.
-- `_resolve_dry_run()`: merges command flags with `default_dry_run` config.
-- `cmd_init_config()`: writes the packaged config template.
-- `cmd_test_ssh()`: tests the configured source endpoint and required source sudo commands. It is used by both `test-source` and the `test-ssh` alias.
-- `cmd_test_ssh._run()`: nested logged action that selects SSH/local transport, runs Timeshift list and Btrfs version checks, and reports source sudo readiness.
-- `_refresh_state_metadata_from_timeshift()`: refreshes mutable state metadata for commands that inspect state/source without running a full sync.
-- `cmd_list_source()`: displays source Timeshift snapshots.
-- `cmd_list_source._run()`: nested logged action that performs fast or `--verify-btrfs` discovery and prints the snapshot table.
-- `cmd_sync()`: loads config, resolves dry-run mode, and calls `sync_once()`.
-- `cmd_sync._run_dry()`: nested strict dry-run path that loads state, previews sync, and optionally previews prune without creating locks, destinations, or receives.
-- `cmd_sync._run_locked()`: nested real-run path executed under `FileLock`; it performs sync and optional real prune using the same loaded state.
-- `cmd_prune()`: loads config, refreshes metadata, and runs retention pruning.
-- `cmd_prune._run_dry()`: nested preview path that refreshes source metadata in memory and prints retention decisions without deletion.
-- `cmd_prune._run_locked()`: nested real prune path that refreshes state and performs confirmed deletion while the app lock is held.
-- `cmd_create_manual()`: runs the standalone manual snapshot command after the same source identity guard used by automatic manual creation.
-- `cmd_create_manual._run()`: nested logged action that tests the source, runs path/identity guards, and invokes Timeshift only after the existing backup chain is proven.
-- `cmd_clear_state()`: loads config and runs the guarded state-file maintenance workflow with normal logging.
-- `cmd_clear_state._run()`: nested action that acquires the app lock for real clearing and calls `clear_state_file()` with the required danger flag.
-- `cmd_delete_lock()`: loads config and runs guarded stale-lock deletion with normal logging.
-- `cmd_delete_lock._run()`: nested action that calls `delete_lock_file()` after its explicit danger flag and typed confirmations are enforced.
-- `cmd_destroy_leftovers()`: loads config, chooses a survivor log directory when needed, and runs the destructive retirement cleanup command inside the normal logging/notification wrapper.
-- `cmd_destroy_leftovers._run()`: nested logged action that passes the selected source/destination deletion scope and confirmations to `destroy_leftovers()`.
-- `cmd_show_state()`: prints local state summary or raw JSON.
-- `cmd_show_state._run()`: nested logged read-only action that loads state and prints JSON or the human summary.
-- `build_parser()`: builds the top-level argparse parser and active subcommands.
-- `main()`: CLI entrypoint and final exception-to-exit-code handler.
+### `commands.py`
+Shared subprocess helpers.
+- `CommandError` (class): Raised when an external command exits with a non-zero status.
+- `CommandError.__init__` (function/method): Internal init helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `Completed` (class): Small command result object.
+- `sudo_prefix` (function/method): Split a configured sudo prefix into argv parts.
+- `quote_join` (function/method): Quote argv parts into one safe remote-shell command string.
+- `remote_double_quote` (function/method): Return a shell-safe double-quoted argument for a remote shell command.
+- `_merged_env` (function/method): Merge optional child-process environment variables.
+- `run_local` (function/method): Run a local command and capture stdout/stderr.
+- `_start_pipeline_readers` (function/method): Start tee readers from compact stream routing specs.
+- `_failed_stderr` (function/method): Return captured pipeline stderr for streams that belong in failures.
+- `_log_failed_streams` (function/method): Copy captured failed pipeline streams to .err.
+- `stream_pipeline` (function/method): Stream left command into optional middle command, then right command.
+
+### `config.py`
+TOML configuration loading and validation.
+- `ManualSnapshotConfig` (class): Optional source-side Timeshift on-demand snapshot creation and cleanup.
+- `SourceConfig` (class): Source Timeshift and Btrfs settings.
+- `DestinationConfig` (class): Local/destination receive settings.
+- `StreamConfig` (class): Optional pipeline display/buffering settings.
+- `StreamConfig.command` (function/method): Return mbuffer command argv or None when disabled.
+- `RetentionConfig` (class): Destination retention counts by Timeshift tag.
+- `RetentionConfig.counts_by_tag` (function/method): Return retention counts keyed by Timeshift tag letters.
+- `AppConfig` (class): Complete validated app configuration.
+- `ConfigError` (class): Raised when the TOML config is invalid.
+- `_table` (function/method): Internal table helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_optional_str` (function/method): Internal optional str helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_positive_int` (function/method): Internal positive int helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_stripped` (function/method): Internal stripped helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_bool` (function/method): Internal bool helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_int` (function/method): Internal int helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_as_str` (function/method): Internal as str helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_as_path` (function/method): Internal as path helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_as_bool` (function/method): Internal as bool helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_as_int` (function/method): Internal as int helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_string_list` (function/method): Internal string list helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `load_config` (function/method): Read and validate TOML config.
 
 ### `destroy.py`
+Destructive setup retirement using the shared Btrfs tree engine.
+- `DestroyResult` (class): Named wrapper around the shared tree-deletion result.
+- `DestroyResult.__getattr__` (function/method): Internal getattr helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_safe_cleanup_path` (function/method): Internal safe cleanup path helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_confirm_or_raise` (function/method): Internal confirm or raise helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_mode_text` (function/method): Internal mode text helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_load_payload_state` (function/method): Internal load payload state helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_result_by_label` (function/method): Internal result by label helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_print_payload_match` (function/method): Internal print payload match helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_print_result` (function/method): Internal print result helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `destroy_leftovers` (function/method): Plan and execute selected source/destination tree retirement.
+- `destroy_leftovers.handle` (function/method): Perform handle for the owning module's workflow boundary.
 
-- `DestroyResult`: summary object for one destructive cleanup root, including the planned paths, exact confirmed deletion paths, final configured-root absence verification, remaining-subvolume inventory, and errors.
-- `DestroyResult.success`: true only when there are no cleanup errors and every required real-run configured-root absence check succeeded. Dry-run results do not require post-deletion verification.
-- `_safe_cleanup_path()`: refuses relative paths, `/`, and broad system roots before any destructive delete.
-- `_is_under()`: verifies a candidate path stays inside the selected cleanup root.
-- `_sort_deepest_first()`: orders subvolumes deepest-first so child subvolumes are deleted before parents.
-- `_collect_recursive_subvolumes()`: walks Btrfs child subvolumes one level at a time so nested cache children are found before deleting the timestamp parent.
-- `_run_quiet()`: runs cleanup probes/deletes quietly on the terminal while recording the command, return code, stdout, and stderr in the active run logs.
-- `_run_source_quiet()`: runs quiet source-side cleanup commands through `SourceRunner`.
-- `_path_exists_status()`: separates missing paths from probe failures so reruns can be idempotent.
-- `_local_exists()`: checks local destination path existence using configured sudo.
-- `_source_exists()`: checks source path existence with the source shell user's normal permissions and no source-side sudo `test`.
-- `_local_subvolume_meta()`: detects whether a local cleanup root itself is a Btrfs subvolume.
-- `_source_subvolume_meta()`: detects whether a source cleanup root itself is a Btrfs subvolume.
-- `_local_child_subvolumes()`: lists local child Btrfs subvolumes below a cleanup root.
-- `_source_child_subvolumes()`: lists source child Btrfs subvolumes below a cleanup root.
-- `_confirm_or_raise()`: requires exact typed confirmation instead of yes/no.
-- `_append_delete_count_error()`: compares the exact planned and confirmed subvolume path sets, records zero/partial/unexpected confirmations, and lists every planned path that lacked a deletion confirmation.
-- `_inventory_remaining_local_subvolumes()`: rebuilds the local Btrfs inventory when a destination root survives deletion so every remaining root/child subvolume can be reported.
-- `_inventory_remaining_source_subvolumes()`: rebuilds the source-cache Btrfs inventory when the configured cache root survives deletion.
-- `_verify_local_root_absent()`: performs the final local existence check, marks the target verified only when the configured destination root is absent, and inventories leftovers when it remains.
-- `_verify_source_root_absent()`: performs the final source-shell existence check plus a configured Btrfs root probe, marks the cache target verified only when absent, and inventories leftovers when it remains.
-- `_delete_local_tree()`: recursively discovers and deletes a managed local Btrfs tree deepest-first using only `btrfs subvolume delete`, records exact successful paths, requires every planned path to be confirmed, and verifies the configured root is absent before completion. An ordinary non-empty configured root is refused for manual inspection; only an already-empty ordinary root may be removed with exact-path `rmdir` and then verified absent.
-- `_source_delete_subvolumes_batched()`: deletes many source-cache subvolumes in one source command during `destroy-leftovers`; the generated shell contains only guarded `btrfs subvolume delete` operations and the parser returns exact unique confirmed paths while rejecting duplicate, malformed, or unexpected confirmations.
-- `_delete_source_tree()`: checks the source send-cache root with configured sudo+Btrfs metadata, recursively discovers nested cache subvolumes, deletes payload children before timestamp/container parents in one batched source command, requires exact confirmation for every planned path, performs a final root-absence check, inventories any remaining subvolumes, protects `source.snapshot_root`, and refuses any ordinary non-empty cache root instead of recursively deleting it.
-- `_mode_text()`: returns the exact typed phrase for the chosen destructive mode.
-- `_print_target()`: prints one configured cleanup root before any deletion.
-- `_print_result()`: prints planned/confirmed deletion counts, the explicit `verified configured root absent` result, every remaining Btrfs subvolume, and either complete or incomplete status.
-- `_result_by_label()`: finds the source or destination destroy result used for normalized payload reporting.
-- `_load_payload_state()`: loads and root-normalizes state.json only for reporting protected direct-send payloads; destroy-leftovers still ignores state for delete decisions.
-- `_print_payload_match_if_available()`: prints the normalized source/destination payload match block when both source cache and destination target were selected.
-- `_listed_path_to_absolute()`: converts one destroy-time filesystem-relative Btrfs list path to the configured absolute cleanup root without broad path matching.
-- `destroy_leftovers()`: main retirement cleanup entry point. It ignores retention/state by design, prints progress before each source/destination target, attempts source/destination targets independently, and counts a target complete only when `DestroyResult.success` includes required final root-absence verification.
+### `endpoint.py`
+Unified command endpoints for local and source-side operations.
+- `CommandEndpoint` (class): Execute commands on one local or source-side endpoint.
+- `CommandEndpoint.for_source` (function/method): Perform for source for the owning module's workflow boundary.
+- `CommandEndpoint.local` (function/method): Perform local for the owning module's workflow boundary.
+- `CommandEndpoint.location` (property): Expose the calculated location value without duplicating it at call sites.
+- `CommandEndpoint.shell_command` (function/method): Return a safely quoted shell command for this endpoint.
+- `CommandEndpoint.command` (function/method): Return process argv for a command executed on this endpoint.
+- `CommandEndpoint.run_argv` (function/method): Execute one argv command through the endpoint transport.
+- `CommandEndpoint.run_shell` (function/method): Execute one shell script through the endpoint transport.
 
-### `preflight.py`
+### `executor.py`
+Generic ordered workflow action executor.
+- `WorkflowExecutor` (class): Execute or preview a plan using one handler per action kind.
+- `WorkflowExecutor.execute` (function/method): Perform execute for the owning module's workflow boundary.
 
-- `PathPreflightError`: hard error raised before snapshot creation, transfer, lock creation, or helper-folder writes when a required path cannot be verified or created.
-- `PathCheck`: one path preflight result containing label, path, location, status, and explanation.
-- `ensure_local_helper_dir()`: accepts an existing writable helper directory or Btrfs subvolume; when missing, it tries exact-path `btrfs subvolume create` first and falls back to exact-path mkdir if Btrfs creation is not possible, then verifies the app user can write inside the helper path.
-- `prepare_lock_path()`: prepares the lock-file parent before any other real sync/prune path checks, then `FileLock` opens the lock file. If the lock path chain includes destination.target_root, that component is created with the strict target-root Btrfs subvolume rule; other missing lock-path components try Btrfs subvolume creation first and then mkdir fallback.
-- `prepare_destination_helper_paths()`: verifies/creates `snapshots/`, `state_file.parent`, `lock_file.parent`, and optional `log_dir` before state writes or receives.
-- `check_required_sync_paths()`: verifies/creates source snapshot/cache roots and destination.target_root before on-demand snapshot creation or send/receive work.
+### `inventory.py`
+Per-run Btrfs subvolume indexes for fewer SSH calls.
+- `BtrfsIndex` (class): In-memory index of Btrfs subvolumes below one root path.
+- `BtrfsIndex.add` (function/method): Add or replace one indexed subvolume.
+- `BtrfsIndex.discard` (function/method): Remove one path and any known UUID lookup entries for it.
+- `BtrfsIndex.contains` (function/method): Return True when ``path`` is an indexed subvolume.
+- `BtrfsIndex.meta` (function/method): Return metadata for ``path`` if it was indexed.
+- `BtrfsIndex.child_paths` (function/method): Return indexed descendants below ``path``.
+- `BtrfsIndex.is_empty` (function/method): Return whether an indexed path has indexed child subvolumes.
+- `BtrfsIndex.remove_tree` (function/method): Remove a deleted path and all indexed descendants.
+- `SourceInventory` (class): One coherent source-side Timeshift/Btrfs inventory.
+- `SourceInventory.snapshot_names` (property): Return Timeshift timestamp names in sorted order.
+- `SourceInventory.meta` (function/method): Return source metadata from cache first, then snapshot-root index.
+- `SourceInventory.info_json` (function/method): Return captured Timeshift ``info.json`` content for one snapshot.
+- `_clean_uuid` (function/method): Normalize Btrfs UUID fields from list/show output.
+- `parse_subvolume_list` (function/method): Parse ``btrfs subvolume list -u -q -R`` output for one root.
+- `_paths_from_list_output` (function/method): Return absolute subvolume paths parsed from any ``btrfs subvolume list`` output.
+- `_mark_readonly_from_list` (function/method): Mark indexed paths read-only using one ``btrfs subvolume list -r`` result.
+- `build_local_btrfs_index` (function/method): Build a local Btrfs index with bulk list commands.
+- `_remote_bulk_index_script` (function/method): Return a POSIX shell script that bulk-lists source Btrfs metadata.
+- `build_source_btrfs_index` (function/method): Build a source Btrfs index in SSH or local mode.
+- `build_remote_btrfs_index` (function/method): Build a remote source index using one SSH command.
+- `_parse_remote_btrfs_index_result` (function/method): Parse one remote bulk-index section into a :class:`BtrfsIndex`.
+- `_parse_remote_btrfs_index_result.flush_list` (function/method): Perform flush list for the owning module's workflow boundary.
+- `_parse_remote_btrfs_index_result.flush_readonly` (function/method): Perform flush readonly for the owning module's workflow boundary.
+- `_remote_source_inventory_script` (function/method): Return one remote script for Timeshift, info.json, and both Btrfs roots.
+- `_extract_snapshot_info_json_frames` (function/method): Remove and parse the ``cat`` payloads from combined SSH output.
+- `_extract_snapshot_info_json_frames.replace` (function/method): Perform replace for the owning module's workflow boundary.
+- `_split_remote_source_inventory_output` (function/method): Split combined output into identity, Timeshift, info.json, and Btrfs sections.
+- `_current_process_identity` (function/method): Return the effective local account name and UID used to read metadata.
+- `_read_local_snapshot_info_json` (function/method): Read all local Timeshift control files without spawning commands.
+- `_record_missing_info_json_errors` (function/method): Record listed Timeshift dates that had no readable control file.
+- `build_source_inventory` (function/method): Build one coherent Timeshift/snapshot/cache source inventory.
+- `describe_source_inventory_changes` (function/method): Return concise human-readable differences between two inventories.
+- `describe_source_inventory_changes.compare_index` (function/method): Perform compare index for the owning module's workflow boundary.
+- `refresh_path` (function/method): Refresh one exact path through the shared Btrfs operation layer.
 
 ### `lock.py`
+Simple file lock for sync/prune commands.
+- `FileLock` (class): flock() based non-blocking exclusive lock.
+- `FileLock.__init__` (function/method): Internal init helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `FileLock.__enter__` (function/method): Internal enter helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `FileLock.__exit__` (function/method): Internal exit helper shared by the owning module so workflows do not duplicate this function/method logic.
 
-- `FileLock`: context manager for one lock file.
-- `FileLock.__init__()`: stores the lock path.
-- `FileLock.__enter__()`: opens/acquires the already-prepared lock file non-blocking. It no longer creates parent directories itself, because lock path preflight must create the parent safely as either a directory or Btrfs subvolume before locking.
-- `FileLock.__exit__()`: unlocks and closes the lock file.
+### `log.py`
+Split run logging for timeshift-btrfs-sync.
+- `RunLogger` (class): Owns the split log files for one run.
+- `RunLogger.__post_init__` (function/method): Create the log directory and open the run log files.
+- `RunLogger.close` (function/method): Close all log files.
+- `RunLogger.attachment_paths` (function/method): Return run log files in the order useful for mail attachments.
+- `RunLogger._write` (function/method): Write text safely from possible stream-reader threads.
+- `RunLogger._remember_stderr` (function/method): Keep a small tail of stderr for failure notifications.
+- `RunLogger.last_stderr_tail` (function/method): Return the newest stderr text remembered for MQTT/error reports.
+- `RunLogger._line` (function/method): Write exactly one logical line.
+- `RunLogger.info` (function/method): Write a normal status line to .log.
+- `RunLogger.mbuffer` (function/method): Write one line to the .mbuffer transfer-progress log.
+- `RunLogger.btrfs_out` (function/method): Write one line to the .btrfs Btrfs verbose-output log.
+- `RunLogger.success` (function/method): Write one line to the .succes human-readable summary log.
+- `RunLogger.success_text` (function/method): Write a preformatted block to the .succes summary log.
+- `RunLogger.err` (function/method): Write an error/stderr line to .err and remember its tail.
+- `RunLogger.command` (function/method): Record a command that is about to run.
+- `RunLogger.completed` (function/method): Record the output from a normal captured command.
+- `RunLogger.pipeline_commands` (function/method): Record send/buffer/receive commands to the appropriate logs.
+- `RunLogger.pipeline_summary` (function/method): Record final pipeline status.
+- `RunLogger.stream_text` (function/method): Write live pipeline text to terminal and/or split log files.
+- `emit_success_summary` (function/method): Write a readable summary to the real terminal and .succes only.
+- `TeeTextIO` (class): Terminal stream wrapper that also writes normal app output to run logs.
+- `TeeTextIO.__init__` (function/method): Internal init helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `TeeTextIO.write` (function/method): Perform write for the owning module's workflow boundary.
+- `TeeTextIO.flush` (function/method): Perform flush for the owning module's workflow boundary.
+- `TeeTextIO.isatty` (function/method): Perform isatty for the owning module's workflow boundary.
+- `TeeTextIO.fileno` (function/method): Perform fileno for the owning module's workflow boundary.
+- `TeeTextIO.writable` (function/method): Perform writable for the owning module's workflow boundary.
+- `TeeTextIO.__getattr__` (function/method): Internal getattr helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `terminal_stdout` (function/method): Return the real terminal stdout, bypassing the run-log tee wrapper.
+- `terminal_stderr` (function/method): Return the real terminal stderr, bypassing the run-log tee wrapper.
+- `get_logger` (function/method): Return the active logger, if file logging is enabled.
+- `active_logger` (function/method): Temporarily install a run logger and tee app output to files.
+- `create_run_logger` (function/method): Create a logger when log_dir is configured; otherwise return None.
+- `tee_pipe_to_log` (function/method): Start a thread that reads bytes from a process pipe and logs them live.
+- `tee_pipe_to_log._reader` (function/method): Internal reader helper shared by the owning module so workflows do not duplicate this function/method logic.
 
-## Combined source inventory and source-change continuation
+### `mail.py`
+Optional email notifications for timeshift-btrfs-sync.
+- `MailConfig` (class): SMTP settings for optional email notifications.
+- `MailConfig.resolved_password` (function/method): Return password from config value or password_file.
+- `_subject` (function/method): Create a short readable subject line.
+- `_body` (function/method): Create a fallback plain-text email body from the status payload.
+- `_success_body_from_paths` (function/method): Return the text content of the non-empty .succes file, if present.
+- `_filter_attachments` (function/method): Return existing attachment paths and human-readable skipped reasons.
+- `_attach_file` (function/method): Attach one file to an EmailMessage.
+- `send_status` (function/method): Send one optional SMTP status email.
 
-### `remote_index.py`
+### `maintenance.py`
+Guarded maintenance commands for state and lock files.
+- `MaintenanceResult` (class): Structured result for one maintenance-file operation.
+- `_confirm_or_raise` (function/method): Require an exact typed confirmation before destructive maintenance.
+- `_safe_configured_file` (function/method): Return a normalized configured file path or raise for unsafe targets.
+- `_looks_like_state_file` (function/method): Return True when an existing file appears to be ts-btrfs state.
+- `_looks_like_lock_file` (function/method): Return True when an existing file looks like this app's simple lock file.
+- `_print_header` (function/method): Print the common maintenance command warning block.
+- `_require_real_confirmation` (function/method): Require real-mode flags and typed confirmations.
+- `clear_state_file` (function/method): Remove the configured state.json file after explicit confirmation.
+- `delete_lock_file` (function/method): Delete the configured lock file when no running process holds it.
 
-- `SourceInventory`: groups one Timeshift list, every readable per-date Timeshift `info.json`, the complete `source.snapshot_root` Btrfs index, the complete optional `source.cache_root` Btrfs index, and the effective source account name/UID from one inventory generation. It prevents parent/source comparison and control-file preservation from mixing separately timed SSH results and supplies actionable permission diagnostics without another SSH request.
-- `SourceInventory.snapshot_names`: extracts sorted Timeshift timestamp names for inventory-difference reporting and missing-control-file checks.
-- `SourceInventory.meta()`: resolves a source path from the cache index first and then the Timeshift snapshot index; recovery and parent checks therefore use one lookup interface for both roots.
-- `SourceInventory.info_json()`: returns the exact captured control-file text for one Timeshift snapshot date.
-- `_parse_remote_btrfs_index_result()`: parses one marked bulk-index section into `BtrfsIndex`. The standalone one-root builder and combined inventory share it so UUID, Received UUID, Parent UUID, read-only, missing-root, and error behavior remain identical.
-- `_remote_source_inventory_script()`: builds the single source shell command that records the effective source name/UID with non-sudo `id`, runs Timeshift listing, checks whether the unprivileged account can traverse/list `snapshot_root`, loops over `<snapshot_root>/*/info.json` with shell built-ins plus ordinary non-sudo `cat`, and performs both bulk Btrfs root scans. SSH mode wraps the complete script in one SSH invocation to avoid one request per identity check, metadata file, root, snapshot, or subvolume.
-- `_extract_snapshot_info_json_frames()`: removes and parses the marked `cat` payloads before line-oriented section parsing. It preserves exact file text, including a source final newline, and records nonzero `cat` status or malformed framing.
-- `replace()`: nested `_extract_snapshot_info_json_frames()` callback that stores one successful payload or its `cat` error and removes the complete frame from the remaining line-oriented inventory output.
-- `_split_remote_source_inventory_output()`: separates source account name/UID, Timeshift output, snapshot-root permission diagnostics, parsed control files, snapshot-root Btrfs output, and cache-root Btrfs output without treating JSON lines as protocol sections.
-- `_current_process_identity()`: returns the effective local account name and UID used for direct metadata reads in local source mode so local failures use the same diagnostic model as SSH mode.
-- `_read_local_snapshot_info_json()`: reads the same per-date control files directly with Python in local source mode, avoiding unnecessary subprocesses.
-- `_record_missing_info_json_errors()`: records each Timeshift-listed date whose control file was not captured and carries a root traversal/listing failure onto each affected date, so sync can fail with the exact missing/unreadable date and cause rather than silently omitting metadata.
-- `build_source_inventory()`: creates one coherent `SourceInventory`. SSH mode uses one source/SSH command for Timeshift, all control files, and both Btrfs roots; local mode uses the same result model and safety rules without network overhead.
-- `describe_source_inventory_changes()`: produces terminal/log descriptions of added/removed Timeshift names, added/removed/changed control files, Btrfs path changes, UUID/read-only identity changes, and root availability changes between inventory generations.
-- `compare_index()`: nested helper inside `describe_source_inventory_changes()` that compares one named Btrfs root and explains path or identity differences.
+### `models.py`
+Shared dataclasses for snapshots and subvolumes.
+- `SubvolumeMeta` (class): Metadata for one Btrfs subvolume inside one Timeshift snapshot.
+- `SnapshotMeta` (class): Metadata for one Timeshift snapshot.
+- `SnapshotMeta.sort_key` (function/method): Timeshift timestamp names sort oldest-to-newest lexically.
+- `tags_text` (function/method): Return compact human text for Timeshift tags.
+
+### `mqtt.py`
+Optional MQTT notifications for timeshift-btrfs-sync.
+- `MQTTConfig` (class): MQTT broker and publish settings.
+- `MQTTConfig.resolved_password` (function/method): Return password from config value or password_file.
+- `publish_status` (function/method): Publish one JSON MQTT status message.
+
+### `notify.py`
+Shared notification payload helpers.
+- `utc_timestamp` (function/method): Return a compact ISO-8601 UTC timestamp for notifications.
+- `build_notification_payload` (function/method): Build the shared status payload used by MQTT and email.
+
+### `paths.py`
+Canonical path normalization and containment rules.
+- `normalize_source_path` (function/method): Normalize POSIX path text while preserving an intentionally empty value.
+- `is_same_or_under` (function/method): Return true when ``path`` equals ``root`` or is below it.
+- `is_local_same_or_under` (function/method): Return true when one local path resolves to ``root`` or below it.
+- `is_under` (function/method): Return true only when ``path`` is strictly below ``root``.
+- `listed_path_to_absolute` (function/method): Resolve a Btrfs filesystem-relative list path below a mounted root.
+- `sort_deepest_first` (function/method): Deduplicate and order paths for child-before-parent deletion.
+
+### `payload_stats.py`
+Normalized source/destination payload statistics for Btrfs snapshot trees.
+- `PayloadTreeStats` (class): Normalized payload/container counts for one source or destination tree.
+- `PayloadTreeStats.total_payload` (property): Return the number of real cached/received payload subvolumes.
+- `PayloadTreeStats.total_cache_payload` (property): Return how many source payloads came from app-owned source cache.
+- `PayloadTreeStats.total_direct_payload` (property): Return how many source payloads came from protected Timeshift originals.
+- `normalize_path` (function/method): Normalize paths so source/destination comparisons ignore trailing slashes.
+- `_relative_parts` (function/method): Return path parts relative to root, or None if path is outside root.
+- `_recount_payload` (function/method): Rebuild per-subvolume counters from the normalized payload set.
+- `_add_payload` (function/method): Add a payload entry when relative parts end in a configured subvolume name.
+- `source_send_cache_stats` (function/method): Classify source send-cache subvolumes into payload and helper counts.
+- `destination_payload_stats` (function/method): Classify destination target subvolumes into received payload counts.
+- `direct_send_payload_stats` (function/method): Return payload entries streamed directly from protected Timeshift originals.
+- `merge_source_payload_stats` (function/method): Merge app-cache and protected direct-send payload into one source view.
+- `PayloadMatchStats` (class): Comparison between source send payload and destination received payload.
+- `PayloadMatchStats.source_only` (property): Return source payload entries not present on the destination.
+- `PayloadMatchStats.destination_only` (property): Return destination payload entries not present on the source side.
+- `PayloadMatchStats.ok` (property): Return True when source send payload and destination payload match.
+- `compare_payloads` (function/method): Return normalized source/destination payload comparison stats.
+- `_format_count_line` (function/method): Return an aligned summary line.
+- `render_payload_match` (function/method): Render the source/destination payload comparison block.
+
+### `planning.py`
+Pure workflow planning from a combined backup inventory.
+- `ActionKind` (class): Shared ActionKind model or service used as the single representation for this responsibility.
+- `WorkflowAction` (class): Shared WorkflowAction model or service used as the single representation for this responsibility.
+- `WorkflowPlan` (class): Shared WorkflowPlan model or service used as the single representation for this responsibility.
+- `WorkflowPlan.add` (function/method): Perform add for the owning module's workflow boundary.
+- `plan_sync_queue` (function/method): Plan the oldest-to-newest sync queue without executing operations.
+- `plan_snapshot_recovery` (function/method): Plan one whole-date recovery in cache, destination, then state order.
+- `plan_prune_snapshot` (function/method): Perform plan prune snapshot for the owning module's workflow boundary.
+- `plan_destroy_targets` (function/method): Plan named endpoint/root destruction in the caller-provided order.
 
 ### `preflight.py`
+Sync path preflight checks.
+- `PathPreflightError` (class): Raised before any destructive/creating sync work when required paths fail.
+- `PathCheck` (class): One configured path availability result.
+- `_shell_words` (function/method): Return a shell-safe string for configured command-prefix words.
+- `_parse_path_check_output` (function/method): Parse source-path preflight sentinel lines into structured checks.
+- `_source_snapshot_root_script` (function/method): Build a source script that validates Timeshift-owned source.snapshot_root.
+- `_cache_root_check_script` (function/method): Build a source script that validates or creates source.cache_root.
+- `_combined_source_path_check_script` (function/method): Run both source-root preflight checks inside one source command.
+- `_source_path_checks` (function/method): Check/create both source roots with at most one SSH command.
+- `_parent_of_path` (function/method): Return the immediate parent path used for exact-path creation checks.
+- `_local_btrfs_result` (function/method): Run one local destination sudo+btrfs command for preflight checks.
+- `_compact_process_error` (function/method): Return compact stderr/stdout text from a failed subprocess.
+- `_compact_os_error` (function/method): Return compact text for local filesystem creation errors.
+- `_print_check_block` (function/method): Print one human-readable preflight result block.
+- `_raise_for_failed_checks` (function/method): Raise a hard preflight error when any check failed.
+- `ensure_local_helper_dir` (function/method): Ensure one local helper directory exists.
+- `prepare_lock_path` (function/method): Create/verify the lock directory before other sync/prune directories.
+- `prepare_destination_helper_paths` (function/method): Create/verify local destination helper folders used by sync/prune.
+- `_local_target_path_check` (function/method): Check/create destination.target_root locally.
+- `check_required_sync_paths` (function/method): Verify/create required configured roots before manual snapshot creation or send.
 
-- `_combined_source_path_check_script()`: wraps snapshot-root and cache-root preflight scripts into one source command. It runs the cache check only after the snapshot-root output contains its explicit OK marker, preserving the rule that app-owned cache storage cannot be created or modified when the Timeshift-owned root is unsafe.
+### `remote_index.py`
+Compatibility facade for the single authoritative :mod:`inventory` module.
+- Contains no independent runtime class/function implementation; it provides metadata, entry-point wiring, or compatibility exports.
 
-### `btrfs.py`
+### `retention.py`
+Destination retention/pruning logic.
+- `PrunePlan` (class): Dry-run friendly prune plan.
+- `PrunePlan.add_keep` (function/method): Mark a snapshot as kept and remember the human reason.
+- `PrunePlan.add_delete` (function/method): Mark a snapshot as deletable only when it is not already protected.
+- `_is_app_created_ondemand` (function/method): Return true when a state entry is a tag O snapshot with the app marker.
+- `_delete_reason_for_snapshot` (function/method): Explain why a snapshot is outside the active retention rules.
+- `_delete_reasons` (function/method): Return delete reasons without the internal prefix.
+- `_source_cache_delete_paths` (function/method): Return app-owned source send-cache paths for a prune decision.
+- `_protected_timeshift_send_paths` (function/method): Return direct Timeshift send paths that prune must never delete.
+- `_destination_delete_paths` (function/method): Return tracked destination subvolume paths for a prune decision.
+- `source_snapshot_state` (function/method): Return temporary state-like data from source Timeshift snapshots.
+- `initial_sync_keep_names` (function/method): Return source snapshot names that a fresh destination should seed.
+- `_cleanup_source_cache_for_pruned_snapshot` (function/method): Delete one pruned snapshot's app-owned cache through the shared tree engine.
+- `build_prune_plan` (function/method): Build retention plan from state without deleting anything.
+- `_delete_destination_snapshot_for_prune` (function/method): Delete one destination date through the shared tree engine.
+- `_delete_prune_item` (function/method): Execute one pure prune plan and remove state after both trees are gone.
+- `_delete_prune_item.delete_destination` (function/method): Perform delete destination for the owning module's workflow boundary.
+- `_delete_prune_item.delete_cache` (function/method): Perform delete cache for the owning module's workflow boundary.
+- `_delete_prune_item.remove_state` (function/method): Perform remove state for the owning module's workflow boundary.
+- `print_prune_plan` (function/method): Write an easy-to-read retention summary to terminal and .succes.
+- `prune` (function/method): Apply destination retention rules.
 
-- `_source_create_readonly_cache_snapshot()`: probes the exact cache child, reuses it when read-only and Parent UUID checks pass, otherwise creates and verifies it—all inside one source command/SSH session. It refuses ordinary/writable/mismatched targets and performs a same-command post-failure probe for a concurrent creator, preventing an existing `<date>/@` from being treated as a destination directory and becoming `<date>/@/@`.
-- `_source_create_readonly_cache_snapshot.parsed_meta()`: nested parser helper that converts one framed exact-probe, post-create, or race-probe `btrfs subvolume show` section into metadata for the same cache child path.
+### `snapshot_records.py`
+Combined per-snapshot view used by every workflow planner.
+- `SnapshotRecord` (class): All known source/cache/destination/state data for one snapshot date.
+- `SnapshotRecord.source_meta` (function/method): Perform source meta for the owning module's workflow boundary.
+- `BackupInventory` (class): Coherent source/cache/destination/state view keyed by snapshot date.
+- `BackupInventory.get` (function/method): Perform get for the owning module's workflow boundary.
+- `_indexed_children` (function/method): Internal indexed children helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `build_backup_inventory` (function/method): Build one combined record set from already-collected bulk inventories.
+
+### `source.py`
+Source command runner for SSH and local source modes.
+- `SourceRunner` (class): Run source-side commands either over SSH or locally.
+- `SourceRunner.from_config` (function/method): Create a source runner from validated app config.
+- `SourceRunner.uses_ssh` (property): Return True when source commands are executed through SSH.
+- `SourceRunner.location` (property): Return the metadata location label used by Btrfs helpers.
+- `SourceRunner.display_location` (property): Return human text for source status output.
+- `SourceRunner.command` (function/method): Return argv that runs one source-side shell command.
+- `SourceRunner.run` (function/method): Run one source-side command and capture stdout/stderr.
+- `SourceRunner.environment` (function/method): Return environment needed for streaming source commands.
+- `SourceRunner.test` (function/method): Verify that the source command endpoint is usable.
+
+### `ssh.py`
+SSH command construction.
+- `_is_relative_to` (function/method): Return True when path is root or below root without broad string matching.
+- `validate_control_path_safety` (function/method): Create and validate a private SSH ControlPath socket directory.
+- `SSHConfig` (class): Connection and SSH transport settings.
+- `SSHConfig.target` (property): Return host or user@host.
+- `SSHConfig.uses_password_auth` (property): Return True when sshpass is needed.
+- `SSHConfig._read_password` (function/method): Read password from TOML or password_file.
+- `SSHConfig.environment` (function/method): Return environment variables required by sshpass.
+- `SSHConfig.base_command` (function/method): Build base SSH argv; remote command is appended later.
+- `SSHRunner` (class): Run remote commands through SSH.
+- `SSHRunner.__init__` (function/method): Internal init helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `SSHRunner.command` (function/method): Return argv for one SSH remote command.
+- `SSHRunner.run` (function/method): Run a remote command and capture stdout/stderr.
+- `SSHRunner.environment` (function/method): Return SSH environment for streaming pipeline calls.
+- `SSHRunner.test` (function/method): Verify SSH works and stdout is not polluted by banners.
+
+### `state.py`
+Persistent local state for completed transfers.
+- `empty_state` (function/method): Return a new empty state document.
+- `_safe_relative_path` (function/method): Return a normalized destination-relative path or raise ValueError.
+- `_safe_source_relative_path` (function/method): Return a normalized safe POSIX path relative to a configured source root.
+- `_normalize_source_root` (function/method): Return one normalized absolute-style POSIX source root.
+- `_source_path_relative_to_root` (function/method): Return ``path`` relative to ``root`` when it is currently below that root.
+- `_expected_snapshot_relative_path` (function/method): Return the canonical ``<snapshot>/<subvolume>`` source-relative path.
+- `_absolute_source_path_ends_with` (function/method): Return True when an old absolute source path has the expected suffix.
+- `source_path_to_relative` (function/method): Convert a source-side state path to a configured-root-relative string.
+- `resolve_source_path` (function/method): Resolve one source-root-relative state path under the current source root.
+- `destination_path_to_relative` (function/method): Convert a destination subvolume path to a target_root-relative string.
+- `resolve_destination_path` (function/method): Resolve a state destination_path against the current target_root.
+- `send_path_kind_for_state_subvolume` (function/method): Return the safe ownership/root kind for a stored ``send_path``.
+- `_source_root_for_kind` (function/method): Return the configured source root used by one stored send-path kind.
+- `resolve_state_source_path` (function/method): Resolve stored ``source_path`` under the current snapshot_root.
+- `resolve_state_send_path` (function/method): Resolve stored ``send_path`` under its current configured source root.
+- `resolve_state_parent_source_path` (function/method): Resolve stored ``parent_source_path`` under its recorded current root.
+- `normalize_destination_paths` (function/method): Normalize in-memory destination paths to target_root-relative values.
+- `normalize_source_paths` (function/method): Normalize all source-side state paths to configured-root-relative values.
+- `normalize_state_paths` (function/method): Normalize destination and source paths in one loaded state document.
+- `load_state` (function/method): Load state.json, migrate known paths in memory, or return empty state.
+- `save_state` (function/method): Atomically write state.json.
+- `refresh_snapshot_metadata_from_source` (function/method): Refresh mutable Timeshift metadata for already-known snapshots.
+- `snapshot_is_synced` (function/method): Return True when a snapshot is recorded as fully synced.
+- `_kind_for_absolute_source_path` (function/method): Classify a current absolute source path by configured ownership root.
+- `mark_subvolume_synced` (function/method): Record one successful send/receive using only root-relative state paths.
+- `state_send_path_is_app_cache` (function/method): Return True only when prune may delete the stored send_path.
+- `state_send_path_is_protected_timeshift_original` (function/method): Return True when the stored send_path belongs to Timeshift, not the app.
+- `remove_snapshot_from_state` (function/method): Remove a pruned snapshot from state.
+- `refresh_state_metadata_and_report` (function/method): Refresh only Timeshift tags/comment/created/path, report, and save.
+- `latest_synced_before` (function/method): Return newest older synced parent candidate.
 
 ### `sync.py`
+Main destination-pull sync workflow.
+- `SyncError` (class): Raised for sync safety errors.
+- `_local_meta` (function/method): Internal local meta helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_source_meta` (function/method): Return source metadata, preferring bulk indexes over one-off probes.
+- `_human_blank` (function/method): Print one blank line to separate human-readable status blocks.
+- `_human_rule` (function/method): Print a visual separator with blank lines around it.
+- `_record_sync_event` (function/method): Add one planned or completed transfer to the run summary.
+- `_print_sync_summary` (function/method): Write a terminal-friendly transfer summary to terminal and .succes.
+- `prepare_destination` (function/method): Create/validate destination helper folders before writes.
+- `list_source_snapshots` (function/method): Discover source Timeshift snapshots.
+- `source_snapshot_index` (function/method): Perform source snapshot index for the owning module's workflow boundary.
+- `_snapshots_from_source_inventory` (function/method): Build Timeshift snapshot objects from one coherent source inventory.
+- `_required_pipeline_source_changes` (function/method): Return identity changes to source paths required by current work.
+- `confirm_source_identity_before_manual_snapshot` (function/method): Print and enforce the shared manual-snapshot source identity guard.
+- `_is_app_manual_snapshot` (function/method): Return True for source Timeshift O snapshots created by this app.
+- `_pending_app_manual_snapshots` (function/method): Return app-created on-demand snapshots that still need syncing.
+- `_maybe_create_manual_snapshot` (function/method): Optionally create a source Timeshift tag O snapshot before sync.
+- `_snapshots_in_sync_order` (function/method): Return source snapshots oldest-to-newest for Btrfs send.
+- `_select_initial_sync_snapshots` (function/method): Return retention-kept source snapshots for a fresh destination seed.
+- `print_snapshot_table` (function/method): Print source snapshots in table form.
+- `_dest_subvolume_path` (function/method): Return the final local path for one received subvolume.
+- `_target_snapshot_dir` (function/method): Return the managed destination date subvolume passed to `btrfs receive`.
+- `_destination_info_json_path` (function/method): Return the destination Timeshift control-file path for one snapshot.
+- `_ensure_destination_snapshot_subvolume` (function/method): Create or validate one managed destination date subvolume.
+- `_validate_destination_snapshot_layout` (function/method): Refuse every existing ordinary/symlinked destination date entry.
+- `_atomic_write_snapshot_info_json` (function/method): Atomically write one captured Timeshift ``info.json`` file.
+- `_require_snapshot_info_json` (function/method): Return captured control-file content or raise a precise sync error.
+- `_sync_snapshot_info_json` (function/method): Create or refresh destination ``info.json`` for one complete snapshot.
+- `_destination_has_existing_snapshots` (function/method): Return True when the destination has real received snapshot content.
+- `_snapshot_destination_paths_exist` (function/method): Return True only when every expected destination subvolume path exists.
+- `_preview_send_path` (function/method): Return the send path that would be used, without creating cache snapshots.
+- `_send_path_kind_text` (function/method): Return human text explaining who owns the selected send path.
+- `_ensure_source_send_path` (function/method): Resolve one real send path through the shared cache operation.
+- `_cleanup_incomplete_destination_receive` (function/method): Delete one exact incomplete destination Btrfs child before retrying.
+- `_cleanup_source_cache_snapshot_version` (function/method): Delete one app-owned cache date through the shared tree engine.
+- `_cleanup_destination_snapshot_version` (function/method): Delete one destination date through the shared tree engine.
+- `_refresh_snapshot_source_subvolumes_live` (function/method): Return configured source subvolumes, preferring the bulk index.
+- `_snapshot_destination_has_any_path` (function/method): Return True when the destination date folder or configured children exist.
+- `_snapshot_state_is_complete_with_destination` (function/method): Return True only when state and destination contain every configured subvolume.
+- `_recover_snapshot_version` (function/method): Remove stale current-version traces from cache, destination, and state.
+- `_recover_snapshot_version.handle` (function/method): Perform handle for the owning module's workflow boundary.
+- `_prepare_snapshot_for_transfer_or_recover` (function/method): Return True when a snapshot can be transferred, False when skipped.
+- `_recover_stale_state_snapshots_missing_from_source` (function/method): Clean incomplete state entries whose Timeshift source name is gone.
+- `_read_local_destination_parent_metadata` (function/method): Read metadata for the destination snapshot that would be the receiver parent.
+- `_match_source_path_to_destination_received_uuid` (function/method): Check whether a source subvolume UUID matches the destination identity.
+- `_select_verified_parent_send_path` (function/method): Select a safe source parent path for incremental send without recreating it.
+- `_select_verified_parent_send_path.add_candidate` (function/method): Perform add candidate for the owning module's workflow boundary.
+- `_state_uuid_values_for_path` (function/method): Return UUID values that may safely identify the source path.
+- `_state_uuid_values_for_path.add_key` (function/method): Perform add key for the owning module's workflow boundary.
+- `_find_confirmed_sync_floor` (function/method): Return newest state snapshot that still exists on source and matches UUIDs.
+- `_destination_snapshot_names` (function/method): Return destination snapshot folder names sorted oldest-to-newest.
+- `_expected_original_source_path` (function/method): Return the Timeshift-owned original source path for one snapshot/subvolume.
+- `_source_cache_meta_by_uuid` (function/method): Return coherent indexed source-cache metadata for an exact UUID match.
+- `_match_existing_destination_to_source` (function/method): Match one existing destination subvolume to an exact source/cache UUID.
+- `_recover_state_from_existing_destination` (function/method): Rebuild missing/empty state.json from proven source/destination matches.
+- `_filesystem_parent_candidates` (function/method): Find local destination parent candidates by matching snapshot names.
+- `_select_parent` (function/method): Choose the newest valid incremental parent.
+- `_verify_sync_viability_before_manual_snapshot` (function/method): Prove sync can start before asking Timeshift to create a snapshot.
+- `_verify_sync_viability_before_manual_snapshot.verify_parent_for` (function/method): Perform verify parent for for the owning module's workflow boundary.
+- `sync_once` (function/method): Run one sync pass.
+- `sync_once.load_source_inventory` (function/method): Build and report one coherent source inventory generation.
+- `sync_once.build_snapshot_queue` (function/method): Build one pure oldest-to-newest sync plan, then return its snapshot queue.
+- `sync_once.recover_from_source_inventory_change` (function/method): Recover one failed snapshot version and rebuild all source lists.
 
-- `_destination_info_json_path()`: returns `<target_root>/snapshots/<date>/info.json`, the one shared Timeshift control-file location beside received subvolumes.
-- `_atomic_write_snapshot_info_json()`: writes the captured text through a mode-0644 same-directory temporary file, flushes and `fsync`s it, then atomically replaces the final path so interruption cannot leave a partial final file.
-- `_require_snapshot_info_json()`: returns captured metadata or raises a detailed `SyncError` naming the source date/path, capture failure, effective source account name/UID, required parent-directory/file permissions, and the stable `/etc/fstab` plus ownership/mode/ACL remedy; sync therefore cannot silently omit a requested control file.
-- `_sync_snapshot_info_json()`: safely creates, refreshes, or backfills one destination control file after the configured subvolume set is complete. It is idempotent, supports paired or single-subvolume configurations, reports dry-run actions, and refuses symlinked final paths.
-- `_snapshots_from_source_inventory()`: converts the Timeshift part of a coherent source inventory into `SnapshotMeta` objects while filling configured children from the already loaded snapshot-root index.
-- `_required_pipeline_source_changes()`: compares only paths required by a failed operation—current source/send path, selected incremental parent, and optional sibling paths—and reports disappearance or UUID replacement. This prevents unrelated Timeshift churn from hiding a network, mbuffer, receive, permission, or destination failure.
-- `load_source_inventory()`: nested `sync_once()` helper that builds one combined source inventory, prints why the generation was needed, and returns the parsed Timeshift snapshot mapping.
-- `build_snapshot_queue()`: nested `sync_once()` helper that rebuilds the current oldest-to-newest queue from the latest source inventory while preserving explicit snapshot selection, fresh-destination retention selection, and existing-destination ordering rules.
-- `recover_from_source_inventory_change()`: nested `sync_once()` helper used after proven source identity changes during preparation or send/receive. It enforces the per-item retry limit, reports inventory differences, removes obsolete in-run accounting, cleans the incomplete whole snapshot date from app-owned cache/destination/state, rebuilds the combined inventory and queue, and continues without weakening UUID parent safety.
+### `timeshift.py`
+Timeshift command wrappers and parser for `timeshift --list`.
+- `timeshift_cmd` (function/method): Build a source-side shell command that invokes sudo+timeshift.
+- `normalize_tags` (function/method): Return unique Timeshift tag letters found in text.
+- `parse_timeshift_list` (function/method): Parse Timeshift snapshot names and tag/comment text.
+- `list_source_snapshots` (function/method): Discover source snapshots through SSH or local source commands.
+- `list_remote_snapshots` (function/method): Discover source snapshots using only sudo timeshift and sudo btrfs.
+- `create_remote_manual_snapshot_cmd` (function/method): Build the Timeshift manual/on-demand snapshot create command.
+- `create_source_manual_snapshot` (function/method): Create a source Timeshift on-demand snapshot through SSH or locally.
+- `create_remote_manual_snapshot` (function/method): Create a Timeshift on-demand snapshot.
 
-## Packaging and executable build helpers
+### `tree_ops.py`
+Single Btrfs tree discovery, deletion, and post-verification engine.
+- `TreeDeleteResult` (class): Shared TreeDeleteResult model or service used as the single representation for this responsibility.
+- `TreeDeleteResult.success` (property): Expose the calculated success value without duplicating it at call sites.
+- `TreeDeleteResult.path` (property): Expose the calculated path value without duplicating it at call sites.
+- `TreeDeleteResult.location` (property): Expose the calculated location value without duplicating it at call sites.
+- `TreeDeleteResult.subvolumes` (property): Expose the calculated subvolumes value without duplicating it at call sites.
+- `TreeDeleteResult.deleted_subvolumes` (property): Expose the calculated deleted subvolumes value without duplicating it at call sites.
+- `TreeDeleteResult.remaining_subvolumes` (property): Expose the calculated remaining subvolumes value without duplicating it at call sites.
+- `TreeDeleteResult.exists` (property): Expose the calculated exists value without duplicating it at call sites.
+- `_path_exists` (function/method): Internal path exists helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `discover_subvolume_tree` (function/method): Discover one Btrfs tree once and return deepest-first paths plus errors.
+- `list_direct_entries` (function/method): List exact direct children with shell built-ins on either endpoint.
+- `_validate_confirmations` (function/method): Internal validate confirmations helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `_verify_absent` (function/method): Internal verify absent helper shared by the owning module so workflows do not duplicate this function/method logic.
+- `delete_subvolume_tree` (function/method): Delete one managed tree deepest-first and prove the root is absent.
 
-### `scripts/build_pyinstaller.py`
-
-- `build_args()`: constructs the complete PyInstaller argument list for one
-  `onedir` or `onefile` build, including the project import path, packaged
-  `config.example.toml`, optional MQTT hidden import, clean-build switch, and
-  caller-supplied extra PyInstaller arguments. Centralizing this list keeps both
-  build modes consistent.
-- `run_pyinstaller()`: imports and invokes PyInstaller, and produces an explicit
-  installation command when the optional build dependency is unavailable.
-- `main()`: parses the build-helper CLI, expands `both` into `onedir` and
-  `onefile` runs, prints each selected build mode, and invokes
-  `run_pyinstaller()` with the arguments returned by `build_args()`.
-
-### `tools/pyinstaller_entry.py`
-
-- `main()`: imported from `timeshift_btrfs_sync.cli`; the entry script calls the
-  real application CLI and exits with its return code so PyInstaller packages
-  the normal command behavior without a second implementation.

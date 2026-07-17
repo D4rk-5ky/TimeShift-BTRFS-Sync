@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
-from . import btrfs
 from .commands import quote_join, remote_double_quote, sudo_prefix
+from .btrfs_ops import BtrfsOps
+from .endpoint import CommandEndpoint
 from .models import SnapshotMeta, SubvolumeMeta
 from .ssh import SSHRunner
 from .source import SourceRunner
@@ -98,7 +99,7 @@ def list_source_snapshots(
             if not include_btrfs_info:
                 snap.subvolumes[subvol] = SubvolumeMeta(name=subvol, path=path)
                 continue
-            meta = btrfs.source_get_subvolume_meta(source, path=path, name=subvol, sudo=sudo, btrfs_command=btrfs_command, required=False)
+            meta = BtrfsOps(CommandEndpoint.for_source(source), sudo, btrfs_command).meta(path, name=subvol, required=False)
             if meta:
                 snap.subvolumes[subvol] = meta
     return snapshots

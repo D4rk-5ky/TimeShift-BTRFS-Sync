@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import unittest
 
-from timeshift_btrfs_sync import btrfs, remote_index
+from timeshift_btrfs_sync import inventory
+from timeshift_btrfs_sync.btrfs_ops import BtrfsOps
+from timeshift_btrfs_sync.cache_ops import CacheManager
+from timeshift_btrfs_sync.endpoint import CommandEndpoint
 from timeshift_btrfs_sync.commands import Completed
 from timeshift_btrfs_sync.models import SubvolumeMeta
 
@@ -22,8 +25,8 @@ class FakeSource:
         return self.results.pop(0)
 
 
-def make_index(root: str, *metas: SubvolumeMeta) -> remote_index.BtrfsIndex:
-    result = remote_index.BtrfsIndex(root=root, location="remote")
+def make_index(root: str, *metas: SubvolumeMeta) -> inventory.BtrfsIndex:
+    result = inventory.BtrfsIndex(root=root, location="remote")
     for meta in metas:
         result.add(meta)
     return result
@@ -59,20 +62,20 @@ TSBTRFS_CACHE_EXISTING_OUTPUT_END
             SubvolumeMeta(snapshot_name, cache_parent, uuid="parent-uuid", readonly=False),
         )
 
-        send_path = btrfs.source_ensure_readonly_send_path(
-            source,
-            sudo="sudo -n",
-            btrfs_command="btrfs",
-            original_path=original_path,
+        manager = CacheManager(
+            BtrfsOps(CommandEndpoint.for_source(source), "sudo -n", "btrfs"),
             cache_root=cache_root,
+            create_enabled=True,
+        )
+        cache_result = manager.ensure_send_snapshot(
+            original_path=original_path,
             snapshot_name=snapshot_name,
             subvolume_name="@",
-            create_readonly_cache=True,
             cache_index=cache_index,
             original_index=original_index,
         )
 
-        self.assertEqual(send_path, cache_path)
+        self.assertEqual(cache_result.path, cache_path)
         self.assertEqual(len(source.calls), 1)
         self.assertIn(f"subvolume show {cache_path}", source.calls[0])
         self.assertIn(f"subvolume snapshot -r {original_path} {cache_path}", source.calls[0])
@@ -89,19 +92,17 @@ TSBTRFS_CACHE_EXISTING_OUTPUT_END
 TSBTRFS_CACHE_PATH_EXISTS\t1
 """
         source = FakeSource(Completed("probe", 0, output, ""))
-        status, detail, meta = btrfs._source_create_readonly_cache_snapshot(
-            source,
-            sudo="sudo -n",
-            btrfs_command="btrfs",
-            original_path="/snapshots/date/@",
-            cache_path=cache_path,
-            subvolume_name="@",
-            original_meta=SubvolumeMeta("@", "/snapshots/date/@", uuid="original-uuid"),
+        manager = CacheManager(
+            BtrfsOps(CommandEndpoint.for_source(source), "sudo -n", "btrfs"),
+            cache_root="/cache",
+            create_enabled=True,
         )
-        self.assertEqual(status, 125)
-        self.assertIsNone(meta)
-        self.assertIn("Refusing", detail)
-        self.assertIn("nested", detail)
+        with self.assertRaisesRegex(RuntimeError, "nested"):
+            manager._probe_create_verify(
+                original=SubvolumeMeta("@", "/snapshots/date/@", uuid="original-uuid"),
+                cache_path=cache_path,
+                subvolume_name="@",
+            )
         self.assertEqual(len(source.calls), 1)
 
     def test_concurrent_exact_cache_creator_is_reused_after_create_failure(self) -> None:
@@ -124,18 +125,18 @@ Flags: readonly
 TSBTRFS_CACHE_RACE_SHOW_OUTPUT_END
 """
         source = FakeSource(Completed("race", 0, output, ""))
-        status, detail, meta = btrfs._source_create_readonly_cache_snapshot(
-            source,
-            sudo="sudo -n",
-            btrfs_command="btrfs",
-            original_path="/snapshots/date/@",
+        manager = CacheManager(
+            BtrfsOps(CommandEndpoint.for_source(source), "sudo -n", "btrfs"),
+            cache_root="/cache",
+            create_enabled=True,
+        )
+        cache_result = manager._probe_create_verify(
+            original=SubvolumeMeta("@", "/snapshots/date/@", uuid="original-uuid"),
             cache_path="/cache/date/@",
             subvolume_name="@",
-            original_meta=SubvolumeMeta("@", "/snapshots/date/@", uuid="original-uuid"),
         )
-        self.assertEqual(status, 0)
-        self.assertIn("concurrently", detail)
-        self.assertEqual(meta.uuid, "concurrent-cache-uuid")
+        self.assertEqual(cache_result.status, "concurrent-reuse")
+        self.assertEqual(cache_result.meta.uuid, "concurrent-cache-uuid")
 
 
 class MountedSubvolumePathResolutionTests(unittest.TestCase):
@@ -143,7 +144,7 @@ class MountedSubvolumePathResolutionTests(unittest.TestCase):
         root = "/media/btrbk-source/OS-Root/timeshift-btrfs/.ts-btrfs-sync/send-cache"
         listed = "@root/timeshift-btrfs/.ts-btrfs-sync/send-cache/2026-06-23_07-10-24/@"
         expected = f"{root}/2026-06-23_07-10-24/@"
-        self.assertEqual(remote_index.listed_path_to_absolute(root, listed), expected)
+        self.assertEqual(inventory.listed_path_to_absolute(root, listed), expected)
 
     def test_parse_bulk_list_keeps_existing_cache_child_after_remount(self) -> None:
         root = "/media/darkyere/OS-Root/timeshift-btrfs/.ts-btrfs/send-cache"
@@ -153,7 +154,7 @@ class MountedSubvolumePathResolutionTests(unittest.TestCase):
             "received_uuid - uuid cache-uuid path "
             "@root/timeshift-btrfs/.ts-btrfs/send-cache/2026-06-29_15-13-59/@\n"
         )
-        metas = remote_index.parse_subvolume_list(output, root)
+        metas = inventory.parse_subvolume_list(output, root)
         self.assertEqual([meta.path for meta in metas], [expected])
         self.assertEqual(metas[0].uuid, "cache-uuid")
 

@@ -30,8 +30,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from .paths import is_same_or_under as _source_path_is_same_or_under
 import os
-import posixpath
 import shlex
 import subprocess
 
@@ -56,72 +56,19 @@ class PathCheck:
 
 
 
-def _normalize_source_path(value: str) -> str:
-    """Return a normalized POSIX source path without a trailing slash."""
-
-    text = str(value).strip()
-    if not text:
-        return ""
-    return posixpath.normpath(text).rstrip("/") or "/"
-
-def _source_path_is_same_or_under(path: str, root: str) -> bool:
-    """Return True when path is root itself or below root."""
-
-    normalized_path = _normalize_source_path(path)
-    normalized_root = _normalize_source_path(root)
-    return normalized_path == normalized_root or normalized_path.startswith(normalized_root.rstrip("/") + "/")
-
 def _shell_words(parts: list[str]) -> str:
     """Return a shell-safe string for configured command-prefix words."""
 
     return " ".join(shlex.quote(part) for part in parts)
 
 
-def _btrfs_path_check_script(checks: list[tuple[str, str]], *, sudo: str, btrfs_command: str) -> str:
-    """Build a POSIX shell script that checks several paths in one process.
-
-    The script verifies that ``btrfs subvolume list -o <path>`` can access each
-    path. The command succeeds for an existing path inside a Btrfs filesystem,
-    whether that path is itself a subvolume or an ordinary directory. That makes
-    it suitable for Timeshift's snapshot_root, which may be a normal directory.
-    """
-
-    sudo_words = _shell_words(sudo_prefix(sudo))
-    lines = [
-        f"sudo_words={shlex.quote(sudo_words)}",
-        f"btrfs_cmd={shlex.quote(btrfs_command)}",
-        r"""
-run_btrfs() {
-    if [ -n "$sudo_words" ]; then
-        # shellcheck disable=SC2086
-        $sudo_words "$btrfs_cmd" "$@"
-    else
-        "$btrfs_cmd" "$@"
-    fi
-}
-
-check_path() {
-    label=$1
-    path=$2
-    err_file=$(mktemp) || exit 2
-    if run_btrfs subvolume list -o "$path" >/dev/null 2>"$err_file"; then
-        printf 'TSBTRFS_PATH_OK\t%s\t%s\n' "$label" "$path"
-    else
-        status=$?
-        detail=$(tr '\n' ' ' < "$err_file" | sed 's/[[:space:]][[:space:]]*/ /g')
-        printf 'TSBTRFS_PATH_FAIL\t%s\t%s\t%s\t%s\n' "$label" "$path" "$status" "$detail"
-    fi
-    rm -f "$err_file"
-}
-""".strip(),
-    ]
-    for label, path in checks:
-        lines.append(f"check_path {shlex.quote(label)} {shlex.quote(path)}")
-    return "\n".join(lines)
-
-
 def _parse_path_check_output(output: str, *, location: str) -> list[PathCheck]:
-    """Parse path check sentinel lines."""
+    """Parse source-path preflight sentinel lines into structured checks.
+
+    Both local-source and SSH-source preflight scripts emit the same tab-delimited
+    protocol. Keeping the parser beside the script builders makes every caller use
+    one implementation and prevents transport-specific result handling.
+    """
 
     results: list[PathCheck] = []
     for line in output.splitlines():
@@ -576,16 +523,6 @@ def ensure_local_helper_dir(config: AppConfig, label: str, path: str | Path, *, 
         detail="mkdir returned successfully but path is not a directory after Btrfs subvolume create failed: " + _compact_process_error(create_result),
     )
 
-def _path_is_within(child: Path, parent: Path) -> bool:
-    """Return True when child is parent or below parent after path normalization."""
-
-    try:
-        child.expanduser().resolve(strict=False).relative_to(parent.expanduser().resolve(strict=False))
-        return True
-    except ValueError:
-        return False
-
-
 def prepare_lock_path(config: AppConfig, *, dry_run: bool = False) -> list[PathCheck]:
     """Create/verify the lock directory before other sync/prune directories.
 
@@ -601,7 +538,7 @@ def prepare_lock_path(config: AppConfig, *, dry_run: bool = False) -> list[PathC
     lock_parent = config.lock_file.parent
     target_root = config.destination.target_root
 
-    if _path_is_within(lock_parent, target_root) and not target_root.exists():
+    if _source_path_is_same_or_under(lock_parent, target_root) and not target_root.exists():
         results.extend(_local_target_path_check(config, dry_run=dry_run))
 
     results.append(ensure_local_helper_dir(config, "lock_file.parent", lock_parent, dry_run=dry_run))

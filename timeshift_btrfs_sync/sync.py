@@ -16,8 +16,16 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import tempfile
-from . import btrfs, timeshift
-from . import preflight, remote_index
+from . import timeshift
+from .btrfs_ops import BtrfsOps
+from .cache_ops import CacheManager, cache_parent_path, cache_child_path
+from .endpoint import CommandEndpoint
+from .paths import is_under
+from .tree_ops import delete_subvolume_tree
+from .snapshot_records import build_backup_inventory
+from .planning import ActionKind, plan_snapshot_recovery, plan_sync_queue
+from .executor import WorkflowExecutor
+from . import preflight, inventory
 from .commands import CommandError, stream_pipeline
 from .config import AppConfig
 from .models import SnapshotMeta, SubvolumeMeta, tags_text
@@ -43,7 +51,9 @@ class SyncError(RuntimeError):
 
 
 def _local_meta(config: AppConfig, path: str | Path, name: str, required: bool = True) -> SubvolumeMeta | None:
-    return btrfs.get_subvolume_meta("local", path, name, config.destination.sudo, config.destination.btrfs_command, required=required)
+    return BtrfsOps(
+        CommandEndpoint.local(), config.destination.sudo, config.destination.btrfs_command
+    ).meta(path, name=name, required=required)
 
 
 def _source_meta(
@@ -53,13 +63,13 @@ def _source_meta(
     name: str,
     required: bool = True,
     *,
-    source_snapshot_index: remote_index.BtrfsIndex | None = None,
-    source_cache_index: remote_index.BtrfsIndex | None = None,
+    source_snapshot_index: inventory.BtrfsIndex | None = None,
+    source_cache_index: inventory.BtrfsIndex | None = None,
 ) -> SubvolumeMeta | None:
     """Return source metadata, preferring bulk indexes over one-off probes."""
 
     path_text = str(path)
-    if source_cache_index is not None and btrfs.path_is_under_cache(path_text, config.source.cache_root):
+    if source_cache_index is not None and is_under(path_text, config.source.cache_root):
         indexed = source_cache_index.meta(path_text)
         if indexed is not None:
             return indexed
@@ -67,7 +77,7 @@ def _source_meta(
         indexed = source_snapshot_index.meta(path_text)
         if indexed is not None:
             return indexed
-    return btrfs.source_get_subvolume_meta(source, path, name, config.source.sudo, config.source.btrfs_command, required=required)
+    return BtrfsOps(CommandEndpoint.for_source(source), config.source.sudo, config.source.btrfs_command).meta(path, name=name, required=required)
 
 
 def _human_blank() -> None:
@@ -186,7 +196,7 @@ def list_source_snapshots(
     source: SourceRunner,
     *,
     include_btrfs_info: bool = True,
-    source_snapshot_index: remote_index.BtrfsIndex | None = None,
+    source_snapshot_index: inventory.BtrfsIndex | None = None,
     timeshift_output: str | None = None,
 ) -> list[SnapshotMeta]:
     """Discover source Timeshift snapshots."""
@@ -211,7 +221,7 @@ def source_snapshot_index(snapshots) -> dict[str, SnapshotMeta]:
 def _snapshots_from_source_inventory(
     config: AppConfig,
     source: SourceRunner,
-    inventory: remote_index.SourceInventory,
+    inventory: inventory.SourceInventory,
 ) -> dict[str, SnapshotMeta]:
     """Build Timeshift snapshot objects from one coherent source inventory."""
 
@@ -227,8 +237,8 @@ def _snapshots_from_source_inventory(
 
 
 def _required_pipeline_source_changes(
-    before: remote_index.SourceInventory,
-    after: remote_index.SourceInventory,
+    before: inventory.SourceInventory,
+    after: inventory.SourceInventory,
     *,
     current_path: str,
     parent_path: str | None,
@@ -271,9 +281,9 @@ def confirm_source_identity_before_manual_snapshot(
     state: dict,
     source_by_name: dict[str, SnapshotMeta] | None = None,
     load_source_index=None,
-    source_cache_index: remote_index.BtrfsIndex | None = None,
-    source_snapshot_index: remote_index.BtrfsIndex | None = None,
-    destination_index: remote_index.BtrfsIndex | None = None,
+    source_cache_index: inventory.BtrfsIndex | None = None,
+    source_snapshot_index: inventory.BtrfsIndex | None = None,
+    destination_index: inventory.BtrfsIndex | None = None,
 ) -> tuple[str | None, str]:
     """Print and enforce the shared manual-snapshot source identity guard."""
 
@@ -366,9 +376,9 @@ def _maybe_create_manual_snapshot(
     source_by_name: dict[str, SnapshotMeta],
     dry_run: bool,
     only_snapshot: str | None,
-    source_cache_index: remote_index.BtrfsIndex | None = None,
-    source_snapshot_index: remote_index.BtrfsIndex | None = None,
-    destination_index: remote_index.BtrfsIndex | None = None,
+    source_cache_index: inventory.BtrfsIndex | None = None,
+    source_snapshot_index: inventory.BtrfsIndex | None = None,
+    destination_index: inventory.BtrfsIndex | None = None,
 ) -> bool:
     """Optionally create a source Timeshift tag O snapshot before sync.
 
@@ -512,7 +522,7 @@ def _destination_info_json_path(config: AppConfig, snapshot_name: str) -> Path:
 def _ensure_destination_snapshot_subvolume(
     config: AppConfig,
     snapshot_name: str,
-    destination_index: remote_index.BtrfsIndex | None,
+    destination_index: inventory.BtrfsIndex | None,
 ) -> Path:
     """Create or validate one managed destination date subvolume.
 
@@ -528,12 +538,8 @@ def _ensure_destination_snapshot_subvolume(
         indexed = destination_index.meta(snapshot_dir) if destination_index is not None else None
         if indexed:
             return snapshot_dir
-        meta = remote_index.refresh_local_path(
-            destination_index,
-            snapshot_dir,
-            name=snapshot_dir.name,
-            sudo=config.destination.sudo,
-            btrfs_command=config.destination.btrfs_command,
+        meta = inventory.refresh_path(
+            destination_index, BtrfsOps(CommandEndpoint.local(), config.destination.sudo, config.destination.btrfs_command), snapshot_dir, name=snapshot_dir.name
         )
         if not meta:
             raise SyncError(
@@ -548,15 +554,14 @@ def _ensure_destination_snapshot_subvolume(
     if not parent.exists() or not parent.is_dir():
         raise SyncError(f"Destination snapshots parent is unavailable: {parent}")
     try:
-        btrfs.create_local_subvolume(snapshot_dir, config.destination.sudo, config.destination.btrfs_command)
+        BtrfsOps(CommandEndpoint.local(), config.destination.sudo, config.destination.btrfs_command).create(snapshot_dir)
     except Exception as exc:
         raise SyncError(f"Could not create destination snapshot date Btrfs subvolume {snapshot_dir}: {exc}") from exc
-    meta = remote_index.refresh_local_path(
+    meta = inventory.refresh_path(
         destination_index,
+        BtrfsOps(CommandEndpoint.local(), config.destination.sudo, config.destination.btrfs_command),
         snapshot_dir,
         name=snapshot_dir.name,
-        sudo=config.destination.sudo,
-        btrfs_command=config.destination.btrfs_command,
     )
     if not meta:
         raise SyncError(f"Destination date path was created but is not a Btrfs subvolume: {snapshot_dir}")
@@ -566,7 +571,7 @@ def _ensure_destination_snapshot_subvolume(
 
 def _validate_destination_snapshot_layout(
     config: AppConfig,
-    destination_index: remote_index.BtrfsIndex,
+    destination_index: inventory.BtrfsIndex,
 ) -> None:
     """Refuse every existing ordinary/symlinked destination date entry."""
 
@@ -624,7 +629,7 @@ def _atomic_write_snapshot_info_json(path: Path, content: str) -> None:
 
 
 def _require_snapshot_info_json(
-    inventory: remote_index.SourceInventory,
+    inventory: inventory.SourceInventory,
     snapshot_name: str,
 ) -> str:
     """Return captured control-file content or raise a precise sync error."""
@@ -659,7 +664,7 @@ def _require_snapshot_info_json(
 
 def _sync_snapshot_info_json(
     config: AppConfig,
-    inventory: remote_index.SourceInventory,
+    inventory: inventory.SourceInventory,
     snapshot_name: str,
     *,
     dry_run: bool,
@@ -735,7 +740,7 @@ def _preview_send_path(config: AppConfig, snapshot_name: str, subvolume: Subvolu
     if subvolume.readonly is True:
         return subvolume.path
     if config.source.cache_root:
-        return btrfs.readonly_cache_path(config.source.cache_root, snapshot_name, subvolume.name)
+        return cache_child_path(config.source.cache_root, snapshot_name, subvolume.name)
     return "<no-cache-root-configured>"
 
 
@@ -744,7 +749,7 @@ def _send_path_kind_text(config: AppConfig, send_path: str, original_path: str) 
 
     if Path(send_path) == Path(original_path):
         return "Timeshift original read-only snapshot; protected from app prune"
-    if btrfs.path_is_under_cache(send_path, config.source.cache_root):
+    if is_under(send_path, config.source.cache_root):
         return "app-created source send-cache snapshot; prune may delete with destination retention"
     return "external read-only send path; protected from app prune"
 
@@ -754,294 +759,123 @@ def _ensure_source_send_path(
     source: SourceRunner,
     snapshot_name: str,
     subvolume: SubvolumeMeta,
-    source_cache_index: remote_index.BtrfsIndex | None = None,
-    source_snapshot_index: remote_index.BtrfsIndex | None = None,
+    source_cache_index: inventory.BtrfsIndex | None = None,
+    source_snapshot_index: inventory.BtrfsIndex | None = None,
 ) -> str:
-    """Return a real read-only source path, creating cache snapshots if needed.
+    """Resolve one real send path through the shared cache operation."""
 
-    This calls only source-side `sudo btrfs ...` commands. It never uses source-side
-    mkdir/cat/find/helper scripts.
-    """
-
-    return btrfs.source_ensure_readonly_send_path(
-        source,
-        sudo=config.source.sudo,
-        btrfs_command=config.source.btrfs_command,
-        original_path=subvolume.path,
+    manager = CacheManager(
+        BtrfsOps(
+            CommandEndpoint.for_source(source),
+            config.source.sudo,
+            config.source.btrfs_command,
+        ),
         cache_root=config.source.cache_root,
+        create_enabled=config.source.create_readonly_cache,
+    )
+    return manager.ensure_send_snapshot(
+        original_path=subvolume.path,
         snapshot_name=snapshot_name,
         subvolume_name=subvolume.name,
-        create_readonly_cache=config.source.create_readonly_cache,
         cache_index=source_cache_index,
         original_index=source_snapshot_index,
-    )
-
+    ).path
 
 def _cleanup_incomplete_destination_receive(
     config: AppConfig,
     dest_path: Path,
     subvolume_name: str,
-    destination_index: remote_index.BtrfsIndex | None = None,
+    destination_index: inventory.BtrfsIndex | None = None,
 ) -> None:
-    """Delete one incomplete received Btrfs child subvolume before retrying.
-
-    Ordinary-directory fallback deletion is intentionally unsupported. The
-    containing date subvolume remains in place for the retry.
-    """
+    """Delete one exact incomplete destination Btrfs child before retrying."""
 
     if not dest_path.exists():
         return
     if not config.destination.cleanup_incomplete_receive:
         raise SyncError(f"Destination path already exists but is not recorded as synced: {dest_path}")
-
-    _human_blank()
-    print(f"  {subvolume_name}: found incomplete destination receive not recorded in state.json")
-    print("  retry policy: delete only this incomplete Btrfs child subvolume now")
-    print("  date layout: keep the managed snapshot-date Btrfs subvolume for retry")
-    print()
-    print(f"LOCAL INCOMPLETE BTRFS DELETE: {dest_path}")
-    print()
-
-    meta = remote_index.refresh_local_path(
-        destination_index,
-        dest_path,
-        name=subvolume_name,
-        sudo=config.destination.sudo,
-        btrfs_command=config.destination.btrfs_command,
+    ops = BtrfsOps(
+        CommandEndpoint.local("destination"),
+        config.destination.sudo,
+        config.destination.btrfs_command,
     )
-    if not meta:
+    if ops.meta(dest_path, name=subvolume_name, required=False) is None:
         raise SyncError(
-            "Destination path exists but is not a Btrfs subvolume. Ordinary-directory cleanup "
-            "is disabled; inspect and remove it manually before retrying:\n"
+            "Destination path exists but is not a Btrfs subvolume. Ordinary cleanup is disabled:\n"
             f"  {dest_path}"
         )
-    try:
-        btrfs.delete_local_subvolume(dest_path, config.destination.sudo, config.destination.btrfs_command)
-    except Exception as exc:
-        raise SyncError(f"Could not delete incomplete destination Btrfs subvolume {dest_path}: {exc}") from exc
+    print(f"LOCAL INCOMPLETE BTRFS DELETE: {dest_path}")
+    ops.delete(dest_path)
     if destination_index is not None:
         destination_index.remove_tree(dest_path)
     print("  incomplete destination Btrfs subvolume removed")
-    print("  retrying this snapshot/subvolume at its current oldest-to-newest queue position")
-    _human_rule("---")
 
-def _source_cache_live_child_paths(
-    config: AppConfig,
-    source: SourceRunner,
-    parent_dir: str,
-) -> list[str] | None:
-    """Return live source-cache child subvolumes below one date parent.
-
-    The run-start Btrfs indexes are intentionally not trusted for recovery,
-    because this function is used exactly when an hourly snapshot or failed
-    cache entry may have disappeared during the same run. A fresh
-    ``btrfs subvolume list -o`` result is converted back to absolute paths and
-    restricted to source.cache_root before any destructive action is allowed.
-    """
-
-    if not config.source.cache_root or not btrfs.path_is_under_cache(parent_dir, config.source.cache_root):
-        return []
-    listed_paths = btrfs.source_list_child_subvolumes(
-        source,
-        sudo=config.source.sudo,
-        btrfs_command=config.source.btrfs_command,
-        path=parent_dir,
-    )
-    if listed_paths is None:
-        return None
-
-    children: set[str] = set()
-    for listed_path in listed_paths:
-        for root in (parent_dir, config.source.cache_root):
-            absolute = remote_index.listed_path_to_absolute(root, listed_path)
-            if (
-                absolute
-                and absolute != parent_dir
-                and btrfs.path_is_under_cache(absolute, config.source.cache_root)
-                and btrfs.path_is_under_cache(absolute, parent_dir)
-            ):
-                children.add(absolute)
-                break
-        else:
-            if "/" not in listed_path and listed_path not in {".", "..", ""}:
-                absolute = str(Path(parent_dir) / listed_path)
-                if btrfs.path_is_under_cache(absolute, parent_dir):
-                    children.add(absolute)
-    return sorted(children, key=lambda item: (item.count("/"), item), reverse=True)
 
 
 def _cleanup_source_cache_snapshot_version(
     config: AppConfig,
     source: SourceRunner,
     snapshot_name: str,
-    source_cache_index: remote_index.BtrfsIndex | None = None,
+    source_cache_index: inventory.BtrfsIndex | None = None,
 ) -> None:
-    """Delete only the app-owned source send-cache tree for one snapshot date.
-
-    This is used by sync recovery, not retention. If a snapshot transfer is
-    partial or the source Timeshift snapshot vanished mid-run, the current date
-    cache must not remain as a future parent candidate. The helper deletes live
-    child subvolumes deepest-first, then the cache date parent when it is empty.
-    It never targets ``source.snapshot_root`` and never uses recursive ordinary deletion.
-    """
+    """Delete one app-owned cache date through the shared tree engine."""
 
     if not config.source.cache_root:
         return
-    parent_dir = btrfs.readonly_cache_parent_path(config.source.cache_root, snapshot_name)
-    if btrfs.path_is_same_or_under(parent_dir, config.source.snapshot_root):
-        raise SyncError(f"Refusing recovery cleanup below Timeshift source.snapshot_root: {parent_dir}")
-
-    parent_meta = remote_index.refresh_source_path(
-        source_cache_index,
-        source,
-        parent_dir,
-        name=Path(parent_dir).name,
-        sudo=config.source.sudo,
-        btrfs_command=config.source.btrfs_command,
+    parent = cache_parent_path(config.source.cache_root, snapshot_name)
+    ops = BtrfsOps(
+        CommandEndpoint.for_source(source),
+        config.source.sudo,
+        config.source.btrfs_command,
     )
-    if not parent_meta:
-        if source_cache_index is not None:
-            source_cache_index.remove_tree(parent_dir)
-        print(f"  recovery source cache: already gone {parent_dir}")
-        return
-
-    live_children = _source_cache_live_child_paths(config, source, parent_dir)
-    if live_children is None:
-        raise SyncError(f"Could not list source send-cache children for recovery cleanup: {parent_dir}")
-
-    # Also include the configured direct child names in case Btrfs list output
-    # was unusual but targeted metadata can still see a child path.
-    for subvol_name in config.source.subvolumes:
-        child = btrfs.readonly_cache_path(config.source.cache_root, snapshot_name, subvol_name)
-        if child not in live_children:
-            child_meta = remote_index.refresh_source_path(
-                source_cache_index,
-                source,
-                child,
-                name=subvol_name,
-                sudo=config.source.sudo,
-                btrfs_command=config.source.btrfs_command,
-            )
-            if child_meta:
-                live_children.append(child)
-    live_children = sorted(set(live_children), key=lambda item: (item.count("/"), item), reverse=True)
-
-    for child in live_children:
-        if btrfs.path_is_same_or_under(child, config.source.snapshot_root):
-            raise SyncError(f"Refusing recovery cleanup of Timeshift-owned source path: {child}")
-        print(f"  recovery source cache child: deleting {child}")
-        result = btrfs.source_delete_subvolume(
-            source,
-            config.source.sudo,
-            config.source.btrfs_command,
-            child,
-            protected_snapshot_root=config.source.snapshot_root,
-            check=False,
-        )
-        if result.returncode != 0:
-            detail = result.stderr.strip() or result.stdout.strip() or f"return code {result.returncode}"
-            raise SyncError(f"Source send-cache recovery cleanup failed for {child}: {detail}")
-        if source_cache_index is not None:
-            source_cache_index.remove_tree(child)
-
-    empty = btrfs.source_cache_is_empty(
-        source,
-        sudo=config.source.sudo,
-        btrfs_command=config.source.btrfs_command,
-        cache_root=config.source.cache_root,
-        path=parent_dir,
+    result = delete_subvolume_tree(
+        ops,
+        parent,
+        protected_roots=[config.source.snapshot_root],
+        refuse_unknown_entries=True,
     )
-    if empty is True:
-        print(f"  recovery source cache parent: deleting {parent_dir}")
-        result = btrfs.source_delete_subvolume(
-            source,
-            config.source.sudo,
-            config.source.btrfs_command,
-            parent_dir,
-            protected_snapshot_root=config.source.snapshot_root,
-            check=False,
+    if not result.success:
+        raise SyncError(
+            "Source send-cache recovery cleanup did not complete:\n  "
+            + "\n  ".join(result.errors or [f"root was not verified absent: {parent}"])
         )
-        if result.returncode != 0:
-            detail = result.stderr.strip() or result.stdout.strip() or f"return code {result.returncode}"
-            raise SyncError(f"Source send-cache parent recovery cleanup failed for {parent_dir}: {detail}")
-        if source_cache_index is not None:
-            source_cache_index.remove_tree(parent_dir)
-        return
-    if empty is None:
-        raise SyncError(f"Could not verify source send-cache parent is empty: {parent_dir}")
-    raise SyncError(f"Source send-cache parent still has child subvolumes after recovery cleanup: {parent_dir}")
-
-
-
+    if source_cache_index is not None:
+        source_cache_index.remove_tree(parent)
+    print(f"  recovery source cache: confirmed gone {parent}")
 
 def _cleanup_destination_snapshot_version(
     config: AppConfig,
     snapshot_name: str,
-    destination_index: remote_index.BtrfsIndex | None = None,
+    destination_index: inventory.BtrfsIndex | None = None,
 ) -> None:
-    """Delete one whole destination date version using Btrfs only.
-
-    Configured child subvolumes are deleted first. The date subvolume is then
-    deleted, which removes its regular ``info.json`` automatically. Ordinary
-    date folders and unexpected content are refused for manual inspection.
-    """
+    """Delete one destination date through the shared tree engine."""
 
     snapshot_dir = _target_snapshot_dir(config, snapshot_name)
-    if not snapshot_dir.exists():
-        if destination_index is not None:
-            destination_index.remove_tree(snapshot_dir)
-        print(f"  recovery destination: already gone {snapshot_dir}")
-        return
-    if snapshot_dir.is_symlink():
-        raise SyncError(f"Refusing symlinked destination snapshot date path during recovery: {snapshot_dir}")
-
-    live_index = remote_index.build_local_btrfs_index(
-        snapshot_dir,
-        sudo=config.destination.sudo,
-        btrfs_command=config.destination.btrfs_command,
-        include_root=True,
-        required=False,
+    ops = BtrfsOps(
+        CommandEndpoint.local("destination"),
+        config.destination.sudo,
+        config.destination.btrfs_command,
     )
-    if not live_index.contains(snapshot_dir):
+    result = delete_subvolume_tree(
+        ops,
+        snapshot_dir,
+        allowed_regular_names={"info.json"},
+        expected_subvolume_paths={snapshot_dir / name for name in config.source.subvolumes},
+        refuse_unknown_entries=True,
+    )
+    if not result.success:
         raise SyncError(
-            "Unsupported legacy destination layout during recovery: snapshot date path is not a "
-            "Btrfs subvolume. Automatic ordinary-directory cleanup is disabled:\n"
-            f"  {snapshot_dir}"
+            "Destination snapshot recovery cleanup did not complete:\n  "
+            + "\n  ".join(result.errors or [f"root was not verified absent: {snapshot_dir}"])
         )
-
-    expected_children = {_dest_subvolume_path(config, snapshot_name, name) for name in config.source.subvolumes}
-    live_children = {Path(path) for path in live_index.child_paths(snapshot_dir)}
-    unexpected_subvolumes = sorted(str(path) for path in live_children if path not in expected_children)
-    try:
-        unexpected_entries = sorted(
-            str(entry) for entry in snapshot_dir.iterdir()
-            if entry.name not in set(config.source.subvolumes) | {"info.json"}
-        )
-    except OSError as exc:
-        raise SyncError(f"Could not inspect destination date subvolume during recovery: {snapshot_dir}: {exc}") from exc
-    if unexpected_subvolumes or unexpected_entries:
-        details = unexpected_subvolumes + unexpected_entries
-        raise SyncError(
-            "Destination date subvolume contains unexpected content. Refusing automatic recovery "
-            "deletion; inspect it manually:\n  " + "\n  ".join(details)
-        )
-
-    for child in sorted(live_children, key=lambda item: (len(item.parts), str(item)), reverse=True):
-        print(f"  recovery destination child subvolume: deleting {child}")
-        btrfs.delete_local_subvolume(child, config.destination.sudo, config.destination.btrfs_command)
-        if destination_index is not None:
-            destination_index.remove_tree(child)
-
-    print(f"  recovery destination date subvolume: deleting {snapshot_dir}")
-    btrfs.delete_local_subvolume(snapshot_dir, config.destination.sudo, config.destination.btrfs_command)
     if destination_index is not None:
         destination_index.remove_tree(snapshot_dir)
+    print(f"  recovery destination: confirmed gone {snapshot_dir}; info.json removed with date subvolume")
 
 def _refresh_snapshot_source_subvolumes_live(
     config: AppConfig,
     source: SourceRunner,
     snapshot: SnapshotMeta,
-    source_snapshot_index: remote_index.BtrfsIndex | None,
+    source_snapshot_index: inventory.BtrfsIndex | None,
 ) -> tuple[dict[str, SubvolumeMeta], list[tuple[str, str]]]:
     """Return configured source subvolumes, preferring the bulk index.
 
@@ -1056,13 +890,8 @@ def _refresh_snapshot_source_subvolumes_live(
         path = snapshot.subvolumes.get(subvol_name).path if subvol_name in snapshot.subvolumes else _expected_original_source_path(config, snapshot.name, subvol_name)
         meta = source_snapshot_index.meta(path) if source_snapshot_index is not None else None
         if source_snapshot_index is None:
-            meta = remote_index.refresh_source_path(
-                source_snapshot_index,
-                source,
-                path,
-                name=subvol_name,
-                sudo=config.source.sudo,
-                btrfs_command=config.source.btrfs_command,
+            meta = inventory.refresh_path(
+                source_snapshot_index, BtrfsOps(CommandEndpoint.for_source(source), config.source.sudo, config.source.btrfs_command), path, name=subvol_name
             )
         if meta:
             found[subvol_name] = meta
@@ -1096,8 +925,8 @@ def _recover_snapshot_version(
     reason: str,
     source_still_exists: bool,
     dry_run: bool,
-    source_cache_index: remote_index.BtrfsIndex | None,
-    destination_index: remote_index.BtrfsIndex | None,
+    source_cache_index: inventory.BtrfsIndex | None,
+    destination_index: inventory.BtrfsIndex | None,
 ) -> None:
     """Remove stale current-version traces from cache, destination, and state."""
 
@@ -1112,19 +941,32 @@ def _recover_snapshot_version(
         print("  source:   missing from source.snapshot_root")
         print("  action:   remove stale cache/destination/state for this snapshot and continue")
 
+    plan = plan_snapshot_recovery(snapshot_name)
     if dry_run:
-        print("  dry-run:  would clean source cache, destination version, and state.json")
+        WorkflowExecutor({}, dry_run=True, preview=lambda action: print(
+            f"  dry-run:  would {action.kind.value} for {snapshot_name}"
+        )).execute(plan)
         _human_rule("---")
         return
 
-    _cleanup_source_cache_snapshot_version(config, source, snapshot_name, source_cache_index)
-    _cleanup_destination_snapshot_version(config, snapshot_name, destination_index)
-    if snapshot_name in state.get("snapshots", {}):
-        remove_snapshot_from_state(state, snapshot_name)
-        save_state(config.state_file, state)
-        print("  state:    removed snapshot entry from state.json")
-    else:
-        print("  state:    no snapshot entry to remove")
+    def handle(action):
+        if action.kind is ActionKind.DELETE_CACHE_TREE:
+            return _cleanup_source_cache_snapshot_version(config, source, snapshot_name, source_cache_index)
+        if action.kind is ActionKind.DELETE_DESTINATION_TREE:
+            return _cleanup_destination_snapshot_version(config, snapshot_name, destination_index)
+        if action.kind is ActionKind.REMOVE_STATE:
+            if snapshot_name in state.get("snapshots", {}):
+                remove_snapshot_from_state(state, snapshot_name)
+                save_state(config.state_file, state)
+                print("  state:    removed snapshot entry from state.json")
+            else:
+                print("  state:    no snapshot entry to remove")
+            return None
+        raise SyncError(f"Unsupported recovery action: {action.kind.value}")
+
+    WorkflowExecutor({kind: handle for kind in (
+        ActionKind.DELETE_CACHE_TREE, ActionKind.DELETE_DESTINATION_TREE, ActionKind.REMOVE_STATE
+    )}).execute(plan)
     print("  indexes:  source-cache and destination metadata cache updated")
     _human_rule("---")
 
@@ -1136,9 +978,9 @@ def _prepare_snapshot_for_transfer_or_recover(
     snapshot: SnapshotMeta,
     *,
     dry_run: bool,
-    source_cache_index: remote_index.BtrfsIndex | None,
-    source_snapshot_index: remote_index.BtrfsIndex | None,
-    destination_index: remote_index.BtrfsIndex | None,
+    source_cache_index: inventory.BtrfsIndex | None,
+    source_snapshot_index: inventory.BtrfsIndex | None,
+    destination_index: inventory.BtrfsIndex | None,
 ) -> bool:
     """Return True when a snapshot can be transferred, False when skipped.
 
@@ -1210,8 +1052,8 @@ def _recover_stale_state_snapshots_missing_from_source(
     source_by_name: dict[str, SnapshotMeta],
     *,
     dry_run: bool,
-    source_cache_index: remote_index.BtrfsIndex | None,
-    destination_index: remote_index.BtrfsIndex | None,
+    source_cache_index: inventory.BtrfsIndex | None,
+    destination_index: inventory.BtrfsIndex | None,
 ) -> int:
     """Clean incomplete state entries whose Timeshift source name is gone."""
 
@@ -1240,7 +1082,7 @@ def _read_local_destination_parent_metadata(
     *,
     parent_name: str,
     subvolume_name: str,
-    destination_index: remote_index.BtrfsIndex | None = None,
+    destination_index: inventory.BtrfsIndex | None = None,
 ) -> SubvolumeMeta:
     """Read metadata for the destination snapshot that would be the receiver parent."""
 
@@ -1268,9 +1110,9 @@ def _match_source_path_to_destination_received_uuid(
     label: str = "source path",
     expected_uuids: set[str] | None = None,
     require_readonly: bool = False,
-    source_cache_index: remote_index.BtrfsIndex | None = None,
-    source_snapshot_index: remote_index.BtrfsIndex | None = None,
-    destination_index: remote_index.BtrfsIndex | None = None,
+    source_cache_index: inventory.BtrfsIndex | None = None,
+    source_snapshot_index: inventory.BtrfsIndex | None = None,
+    destination_index: inventory.BtrfsIndex | None = None,
 ) -> tuple[bool, str]:
     """Check whether a source subvolume UUID matches the destination identity."""
 
@@ -1319,9 +1161,9 @@ def _select_verified_parent_send_path(
     parent_subvol: SubvolumeMeta | None,
     subvolume_name: str,
     state_parent: dict | None,
-    source_cache_index: remote_index.BtrfsIndex | None = None,
-    source_snapshot_index: remote_index.BtrfsIndex | None = None,
-    destination_index: remote_index.BtrfsIndex | None = None,
+    source_cache_index: inventory.BtrfsIndex | None = None,
+    source_snapshot_index: inventory.BtrfsIndex | None = None,
+    destination_index: inventory.BtrfsIndex | None = None,
 ) -> tuple[str | None, str]:
     """Select a safe source parent path for incremental send without recreating it.
 
@@ -1473,9 +1315,9 @@ def _find_confirmed_sync_floor(
     state: dict,
     source_by_name: dict[str, SnapshotMeta],
     *,
-    source_cache_index: remote_index.BtrfsIndex | None = None,
-    source_snapshot_index: remote_index.BtrfsIndex | None = None,
-    destination_index: remote_index.BtrfsIndex | None = None,
+    source_cache_index: inventory.BtrfsIndex | None = None,
+    source_snapshot_index: inventory.BtrfsIndex | None = None,
+    destination_index: inventory.BtrfsIndex | None = None,
 ) -> tuple[str | None, str]:
     """Return newest state snapshot that still exists on source and matches UUIDs.
 
@@ -1612,7 +1454,7 @@ def _expected_original_source_path(config: AppConfig, snapshot_name: str, subvol
 def _source_cache_meta_by_uuid(
     config: AppConfig,
     source: SourceRunner,
-    source_cache_index: remote_index.BtrfsIndex | None,
+    source_cache_index: inventory.BtrfsIndex | None,
     uuid: str | None,
     subvolume_name: str,
 ) -> SubvolumeMeta | None:
@@ -1643,8 +1485,8 @@ def _match_existing_destination_to_source(
     snapshot_name: str,
     subvolume_name: str,
     destination_meta: SubvolumeMeta,
-    source_cache_index: remote_index.BtrfsIndex | None,
-    source_snapshot_index: remote_index.BtrfsIndex | None = None,
+    source_cache_index: inventory.BtrfsIndex | None,
+    source_snapshot_index: inventory.BtrfsIndex | None = None,
 ) -> tuple[SnapshotMeta | None, SubvolumeMeta | None, str | None, SubvolumeMeta | None, SubvolumeMeta | None, str]:
     """Match one existing destination subvolume to an exact source/cache UUID.
 
@@ -1716,9 +1558,9 @@ def _recover_state_from_existing_destination(
     source_by_name: dict[str, SnapshotMeta],
     *,
     dry_run: bool,
-    source_cache_index: remote_index.BtrfsIndex | None,
-    source_snapshot_index: remote_index.BtrfsIndex | None = None,
-    destination_index: remote_index.BtrfsIndex | None = None,
+    source_cache_index: inventory.BtrfsIndex | None,
+    source_snapshot_index: inventory.BtrfsIndex | None = None,
+    destination_index: inventory.BtrfsIndex | None = None,
 ) -> tuple[str | None, str]:
     """Rebuild missing/empty state.json from proven source/destination matches.
 
@@ -1869,9 +1711,9 @@ def _select_parent(
     dry_run: bool,
     trusted_parent_send_paths: set[str] | None = None,
     allow_full_seed: bool = False,
-    source_cache_index: remote_index.BtrfsIndex | None = None,
-    source_snapshot_index: remote_index.BtrfsIndex | None = None,
-    destination_index: remote_index.BtrfsIndex | None = None,
+    source_cache_index: inventory.BtrfsIndex | None = None,
+    source_snapshot_index: inventory.BtrfsIndex | None = None,
+    destination_index: inventory.BtrfsIndex | None = None,
 ) -> tuple[str | None, str | None]:
     """Choose the newest valid incremental parent.
 
@@ -2011,9 +1853,9 @@ def _verify_sync_viability_before_manual_snapshot(
     destination_empty_at_start: bool,
     only_snapshot: str | None,
     only_missing: bool,
-    source_cache_index: remote_index.BtrfsIndex | None = None,
-    source_snapshot_index: remote_index.BtrfsIndex | None = None,
-    destination_index: remote_index.BtrfsIndex | None = None,
+    source_cache_index: inventory.BtrfsIndex | None = None,
+    source_snapshot_index: inventory.BtrfsIndex | None = None,
+    destination_index: inventory.BtrfsIndex | None = None,
 ) -> None:
     """Prove sync can start before asking Timeshift to create a snapshot.
 
@@ -2168,7 +2010,7 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
     if not dry_run:
         prepare_destination(config)
 
-    destination_index = remote_index.build_local_btrfs_index(
+    destination_index = inventory.build_local_btrfs_index(
         config.destination.target_root,
         sudo=config.destination.sudo,
         btrfs_command=config.destination.btrfs_command,
@@ -2177,11 +2019,11 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
     _validate_destination_snapshot_layout(config, destination_index)
     destination_empty_at_start = not _destination_has_existing_snapshots(config)
 
-    def load_source_inventory(reason: str) -> tuple[remote_index.SourceInventory, dict[str, SnapshotMeta]]:
+    def load_source_inventory(reason: str) -> tuple[inventory.SourceInventory, dict[str, SnapshotMeta]]:
         """Build and report one coherent source inventory generation."""
 
         print(f"Reading one combined source inventory ({reason})...")
-        inventory = remote_index.build_source_inventory(
+        built_inventory = inventory.build_source_inventory(
             source,
             snapshot_root=config.source.snapshot_root,
             cache_root=config.source.cache_root,
@@ -2190,8 +2032,8 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             timeshift_command=config.source.timeshift_command,
             required=True,
         )
-        snapshots = _snapshots_from_source_inventory(config, source, inventory)
-        return inventory, snapshots
+        snapshots = _snapshots_from_source_inventory(config, source, built_inventory)
+        return built_inventory, snapshots
 
     source_inventory, source_by_name = load_source_inventory("initial Timeshift/snapshot/cache scan")
     snapshot_root_btrfs_index = source_inventory.snapshot_index
@@ -2337,18 +2179,40 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
         _human_rule("----")
 
     def build_snapshot_queue(*, require_requested_snapshot: bool) -> list[SnapshotMeta]:
-        """Build the current oldest-to-newest queue from the latest inventory."""
+        """Build one pure oldest-to-newest sync plan, then return its snapshot queue."""
 
         if only_snapshot:
             selected = source_by_name.get(only_snapshot)
             if selected is None:
                 if require_requested_snapshot:
                     raise SyncError(f"Source snapshot not found: {only_snapshot}")
-                return []
-            return [selected]
-        if destination_empty_at_start:
-            return _snapshots_in_sync_order(_select_initial_sync_snapshots(config, source_by_name))
-        return _snapshots_in_sync_order(source_by_name.values())
+                selected_snapshots: list[SnapshotMeta] = []
+            else:
+                selected_snapshots = [selected]
+        elif destination_empty_at_start:
+            selected_snapshots = _snapshots_in_sync_order(_select_initial_sync_snapshots(config, source_by_name))
+        else:
+            selected_snapshots = _snapshots_in_sync_order(source_by_name.values())
+
+        combined = build_backup_inventory(
+            source_inventory=source_inventory,
+            source_snapshots=source_by_name,
+            destination_index=destination_index,
+            state=state,
+            cache_root=config.source.cache_root,
+            target_root=config.destination.target_root,
+            subvolume_names=config.source.subvolumes,
+        )
+        plan = plan_sync_queue(
+            combined,
+            [snapshot.name for snapshot in selected_snapshots],
+            config.source.subvolumes,
+        )
+        ordered_names: list[str] = []
+        for action in plan.actions:
+            if action.snapshot and action.snapshot not in ordered_names:
+                ordered_names.append(action.snapshot)
+        return [source_by_name[name] for name in ordered_names if name in source_by_name]
 
     snapshot_queue = build_snapshot_queue(require_requested_snapshot=True)
     transferred = 0
@@ -2370,7 +2234,7 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
         *,
         failed_snapshot: SnapshotMeta,
         subvolume_name: str,
-        refreshed_inventory: remote_index.SourceInventory,
+        refreshed_inventory: inventory.SourceInventory,
         refreshed_source_by_name: dict[str, SnapshotMeta],
         required_changes: list[str],
         inventory_changes: list[str],
@@ -2596,7 +2460,7 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
                             f"Inventory refresh error: {refresh_exc}"
                         ) from prepare_exc
 
-                    inventory_changes = remote_index.describe_source_inventory_changes(
+                    inventory_changes = inventory.describe_source_inventory_changes(
                         inventory_before_prepare,
                         refreshed_inventory,
                     )
@@ -2741,11 +2605,10 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             print(f"    source-kind: {_send_path_kind_text(config, current_send_path, subvolume.path)}")
             # Build source send command. If parent_send_path is set, btrfs send
             # receives `-p <parent>` and sends an incremental stream.
-            send_cmd = btrfs.source_send_cmd(
-                source,
-                sudo=config.source.sudo,
-                btrfs_command=config.source.btrfs_command,
-                current_path=current_send_path,
+            send_cmd = BtrfsOps(
+                CommandEndpoint.for_source(source), config.source.sudo, config.source.btrfs_command
+            ).send_command(
+                current_send_path,
                 parent_path=parent_send_path,
                 compressed_data=config.source.send_compressed_data,
                 proto=config.source.send_proto,
@@ -2754,12 +2617,9 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
 
             # Build local receive command. Destination compression is left to
             # the filesystem mount/property policy outside this app.
-            receive_cmd = btrfs.local_receive_cmd(
-                target_dir,
-                config.destination.sudo,
-                config.destination.btrfs_command,
-                verbose=config.stream.btrfs_verbose,
-            )
+            receive_cmd = BtrfsOps(
+                CommandEndpoint.local(), config.destination.sudo, config.destination.btrfs_command
+            ).receive_command(target_dir, verbose=config.stream.btrfs_verbose)
 
             # Optional mbuffer is inserted as the middle command. Password auth
             # environment is passed to the source side so streamed sends work
@@ -2790,7 +2650,7 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
                         f"Inventory refresh error: {refresh_exc}"
                     ) from pipeline_exc
 
-                inventory_changes = remote_index.describe_source_inventory_changes(
+                inventory_changes = inventory.describe_source_inventory_changes(
                     inventory_before_send,
                     refreshed_inventory,
                 )
@@ -2828,12 +2688,8 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             send_meta = None
             if dest_path.exists():
                 try:
-                    received_meta = remote_index.refresh_local_path(
-                        destination_index,
-                        dest_path,
-                        name=subvol_name,
-                        sudo=config.destination.sudo,
-                        btrfs_command=config.destination.btrfs_command,
+                    received_meta = inventory.refresh_path(
+                        destination_index, BtrfsOps(CommandEndpoint.local(), config.destination.sudo, config.destination.btrfs_command), dest_path, name=subvol_name
                     )
                 except Exception:
                     received_meta = None
@@ -2855,14 +2711,9 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             except Exception:
                 original_meta = None
             try:
-                if source_cache_index is not None and btrfs.path_is_under_cache(current_send_path, config.source.cache_root):
-                    send_meta = source_cache_index.meta(current_send_path) or remote_index.refresh_source_path(
-                        source_cache_index,
-                        source,
-                        current_send_path,
-                        name=subvol_name,
-                        sudo=config.source.sudo,
-                        btrfs_command=config.source.btrfs_command,
+                if source_cache_index is not None and is_under(current_send_path, config.source.cache_root):
+                    send_meta = source_cache_index.meta(current_send_path) or inventory.refresh_path(
+                        source_cache_index, BtrfsOps(CommandEndpoint.for_source(source), config.source.sudo, config.source.btrfs_command), current_send_path, name=subvol_name
                     )
                 else:
                     send_meta = _source_meta(

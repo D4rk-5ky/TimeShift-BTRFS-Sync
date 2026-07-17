@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+from .paths import is_local_same_or_under as _path_is_same_or_under
 from importlib.resources import files
 import argparse
 import json
 import sys
-from . import __version__, btrfs, timeshift
+from . import __version__, timeshift
 from .commands import CommandError
+from .btrfs_ops import BtrfsOps
+from .endpoint import CommandEndpoint
 from .config import ConfigError, load_config
 from .lock import FileLock
 from .log import active_logger, create_run_logger
@@ -133,18 +136,6 @@ def _mail_attachment_paths(logger) -> list[Path] | None:
     except Exception:
         return None
 
-def _path_is_same_or_under(path: Path | str, root: Path | str) -> bool:
-    """Return True when path is root or below root after local normalization."""
-
-    try:
-        path_norm = Path(path).expanduser().resolve(strict=False)
-        root_norm = Path(root).expanduser().resolve(strict=False)
-        path_norm.relative_to(root_norm)
-        return True
-    except Exception:
-        return False
-
-
 def _safe_destroy_log_dir(config, selected_delete_roots: list[Path]) -> Path | None:
     """Return a log directory that will survive a destructive cleanup.
 
@@ -264,7 +255,10 @@ def cmd_test_ssh(args) -> int:
         else:
             print("Source mode: local; SSH test skipped.")
         source.run(timeshift.timeshift_cmd(config.source.sudo, config.source.timeshift_command, ["--list"]))
-        source.run(btrfs.remote_btrfs_cmd(config.source.sudo, config.source.btrfs_command, ["--version"]))
+        source_btrfs = BtrfsOps(
+            CommandEndpoint.for_source(source), config.source.sudo, config.source.btrfs_command
+        )
+        source_btrfs.run(["--version"])
         print("Source command endpoint works. Source sudo for timeshift/btrfs works.")
         return 0
 

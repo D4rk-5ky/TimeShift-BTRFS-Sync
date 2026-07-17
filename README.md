@@ -38,6 +38,24 @@ timeshift_btrfs_sync/data/config.example.toml
 
 There should not be a root-level `config.example.toml` in the release zip. The `data` path must be a directory, not a file, because `init-config` reads the template as package data.
 
+## Shared workflow architecture
+
+Version 0.1.49 keeps the shared architecture introduced in 0.1.47, includes the 0.1.48 regression-audit fixes, and corrects complete nested Btrfs discovery for recursive tree deletion. It removes duplicated local/SSH, cleanup, cache, and discovery implementations while preserving the established command behavior. The same operations are composed in different orders for sync, prune, recovery, and `destroy-leftovers`:
+
+1. `endpoint.py` selects local, local-source, or SSH command transport.
+2. `btrfs_ops.py` owns exact Btrfs probe, list, create, read-only snapshot, delete, send, and receive commands.
+3. `inventory.py` builds the coherent Timeshift, `info.json`, snapshot-root, and cache-root inventory. `remote_index.py` is only a compatibility re-export, not another scanner.
+4. `snapshot_records.py` joins source, cache, destination, and state into one record for each snapshot date.
+5. `planning.py` creates ordered, side-effect-free workflow actions; sync selection remains oldest-to-newest.
+6. `executor.py` executes or previews those actions through workflow-specific handlers.
+7. `cache_ops.py` and `tree_ops.py` provide the one cache ensure/reuse operation and the one verified deepest-first Btrfs tree deletion operation.
+
+This structure does not weaken the UUID rules. Plans locate work; Btrfs UUID, Parent UUID, Received UUID, read-only, protected-root, and post-deletion checks still prove whether each action is safe. Dry-run and real workflows consume the same ordered plan model, while real execution performs the required live verification before changing data.
+
+The pure sync planner intentionally keeps every retention-selected source subvolume in the oldest-to-newest queue, including entries already represented in state. The real workflow then performs the authoritative destination existence, UUID, recovery, and `info.json` checks. This prevents a shallow planning decision from bypassing live validation or metadata refresh.
+
+Source preflight emits one tab-delimited sentinel protocol for both local and SSH source modes and parses it through one shared result parser. The parser is exercised by regression tests because it runs immediately after the destination lock is acquired and before source/cache creation or transfer work begins.
+
 ## Safety model
 
 The safe defaults are intentionally conservative:
@@ -316,7 +334,7 @@ Examples:
 
 `destroy-leftovers` is a separate destructive command for the case where you no longer want to use this app/setup and want to remove app-created source send-cache and/or destination backup leftovers. It ignores retention rules and `state.json` because it is not a normal prune operation. It never deletes `source.snapshot_root`, because that belongs to Timeshift and contains the user's own source snapshots.
 
-Source send-cache cleanup deletes nested Btrfs subvolumes deepest-first. Cache entries can be container subvolumes such as `send-cache/<snapshot>` with child payload subvolumes such as `send-cache/<snapshot>/@`. The app walks the Btrfs tree, deletes children before parents, and never falls back to recursive ordinary deletion. The destination is handled the same way: received `@`/`@home` subvolumes are deleted before the date subvolume, which also removes `info.json`. An ordinary non-empty configured source or destination root is refused for manual inspection.
+Source send-cache cleanup deletes nested Btrfs subvolumes deepest-first. Cache entries can be container subvolumes such as `send-cache/<snapshot>` with child payload subvolumes such as `send-cache/<snapshot>/@`. The app walks the Btrfs tree, deletes children before parents, and never falls back to recursive ordinary deletion. The destination is handled the same way: received `@`/`@home` subvolumes are deleted before the date subvolume, which also removes `info.json`. An ordinary non-empty configured source or destination root is refused for manual inspection in both dry-run and real-run modes. Destination snapshot-date cleanup also refuses unexpected nested Btrfs subvolumes or unexpected ordinary content instead of deleting an unknown tree.
 
 A real cleanup target is reported as `complete` only after all planned subvolume paths returned exact deletion confirmations and a separate final existence check confirmed that the configured root is absent. The terminal prints `verified configured root absent: yes` immediately before `result: complete`. Zero confirmations, fewer confirmations than planned, an existence-check failure, a surviving configured root, or any remaining child subvolume marks the target `incomplete`. If the root remains, the app rebuilds its Btrfs index and prints every remaining subvolume for diagnosis. The source and destination targets use the same completion rule.
 
@@ -328,7 +346,7 @@ Dry-run is the default:
 
 Set top-level `log_dir` to enable split per-run logs. Logging starts immediately after the config is loaded and before command work begins. Normal app stdout is copied to `.log`. Normal command stderr is copied to `.err`. This applies to sync/prune and also to guarded maintenance/destructive commands such as `destroy-leftovers`, `clear-state`, and `delete-lock`. Transfer stderr is handled differently because successful `btrfs send` and `mbuffer` both write normal status/progress to stderr: that transfer text is kept in `.btrfs`/`.mbuffer`, and is copied to `.err` only if the transfer pipeline fails.
 
-For `destroy-leftovers`, logs must survive the cleanup. If the configured `log_dir` is inside a selected delete target, the command warns and uses a survivor log directory outside the target, such as `./logs` or `~/.cache/timeshift-btrfs-sync/logs`. This avoids opening log files inside a tree that is about to be removed.
+For `destroy-leftovers`, logs must survive the cleanup. If the configured `log_dir` is inside a selected delete target, the command warns and uses a survivor log directory outside the target, such as `./logs` or `~/.cache/timeshift-btrfs-sync/logs`. This avoids opening log files inside a tree that is about to be removed. Local containment is resolved through real filesystem paths, so a symlinked log directory that points inside a delete target is also moved to a survivor location.
 
 ```text
 *.log      normal command/control output
@@ -510,9 +528,11 @@ Shows the local state tracking file.
 
 ### `destroy-leftovers`
 
-Destroys configured source/destination leftovers when this app setup is being retired. This is not a prune command and does not use retention or `state.json` safety. Configured Btrfs roots are scanned recursively and their child subvolumes are deleted deepest-first before the root subvolume. There is no recursive ordinary-directory fallback. A configured ordinary non-empty source cache root or destination root is refused and must be inspected manually; an empty ordinary root may be removed with `rmdir`. The command never deletes `source.snapshot_root`.
+Destroys configured source/destination leftovers when this app setup is being retired. This is not a prune command and does not use retention or `state.json` safety. Configured Btrfs roots are scanned recursively and their child subvolumes are deleted deepest-first before the root subvolume. There is no recursive ordinary-directory fallback. A configured ordinary non-empty source cache root or destination root is refused and must be inspected manually in both dry-run and real-run modes; an empty ordinary root may be removed with `rmdir`. Unexpected nested destination Btrfs subvolumes are also refused rather than treated as configured payload children. The command never deletes `source.snapshot_root`.
 
 For a real run, every discovered deletion path must be individually confirmed by the deletion command. The command then checks the configured root again. `result: complete` is printed only together with `verified configured root absent: yes`. When the root still exists, `destroy-leftovers` rebuilds the current Btrfs index below it and prints all remaining subvolumes; the summary counts that target as incomplete and the command returns an error.
+
+Tree discovery first reads the exact root subvolume ID, then uses one filesystem-wide `btrfs subvolume list -a -p <configured-root>` command per endpoint. It follows numeric containing-parent IDs from that root before mapping paths back to the current mount. This is required for nested app layouts because date containers are themselves subvolumes and contain payload subvolumes such as `@` and `@home`. The deletion plan therefore contains payload children first, then date containers, then `snapshots`/cache containers, and finally the configured root. Local source, SSH source, and local destination use the same discovery and deepest-first batch-deletion implementation.
 
 | Flag | What it does | Why it may be needed |
 |---|---|---|

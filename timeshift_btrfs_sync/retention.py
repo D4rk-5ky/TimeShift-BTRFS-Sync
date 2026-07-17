@@ -5,8 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
-from . import btrfs
-from . import remote_index
+from . import inventory
+from .btrfs_ops import BtrfsOps
+from .cache_ops import cache_parent_path
+from .paths import is_under, is_same_or_under
+from .endpoint import CommandEndpoint
+from .tree_ops import delete_subvolume_tree
+from .planning import ActionKind, plan_prune_snapshot
+from .executor import WorkflowExecutor
 from .config import AppConfig
 from .models import SnapshotMeta, tags_text
 from .state import (
@@ -143,12 +149,12 @@ def _source_cache_delete_paths(
             raise RuntimeError(
                 f"Invalid source-cache send_path in state for {snapshot_name}/{subvol_name}: {exc}"
             ) from exc
-        if btrfs.path_is_same_or_under(send_path, config.source.snapshot_root):
+        if is_same_or_under(send_path, config.source.snapshot_root):
             # Final safety guard: Timeshift owns source.snapshot_root and every
             # snapshot subvolume below it. Never return those paths as delete
             # candidates, even if stale state incorrectly marks them as cache.
             continue
-        if btrfs.path_is_under_cache(send_path, config.source.cache_root):
+        if is_under(send_path, config.source.cache_root):
             paths[subvol_name] = send_path
     return sorted(paths.items())
 
@@ -198,102 +204,6 @@ def _destination_delete_paths(config: AppConfig, snapshot_state: dict) -> list[t
     return sorted(paths.items())
 
 
-def _source_cache_child_subvolume_paths(
-    config: AppConfig,
-    source: SourceRunner,
-    parent_dir: str,
-) -> list[str] | None:
-    """Return live Btrfs child subvolume paths below one source cache parent.
-
-    The normal per-run source-cache index is useful for reducing SSH metadata
-    calls, but prune is destructive and must not decide that a cache parent is
-    empty from the index alone. ``btrfs subvolume list -o <cache-parent>`` is
-    the final live authority before deleting the parent date subvolume.
-    """
-
-    if not config.source.cache_root or not btrfs.path_is_under_cache(parent_dir, config.source.cache_root):
-        return None
-    listed_paths = btrfs.source_list_child_subvolumes(
-        source,
-        sudo=config.source.sudo,
-        btrfs_command=config.source.btrfs_command,
-        path=parent_dir,
-    )
-    if listed_paths is None:
-        return None
-
-    children: set[str] = set()
-    for listed_path in listed_paths:
-        for root in (parent_dir, config.source.cache_root):
-            absolute = remote_index.listed_path_to_absolute(root, listed_path)
-            if (
-                absolute
-                and absolute != parent_dir
-                and btrfs.path_is_under_cache(absolute, config.source.cache_root)
-                and btrfs.path_is_under_cache(absolute, parent_dir)
-            ):
-                children.add(absolute)
-                break
-        else:
-            # Defensive fallback for unusual Btrfs output that reports only a
-            # direct child name. Do not accept multi-component paths here; those
-            # must be converted by listed_path_to_absolute() so a misleading
-            # relative path cannot escape the cache parent.
-            if "/" not in listed_path and listed_path not in {".", "..", ""}:
-                absolute = str(Path(parent_dir) / listed_path)
-                if btrfs.path_is_under_cache(absolute, parent_dir):
-                    children.add(absolute)
-
-    return sorted(children, key=lambda item: (item.count("/"), item), reverse=True)
-
-
-def _delete_live_source_cache_children(
-    config: AppConfig,
-    source: SourceRunner,
-    parent_dir: str,
-    source_cache_index: remote_index.BtrfsIndex | None,
-) -> bool | None:
-    """Delete any live Btrfs child subvolumes below one source cache parent.
-
-    State may know only ``@`` and ``@home`` for a snapshot, and the run-start
-    cache index can be stale or incomplete for nested subvolumes. Before the
-    date parent is deleted, this function re-reads the live parent and deletes
-    every child Btrfs subvolume below it deepest-first. All paths are restricted
-    to the configured app-owned source cache and still protected from
-    ``source.snapshot_root``.
-    """
-
-    live_children = _source_cache_child_subvolume_paths(config, source, parent_dir)
-    if live_children is None:
-        return None
-    if not live_children:
-        return True
-
-    print(f"  cache parent: found {len(live_children)} live child subvolume(s); deleting before parent")
-    ok = True
-    for child_path in live_children:
-        if btrfs.path_is_same_or_under(child_path, config.source.snapshot_root):
-            ok = False
-            print(f"  protected cache child: refusing to delete Timeshift-owned source path {child_path}")
-            continue
-        print(f"  cache child: deleting {child_path}")
-        result = btrfs.source_delete_subvolume(
-            source,
-            config.source.sudo,
-            config.source.btrfs_command,
-            child_path,
-            protected_snapshot_root=config.source.snapshot_root,
-            check=False,
-        )
-        if result.returncode == 0:
-            if source_cache_index is not None:
-                source_cache_index.remove_tree(child_path)
-        else:
-            ok = False
-            print("  warning: live source send-cache child cleanup failed; keeping state entry for retry")
-    return ok
-
-
 def source_snapshot_state(snapshots: Iterable[SnapshotMeta]) -> dict:
     """Return temporary state-like data from source Timeshift snapshots.
 
@@ -335,132 +245,47 @@ def _cleanup_source_cache_for_pruned_snapshot(
     source: SourceRunner,
     snapshot_name: str,
     snapshot_state: dict,
-    source_cache_index: remote_index.BtrfsIndex | None = None,
+    source_cache_index: inventory.BtrfsIndex | None = None,
 ) -> bool:
-    """Return True when source send-cache for one pruned snapshot is gone or absent."""
+    """Delete one pruned snapshot's app-owned cache through the shared tree engine."""
 
-    cache_paths = _source_cache_delete_paths(config, snapshot_name, snapshot_state)
     protected_paths = _protected_timeshift_send_paths(config, snapshot_name, snapshot_state)
     if protected_paths:
         print("  source Timeshift originals: protected; not deleted by this app")
-        for subvol_name, send_path in protected_paths:
-            print(f"  protected {subvol_name}: {send_path}")
+        for subvolume_name, path in protected_paths:
+            print(f"  protected {subvolume_name}: {path}")
+
+    cache_paths = _source_cache_delete_paths(config, snapshot_name, snapshot_state)
     if not cache_paths:
         print("  source send-cache: no tracked app-created cache paths; confirmed gone")
         return True
-
-    print("  source send-cache: deleting/checking app-created cache paths only")
-    if source_cache_index is not None and source_cache_index.root_missing:
-        print("  warning: source send-cache root could not be indexed; keeping state entry for retry")
+    if not config.source.cache_root:
+        print("  warning: tracked cache paths exist but source.cache_root is unavailable")
         return False
 
-    ok = True
-    by_parent: dict[str, list[tuple[str, str]]] = {}
-    for subvol_name, send_path in cache_paths:
-        by_parent.setdefault(str(Path(send_path).parent), []).append((subvol_name, send_path))
-
-    for parent_dir, paths in sorted(by_parent.items()):
+    parent = cache_parent_path(config.source.cache_root, snapshot_name)
+    ops = BtrfsOps(
+        CommandEndpoint.for_source(source),
+        config.source.sudo,
+        config.source.btrfs_command,
+    )
+    result = delete_subvolume_tree(
+        ops,
+        parent,
+        protected_roots=[config.source.snapshot_root],
+        refuse_unknown_entries=True,
+    )
+    if result.success:
         if source_cache_index is not None:
-            if not source_cache_index.contains(parent_dir):
-                print(f"  cache parent: already gone on source, confirmed {parent_dir}")
-                continue
-            existing_children = {send_path for _, send_path in paths if source_cache_index.contains(send_path)}
-        else:
-            parent_exists = btrfs.source_cache_existing_paths(
-                source,
-                sudo=config.source.sudo,
-                btrfs_command=config.source.btrfs_command,
-                cache_root=config.source.cache_root,
-                paths=[parent_dir],
-            )
-            if parent_exists is None:
-                print("  warning: could not list source send-cache root; keeping state entry for retry")
-                return False
-            if parent_dir not in parent_exists:
-                print(f"  cache parent: already gone on source, confirmed {parent_dir}")
-                continue
-
-            existing_children = btrfs.source_cache_existing_child_paths(
-                source,
-                sudo=config.source.sudo,
-                btrfs_command=config.source.btrfs_command,
-                cache_root=config.source.cache_root,
-                parent_path=parent_dir,
-                paths=[send_path for _, send_path in paths],
-            )
-            if existing_children is None:
-                print(f"  warning: could not list source send-cache children; keeping state entry for retry: {parent_dir}")
-                return False
-
-        for subvol_name, send_path in sorted(paths):
-            if send_path not in existing_children:
-                print(f"  cache {subvol_name}: already gone on source, confirmed {send_path}")
-                continue
-            if btrfs.path_is_same_or_under(send_path, config.source.snapshot_root):
-                ok = False
-                print(f"  protected {subvol_name}: refusing to delete Timeshift-owned source path {send_path}")
-                continue
-            print(f"  cache {subvol_name}: deleting {send_path}")
-            result = btrfs.source_delete_subvolume(
-                source,
-                config.source.sudo,
-                config.source.btrfs_command,
-                send_path,
-                protected_snapshot_root=config.source.snapshot_root,
-                check=False,
-            )
-            if result.returncode == 0:
-                if source_cache_index is not None:
-                    source_cache_index.discard(send_path)
-            else:
-                ok = False
-                print("  warning: source send-cache subvolume cleanup failed; keeping state entry for retry")
-
-        live_children_gone = _delete_live_source_cache_children(config, source, parent_dir, source_cache_index)
-        if live_children_gone is False:
-            ok = False
-            print(f"  cache parent: live child subvolume cleanup failed, keeping state entry for retry: {parent_dir}")
-            continue
-        if live_children_gone is None:
-            ok = False
-            print(f"  cache parent: could not verify live child subvolumes, keeping state entry for retry: {parent_dir}")
-            continue
-
-        empty = btrfs.source_cache_is_empty(
-            source,
-            sudo=config.source.sudo,
-            btrfs_command=config.source.btrfs_command,
-            cache_root=config.source.cache_root,
-            path=parent_dir,
-        )
-        if empty is True:
-            if btrfs.path_is_same_or_under(parent_dir, config.source.snapshot_root):
-                ok = False
-                print(f"  protected cache parent: refusing to delete Timeshift-owned source path {parent_dir}")
-                continue
-            result = btrfs.source_delete_subvolume(
-                source,
-                config.source.sudo,
-                config.source.btrfs_command,
-                parent_dir,
-                protected_snapshot_root=config.source.snapshot_root,
-                check=False,
-            )
-            if result.returncode == 0:
-                if source_cache_index is not None:
-                    source_cache_index.discard(parent_dir)
-                print(f"  cache parent: deleted {parent_dir}")
-            else:
-                ok = False
-                print("  warning: source send-cache parent cleanup failed; keeping state entry for retry")
-        elif empty is None:
-            ok = False
-            print(f"  cache parent: could not verify empty, keeping state entry for retry: {parent_dir}")
-        else:
-            ok = False
-            print(f"  cache parent: still has cached subvolumes, keeping state entry for retry: {parent_dir}")
-    return ok
-
+            source_cache_index.remove_tree(parent)
+        print(f"  source send-cache: confirmed gone {parent}")
+        return True
+    print("  warning: source send-cache cleanup incomplete; keeping state entry for retry")
+    for error in result.errors:
+        print(f"    {error}")
+    for path in result.remaining:
+        print(f"    remaining: {path}")
+    return False
 
 def build_prune_plan(config: AppConfig, state: dict) -> PrunePlan:
     """Build retention plan from state without deleting anything.
@@ -548,73 +373,30 @@ def build_prune_plan(config: AppConfig, state: dict) -> PrunePlan:
 
 
 def _delete_destination_snapshot_for_prune(config: AppConfig, state: dict, snapshot_name: str) -> bool:
-    """Delete one destination snapshot date using Btrfs subvolume deletion only."""
+    """Delete one destination date through the shared tree engine."""
 
-    if not config.destination.target_root.exists():
-        print(f"  destination: target root unavailable, keeping state entry for retry: {config.destination.target_root}")
-        return False
-
-    snap_path = config.destination.target_root / "snapshots" / snapshot_name
-    if not snap_path.exists():
-        print("  destination: already gone, confirmed")
-        return True
-    if snap_path.is_symlink():
-        print(f"  warning: destination date path is a symlink; refusing cleanup: {snap_path}")
-        return False
-
-    live_index = remote_index.build_local_btrfs_index(
-        snap_path,
-        sudo=config.destination.sudo,
-        btrfs_command=config.destination.btrfs_command,
-        include_root=True,
-        required=False,
+    snapshot_path = config.destination.target_root / "snapshots" / snapshot_name
+    ops = BtrfsOps(
+        CommandEndpoint.local("destination"),
+        config.destination.sudo,
+        config.destination.btrfs_command,
     )
-    if not live_index.contains(snap_path):
-        print(
-            "  warning: unsupported legacy destination date folder is not a Btrfs subvolume; "
-            f"manual inspection is required: {snap_path}"
-        )
-        return False
-
-    expected_children = {snap_path / name for name in config.source.subvolumes}
-    live_children = {Path(path) for path in live_index.child_paths(snap_path)}
-    unexpected_subvolumes = sorted(str(path) for path in live_children if path not in expected_children)
-    try:
-        unexpected_entries = sorted(
-            str(entry) for entry in snap_path.iterdir()
-            if entry.name not in set(config.source.subvolumes) | {"info.json"}
-        )
-    except OSError as exc:
-        print(f"  warning: destination date subvolume could not be inspected; keeping state entry for retry: {exc}")
-        return False
-    if unexpected_subvolumes or unexpected_entries:
-        print("  warning: destination date subvolume contains unexpected content; manual inspection is required:")
-        for item in unexpected_subvolumes + unexpected_entries:
-            print(f"    - {item}")
-        return False
-
-    ok = True
-    for child in sorted(live_children, key=lambda item: (len(item.parts), str(item)), reverse=True):
-        print(f"  destination child subvolume: deleting {child}")
-        try:
-            btrfs.delete_local_subvolume(child, config.destination.sudo, config.destination.btrfs_command)
-        except Exception as exc:
-            ok = False
-            print(f"  warning: destination child cleanup failed; keeping state entry for retry: {exc}")
-    if not ok:
-        return False
-
-    print(f"  destination date subvolume: deleting {snap_path}")
-    try:
-        btrfs.delete_local_subvolume(snap_path, config.destination.sudo, config.destination.btrfs_command)
-    except Exception as exc:
-        print(f"  warning: destination date-subvolume cleanup failed; keeping state entry for retry: {exc}")
-        return False
-    if snap_path.exists():
-        print(f"  destination: still present after Btrfs deletion, keeping state entry for retry: {snap_path}")
-        return False
-    print("  destination: confirmed gone; info.json was removed with the date subvolume")
-    return True
+    result = delete_subvolume_tree(
+        ops,
+        snapshot_path,
+        allowed_regular_names={"info.json"},
+        expected_subvolume_paths={snapshot_path / subvolume for subvolume in config.source.subvolumes},
+        refuse_unknown_entries=True,
+    )
+    if result.success:
+        print("  destination: confirmed gone; info.json was removed with the date subvolume")
+        return True
+    print("  warning: destination cleanup incomplete; keeping state entry for retry")
+    for error in result.errors:
+        print(f"    {error}")
+    for path in result.remaining:
+        print(f"    remaining: {path}")
+    return False
 
 def _delete_prune_item(
     config: AppConfig,
@@ -622,9 +404,10 @@ def _delete_prune_item(
     plan: PrunePlan,
     source_cache_runner: SourceRunner | None,
     name: str,
-    source_cache_index: remote_index.BtrfsIndex | None = None,
+    *,
+    source_cache_index: inventory.BtrfsIndex | None = None,
 ) -> bool:
-    """Delete both sides for one prune item, then remove state only after confirmation."""
+    """Execute one pure prune plan and remove state after both trees are gone."""
 
     snapshot_state = state.get("snapshots", {}).get(name, {})
     print()
@@ -633,36 +416,47 @@ def _delete_prune_item(
     print(f"  tags:     {tags_text(snapshot_state.get('tags', []))}")
     for reason in _delete_reasons(plan, name):
         print(f"  why:      {reason}")
-    print("  action:   deleting destination subvolumes and source send-cache; state is removed after both sides are confirmed gone")
 
-    print()
-    print("Retention Delete Destination")
-    destination_gone = _delete_destination_snapshot_for_prune(config, state, name)
+    workflow = plan_prune_snapshot(
+        name,
+        delete_cache=source_cache_runner is not None,
+        delete_destination=True,
+    )
+    status = {"destination": True, "cache": True}
 
-    print()
-    print("Retention Delete Source send-cache")
-    source_cache_gone = True
-    if source_cache_runner:
-        source_cache_gone = _cleanup_source_cache_for_pruned_snapshot(
+    def delete_destination(_action):
+        print("\nRetention Delete Destination")
+        status["destination"] = _delete_destination_snapshot_for_prune(config, state, name)
+        return status["destination"]
+
+    def delete_cache(_action):
+        print("\nRetention Delete Source send-cache")
+        assert source_cache_runner is not None
+        status["cache"] = _cleanup_source_cache_for_pruned_snapshot(
             config,
             source_cache_runner,
             name,
             snapshot_state,
             source_cache_index=source_cache_index,
         )
-    else:
-        print("  source send-cache: not checked this run")
+        return status["cache"]
 
-    print()
-    print("State")
-    if destination_gone and source_cache_gone:
-        remove_snapshot_from_state(state, name)
-        print("  removed; destination and source send-cache are confirmed gone")
-        return True
+    def remove_state(_action):
+        print("\nState")
+        if status["destination"] and status["cache"]:
+            remove_snapshot_from_state(state, name)
+            print("  removed; destination and source send-cache are confirmed gone")
+            return True
+        print("  kept; cleanup can be retried safely on the next prune")
+        return False
 
-    print("  kept; cleanup can be retried safely on the next prune")
-    return False
-
+    executor = WorkflowExecutor({
+        ActionKind.DELETE_DESTINATION_TREE: delete_destination,
+        ActionKind.DELETE_CACHE_TREE: delete_cache,
+        ActionKind.REMOVE_STATE: remove_state,
+    })
+    results = executor.execute(workflow)
+    return bool(results and results[-1][1])
 
 def print_prune_plan(config: AppConfig, plan: PrunePlan, state: dict, *, dry_run: bool) -> None:
     """Write an easy-to-read retention summary to terminal and .succes."""
@@ -733,7 +527,7 @@ def prune(config: AppConfig, state: dict, *, dry_run: bool, yes_delete: bool) ->
         else None
     )
     source_cache_index = (
-        remote_index.build_source_btrfs_index(
+        inventory.build_source_btrfs_index(
             source_cache_runner,
             config.source.cache_root,
             sudo=config.source.sudo,

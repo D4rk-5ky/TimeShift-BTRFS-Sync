@@ -2,6 +2,9 @@
 
 This project runs on the backup/destination machine. The source machine is reached over SSH and needs `btrfs`, `timeshift`, `cat`, `id`, SSH access, and the minimal sudo rules described in the README. `cat` and `id` are not run through sudo. The configured SSH account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
 
+
+Version 0.1.49 includes the shared architecture, the 0.1.48 regression-audit fixes, and complete nested Btrfs discovery for local/SSH recursive tree deletion. No installation step or configuration key changed.
+
 The executable or Python install does **not** include system tools such as `btrfs`, `timeshift`, `ssh`, `sudo`, `mbuffer`, or `sshpass`. Those must be installed on the relevant machines.
 
 ## System packages

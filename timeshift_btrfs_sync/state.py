@@ -10,6 +10,7 @@ import posixpath
 import tempfile
 
 from .models import SnapshotMeta, SubvolumeMeta
+from .paths import is_under, is_same_or_under
 
 SEND_PATH_KIND_SOURCE_CACHE = "source-cache"
 SEND_PATH_KIND_TIMESHIFT_ORIGINAL_READONLY = "timeshift-original-readonly"
@@ -227,11 +228,9 @@ def send_path_kind_for_state_subvolume(
 
     send_path = subvol_state.get("send_path")
     if isinstance(send_path, str) and PurePosixPath(posixpath.normpath(send_path)).is_absolute():
-        from . import btrfs
-
-        if cache_root and btrfs.path_is_under_cache(send_path, cache_root):
+        if cache_root and is_under(send_path, cache_root):
             return SEND_PATH_KIND_SOURCE_CACHE
-        if snapshot_root and btrfs.path_is_same_or_under(send_path, snapshot_root):
+        if snapshot_root and is_same_or_under(send_path, snapshot_root):
             return SEND_PATH_KIND_TIMESHIFT_ORIGINAL_READONLY
 
     send_uuid = subvol_state.get("send_source_uuid") or subvol_state.get("source_uuid")
@@ -577,11 +576,9 @@ def _kind_for_absolute_source_path(
 
     if not isinstance(path, str) or not path:
         return None
-    from . import btrfs
-
-    if cache_root and btrfs.path_is_under_cache(path, cache_root):
+    if cache_root and is_under(path, cache_root):
         return SEND_PATH_KIND_SOURCE_CACHE
-    if btrfs.path_is_same_or_under(path, snapshot_root):
+    if is_same_or_under(path, snapshot_root):
         return SEND_PATH_KIND_TIMESHIFT_ORIGINAL_READONLY
     return None
 

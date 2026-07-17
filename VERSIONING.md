@@ -1,3 +1,43 @@
+## 0.1.49
+
+- Fixed shared Btrfs tree discovery after the 0.1.47 refactor. The previous one-root `btrfs subvolume list -o` plan could contain only direct date/container subvolumes and omit nested `@`/`@home` payloads, causing parent deletion to fail with `Directory not empty`.
+- Changed the authoritative `BtrfsOps.list_children()` operation to read the exact root subvolume ID and request one filesystem-wide `btrfs subvolume list -a -p <root>` containment graph. Numeric parent IDs retain only actual descendants before the central mount-aware path mapper resolves them.
+- Kept normal source/cache/destination inventory root-scoped. The full filesystem graph is used only by recursive managed-tree deletion and post-failure remaining-tree verification.
+- Preserved one endpoint command for tree discovery and one endpoint command for deepest-first batch deletion; SSH mode does not open one connection per date or payload subvolume.
+- Preserved deletion safety: protected roots, ordinary non-empty root refusal, exact confirmation validation, unexpected-content checks, remaining-tree inventory, and final root-absence proof are unchanged.
+- Added realistic regression coverage for local cache trees, destination trees, `<FS_TREE>`/remounted path prefixes, complete child-before-parent ordering, single-batch deletion, and local/SSH tree command construction and numeric-ID filtering.
+- Kept all config keys, CLI flags, state schema version 2, retention rules, oldest-to-newest sync behavior, cache reuse, UUID matching, and destructive confirmations unchanged.
+
+## 0.1.48
+
+- Fixed the real-run preflight crash after lock acquisition by restoring the shared `_parse_path_check_output()` sentinel parser removed during the 0.1.47 refactor. Local-source and SSH-source preflight now use the same defined parser for snapshot/cache root results.
+- Added a package-wide static runtime-symbol regression test so any function that references an undefined module global fails the test suite before release.
+- Corrected sync planning so every retention-selected source subvolume remains in the oldest-to-newest queue. Existing state/destination entries are again evaluated by the established live UUID, recovery, and `info.json` refresh checks instead of being prematurely filtered by the pure planner.
+- Restored prune action order to destination date tree, source cache tree, then state entry, matching the pre-refactor safety behavior.
+- Restored symlink-aware local containment checks for survivor log placement during `destroy-leftovers`; lexical POSIX containment remains reserved for source/SSH paths.
+- Tightened the shared tree-deletion engine so dry-run and real-run both refuse ordinary non-empty configured roots, and destination date cleanup rejects unexpected nested Btrfs subvolumes in addition to unexpected ordinary entries.
+- Restored conservative Btrfs list-path mapping: unmatched absolute or relative paths are no longer guessed below a configured root, while valid remount-prefix suffix matching remains supported.
+- Restored empty optional source-path normalization to the empty string instead of `.` so disabled paths cannot accidentally participate in containment checks.
+- Corrected `destroy-leftovers` dry-run reporting so a blocking safety error is printed and counted as incomplete rather than as a complete plan.
+- Removed unused refactor methods and stale imports without reintroducing duplicate Btrfs, inventory, cache, or deletion implementations.
+- Kept all configuration keys, CLI commands, state schema version 2, retention rules, oldest-to-newest transfer order, UUID safety, cache reuse, recovery, and Btrfs-only deletion behavior unchanged.
+- Added focused regression coverage for the preflight parser, undefined globals, planner queue preservation, prune ordering, symlink-aware local containment, conservative Btrfs path mapping, empty-path normalization, ordinary-root dry-run refusal, unexpected nested destination subvolumes, and destroy dry-run failure reporting.
+
+## 0.1.47
+
+- Performed a behavior-preserving architectural refactor around seven shared layers: command endpoints, Btrfs operations, coherent inventory, combined snapshot records, pure workflow planning, generic ordered execution, and shared cache/tree safety operations.
+- Replaced separate local/SSH Btrfs command implementations with `CommandEndpoint` plus `BtrfsOps`; workflow code now changes the endpoint, not the Btrfs business rules.
+- Made `inventory.py` the only source/cache/destination inventory implementation. `remote_index.py` remains as a compatibility re-export and contains no second scanner.
+- Added `SnapshotRecord` and `BackupInventory` so source Timeshift metadata, source cache, destination metadata, and `state.json` are joined once per date and consumed by planners.
+- Added side-effect-free sync, recovery, prune, and destroy action plans plus `WorkflowExecutor` for ordered execution or preview. Existing retention selection and oldest-to-newest transfer ordering are unchanged.
+- Consolidated exact cache creation/reuse into `CacheManager`, including read-only and Parent UUID validation, stale-index exact probing, concurrent creation reuse, and prevention of nested `<date>/@/@` creation.
+- Consolidated deepest-first source-cache/destination deletion, protected-root enforcement, exact confirmation validation, unknown-content refusal, remaining-subvolume inventory, and final root-absence verification into `delete_subvolume_tree()`. Sync recovery, prune, and destroy now use that one implementation.
+- Converted the original `btrfs.py` into a compatibility export surface only; it no longer contains another command/cache/deletion implementation.
+- Removed dead and duplicated helpers after redirecting all runtime consumers to the shared layers. Compared with uploaded 0.1.46, runtime package size decreased from 11,645 to 10,583 lines and function definitions decreased from 408 to 398.
+- Kept config keys, CLI behavior, state schema version 2, retention behavior, full/incremental safety rules, source-change continuation, `info.json` behavior, notification behavior, and Btrfs-only cleanup rules unchanged.
+- Added architecture integration tests proving the single authoritative definitions, coherent record joining, pure oldest-to-newest plans, plan/executor ordering, shared cleanup identity, exact cache targeting, and reduced source/function counts.
+- Updated README.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
 ## 0.1.46
 
 - Fixed source send-cache reuse after remounting or moving the configured source paths. Bulk Btrfs list-path resolution now recognizes the longest configured-root suffix anywhere inside filesystem-relative paths, including on-disk prefixes such as `@/` that are absent from the mount path.
