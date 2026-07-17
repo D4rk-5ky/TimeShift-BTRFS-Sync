@@ -9,7 +9,6 @@ a long danger flag, and typed confirmations.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 import fcntl
 import json
@@ -17,17 +16,6 @@ import os
 
 from .config import AppConfig
 from .destroy import _safe_cleanup_path
-
-
-@dataclass(slots=True)
-class MaintenanceResult:
-    """Structured result for one maintenance-file operation."""
-
-    label: str
-    path: Path
-    exists: bool
-    action: str
-    changed: bool = False
 
 
 def _confirm_or_raise(prompt: str, expected: str) -> None:
@@ -125,7 +113,7 @@ def clear_state_file(
     dry_run: bool,
     danger_confirmed: bool,
     interactive: bool = True,
-) -> MaintenanceResult:
+) -> None:
     """Remove the configured state.json file after explicit confirmation.
 
     The caller should acquire the app lock before real execution so state cannot
@@ -158,15 +146,15 @@ def clear_state_file(
 
     if not exists:
         print("Result: state_file is already missing.")
-        return MaintenanceResult("state_file", path, exists=False, action="already missing")
+        return
 
     if dry_run:
         print("Result: would remove configured state_file.")
-        return MaintenanceResult("state_file", path, exists=True, action="would remove")
+        return
 
     path.unlink()
     print("Result: removed configured state_file.")
-    return MaintenanceResult("state_file", path, exists=True, action="removed", changed=True)
+    return
 
 
 def delete_lock_file(
@@ -175,7 +163,7 @@ def delete_lock_file(
     dry_run: bool,
     danger_confirmed: bool,
     interactive: bool = True,
-) -> MaintenanceResult:
+) -> None:
     """Delete the configured lock file when no running process holds it.
 
     The command refuses to remove a currently held lock.  It is for stale lock
@@ -207,11 +195,11 @@ def delete_lock_file(
 
     if not exists:
         print("Result: lock_file is already missing.")
-        return MaintenanceResult("lock_file", path, exists=False, action="already missing")
+        return
 
     if dry_run:
         print("Result: would remove configured lock_file if it is not currently held.")
-        return MaintenanceResult("lock_file", path, exists=True, action="would remove")
+        return
 
     with path.open("r+") as fh:
         try:
@@ -224,4 +212,4 @@ def delete_lock_file(
         os.unlink(path)
         fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
     print("Result: removed configured lock_file.")
-    return MaintenanceResult("lock_file", path, exists=True, action="removed", changed=True)
+    return

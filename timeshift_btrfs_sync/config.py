@@ -12,6 +12,32 @@ from .ssh import SSHConfig, validate_control_path_safety
 from .mqtt import MQTTConfig
 from .mail import MailConfig
 
+TOP_LEVEL_KEYS = {
+    "name", "default_dry_run", "prune_after_sync", "log_dir", "state_file", "lock_file",
+    "source", "destination", "stream", "retention", "manual_snapshot", "mqtt", "mail", "ssh",
+}
+SOURCE_KEYS = {
+    "snapshot_root", "mode", "subvolumes", "sudo", "btrfs_command", "timeshift_command",
+    "cache_root", "create_readonly_cache", "cleanup_superseded_cache",
+    "verify_subvolumes_at_discovery", "verify_incremental_parent_once_per_run",
+    "source_change_retry_count", "send_compressed_data", "send_proto",
+}
+DESTINATION_KEYS = {"target_root", "sudo", "btrfs_command", "create_target_root", "cleanup_incomplete_receive"}
+STREAM_KEYS = {"use_mbuffer", "mbuffer_command", "mbuffer_size", "mbuffer_rate", "mbuffer_extra_args", "btrfs_verbose"}
+RETENTION_KEYS = {"hourly", "daily", "weekly", "monthly", "boot", "ondemand", "cleanup_ondemand", "keep_latest", "keep_latest_common_parent", "protected_snapshots"}
+MANUAL_SNAPSHOT_KEYS = {"enabled", "cleanup_enabled", "comment", "marker", "retention_count"}
+SSH_KEYS = {"host", "user", "port", "identity_file", "password", "password_file", "compression", "cipher", "control_master", "control_persist", "control_path", "extra_args"}
+MQTT_KEYS = {"enabled", "host", "port", "topic", "username", "password", "password_file", "client_id", "qos", "retain", "timeout", "notify_on_success", "notify_on_failure"}
+MAIL_KEYS = {"enabled", "smtp_host", "smtp_port", "smtp_ssl", "starttls", "username", "password", "password_file", "from_addr", "to_addrs", "subject_prefix", "timeout", "notify_on_success", "notify_on_failure", "include_json", "attach_logs", "max_attachment_bytes"}
+
+
+def _reject_unknown_keys(table: dict[str, Any], label: str, allowed: set[str]) -> None:
+    """Reject configuration entries that are not part of the current schema."""
+
+    unknown = sorted(set(table) - allowed)
+    if unknown:
+        raise ConfigError(f"Unknown {label} option(s): {', '.join(unknown)}")
+
 @dataclass(slots=True)
 class ManualSnapshotConfig:
     """Optional source-side Timeshift on-demand snapshot creation and cleanup."""
@@ -62,10 +88,10 @@ class SourceConfig:
     cache_root: str | None = None
     create_readonly_cache: bool = True
 
-    # Backward-compatible option name. When true, source-side read-only cache
-    # snapshots are cleaned only during prune, and only for snapshots that the
-    # destination retention plan deletes. Sync itself keeps every cache snapshot
-    # it creates so short-lived hourly parents do not erase common UUID ground.
+    # When true, retention deletes an app-owned cache date only after the
+    # corresponding destination date is confirmed deleted. This applies to a
+    # standalone prune and to prune run after sync, in local and SSH modes.
+    # Normal transfer keeps cache snapshots for later incremental parents.
     cleanup_superseded_cache: bool = True
 
     # Speed option. False means discovery does not run btrfs subvolume show for
@@ -165,7 +191,7 @@ class AppConfig:
     """Complete validated app configuration."""
 
     name: str
-    ssh: SSHConfig
+    ssh: SSHConfig | None
     source: SourceConfig
     destination: DestinationConfig
     stream: StreamConfig
@@ -248,19 +274,15 @@ def load_config(path: str | Path) -> AppConfig:
 
     name = str(raw.get("name") or "timeshift-btrfs-sync")
 
+    _reject_unknown_keys(raw, "top level", TOP_LEVEL_KEYS)
     source_raw = _table(raw, "source")
-    if "allow_incremental_without_parent_match" in source_raw:
-        raise ConfigError(
-            "source.allow_incremental_without_parent_match has been removed and is not accepted. "
-            "Delete this line from the config. Only a destination that is empty when sync starts may begin with a full send; "
-            "when destination snapshots already exist, at least one source snapshot UUID must "
-            "match a destination Received UUID or sync refuses to send."
-        )
+    _reject_unknown_keys(source_raw, "[source]", SOURCE_KEYS)
     source_mode = _stripped(source_raw, "mode", "ssh").lower()
     if source_mode not in {"ssh", "local"}:
         raise ConfigError("source.mode must be either 'ssh' or 'local'")
 
     ssh_raw = _table(raw, "ssh")
+    _reject_unknown_keys(ssh_raw, "[ssh]", SSH_KEYS)
     if source_mode == "ssh":
         port = _positive_int(ssh_raw.get("port"), "ssh.port")
         password = _optional_str(ssh_raw, "password")
@@ -296,9 +318,7 @@ def load_config(path: str | Path) -> AppConfig:
             extra_args=extra_args,
         )
     else:
-        # Local source mode never constructs SSH commands. Keep a placeholder so
-        # AppConfig remains backward-compatible for callers that inspect config.ssh.
-        ssh = SSHConfig(host="")
+        ssh = None
 
     snapshot_root = _normalize_source_path(_as_str(source_raw.get("snapshot_root"), "source.snapshot_root"))
     cache_root_raw = source_raw.get("cache_root")
@@ -329,6 +349,7 @@ def load_config(path: str | Path) -> AppConfig:
     )
 
     destination_raw = _table(raw, "destination")
+    _reject_unknown_keys(destination_raw, "[destination]", DESTINATION_KEYS)
     target_root = _as_path(destination_raw.get("target_root"), "destination.target_root")
     destination = DestinationConfig(
         target_root=target_root,
@@ -339,6 +360,7 @@ def load_config(path: str | Path) -> AppConfig:
     )
 
     stream_raw = _table(raw, "stream")
+    _reject_unknown_keys(stream_raw, "[stream]", STREAM_KEYS)
     stream = StreamConfig(
         use_mbuffer=_bool(stream_raw, "stream", "use_mbuffer", False),
         mbuffer_command=str(stream_raw.get("mbuffer_command", "mbuffer")),
@@ -349,6 +371,7 @@ def load_config(path: str | Path) -> AppConfig:
     )
 
     retention_raw = _table(raw, "retention")
+    _reject_unknown_keys(retention_raw, "[retention]", RETENTION_KEYS)
     retention = RetentionConfig(
         hourly=int(_int(retention_raw, "retention", "hourly", 6)),
         daily=int(_int(retention_raw, "retention", "daily", 7)),
@@ -363,6 +386,7 @@ def load_config(path: str | Path) -> AppConfig:
     )
 
     manual_raw = _table(raw, "manual_snapshot")
+    _reject_unknown_keys(manual_raw, "[manual_snapshot]", MANUAL_SNAPSHOT_KEYS)
     manual_comment = _stripped(manual_raw, "comment", "ts-btrfs-sync automatic on-demand snapshot")
     manual_marker = _stripped(manual_raw, "marker", "ts-btrfs-sync")
     manual_enabled = _bool(manual_raw, "manual_snapshot", "enabled", False)
@@ -379,6 +403,7 @@ def load_config(path: str | Path) -> AppConfig:
     )
 
     mqtt_raw = _table(raw, "mqtt")
+    _reject_unknown_keys(mqtt_raw, "[mqtt]", MQTT_KEYS)
     mqtt_port = _positive_int(mqtt_raw.get("port"), "mqtt.port", 1883)
     mqtt_qos = mqtt_raw.get("qos", 0)
     if not isinstance(mqtt_qos, int) or mqtt_qos not in {0, 1, 2}:
@@ -414,6 +439,7 @@ def load_config(path: str | Path) -> AppConfig:
     )
 
     mail_raw = _table(raw, "mail")
+    _reject_unknown_keys(mail_raw, "[mail]", MAIL_KEYS)
     mail_port = _positive_int(mail_raw.get("smtp_port"), "mail.smtp_port", 587)
     mail_timeout = _positive_int(mail_raw.get("timeout"), "mail.timeout", 10)
     mail_max_attachment_bytes = mail_raw.get("max_attachment_bytes", 0)

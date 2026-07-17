@@ -91,11 +91,6 @@ def parse_subvolume_show(output: str, name: str, path: str) -> SubvolumeMeta:
                 meta.subvolume_id = int(value)
             except ValueError:
                 pass
-        elif key == "Top level ID":
-            try:
-                meta.containing_parent_id = int(value)
-            except ValueError:
-                pass
         elif key.lower() == "flags":
             lower = value.lower()
             if "readonly" in lower or "read-only" in lower:
@@ -103,17 +98,6 @@ def parse_subvolume_show(output: str, name: str, path: str) -> SubvolumeMeta:
             elif lower in {"", "-", "none"}:
                 meta.readonly = False
     return meta
-
-
-def parse_subvolume_list_paths(output: str) -> list[str]:
-    """Extract raw path fields from ``btrfs subvolume list`` output."""
-
-    paths: list[str] = []
-    for line in output.splitlines():
-        _before, separator, after = line.strip().partition(" path ")
-        if separator:
-            paths.append(after.strip().rstrip("/"))
-    return paths
 
 
 @dataclass(slots=True)
@@ -165,31 +149,23 @@ class BtrfsOps:
             f"Cannot read {self.endpoint.location} Btrfs subvolume metadata for {path_text}: {detail}"
         )
 
-    def list_children(self, path: str | Path, *, root_id: int | None = None) -> list[str] | None:
-        """Return every nested descendant path in one endpoint command.
+    def list_children(self, path: str | Path, *, root_id: int) -> list[str] | None:
+        """Return all descendants selected from one Btrfs containment graph.
 
-        For a real subvolume root, ``subvolume list -a -p`` supplies the whole
-        filesystem containment graph. Numeric parent IDs select only actual
-        descendants of ``root_id`` before mount-path mapping, so unrelated
-        subvolumes with similar names cannot enter a destructive plan. The
-        ``-o`` fallback is retained only for callers without a numeric root ID.
+        ``subvolume list -a -p`` supplies the filesystem-wide parent graph.
+        Numeric parent IDs select only descendants of the exact configured root,
+        preventing similarly named subvolumes elsewhere from entering a delete
+        plan.
         """
 
-        args = ["subvolume", "list"]
-        if root_id is None:
-            args += ["-o", str(path)]
-        else:
-            args += ["-a", "-p", str(path)]
         result = self.run(
-            args,
+            ["subvolume", "list", "-a", "-p", str(path)],
             check=False,
             log_stderr=False,
             mirror_stderr=False,
         )
         if result.returncode != 0:
             return None
-        if root_id is None:
-            return parse_subvolume_list_paths(result.stdout)
         return _descendant_list_paths(result.stdout, root_id)
 
     def create(self, path: str | Path, *, check: bool = True) -> Completed:

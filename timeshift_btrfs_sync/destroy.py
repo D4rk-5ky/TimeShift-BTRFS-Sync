@@ -29,9 +29,6 @@ class DestroyResult:
     label: str
     tree: TreeDeleteResult
 
-    def __getattr__(self, name):
-        return getattr(self.tree, name)
-
 
 def _safe_cleanup_path(path: str | Path, label: str) -> str:
     text = os.path.normpath(str(path).strip())
@@ -59,18 +56,13 @@ def _mode_text(delete_source: bool, delete_destination: bool) -> str:
 
 def _load_payload_state(config: AppConfig) -> dict | None:
     try:
-        return state_mod.load_state(
-            config.state_file,
-            config.destination.target_root,
-            snapshot_root=config.source.snapshot_root,
-            cache_root=config.source.cache_root,
-        )
+        return state_mod.load_state(config.state_file)
     except Exception:
         return None
 
 
 def _result_by_label(results: list[DestroyResult], label: str) -> DestroyResult | None:
-    return next((result for result in results if result.label == label and result.exists), None)
+    return next((result for result in results if result.label == label and result.tree.existed), None)
 
 
 def _print_payload_match(config: AppConfig, results: list[DestroyResult], state_doc: dict | None) -> None:
@@ -78,14 +70,14 @@ def _print_payload_match(config: AppConfig, results: list[DestroyResult], state_
     destination = _result_by_label(results, "Destination target_root")
     if source is None or destination is None:
         return
-    cache_stats = payload_stats.source_send_cache_stats(source.path, source.subvolumes, config.source.subvolumes)
+    cache_stats = payload_stats.source_send_cache_stats(source.tree.root, source.tree.planned, config.source.subvolumes)
     direct_stats = (
-        payload_stats.direct_send_payload_stats(state_doc, config.source.subvolumes, cache_root=config.source.cache_root)
+        payload_stats.direct_send_payload_stats(state_doc, config.source.subvolumes)
         if state_doc is not None else None
     )
     source_stats = payload_stats.merge_source_payload_stats(cache_stats, direct_stats)
     destination_stats = payload_stats.destination_payload_stats(
-        destination.path, destination.subvolumes, config.source.subvolumes
+        destination.tree.root, destination.tree.planned, config.source.subvolumes
     )
     for line in payload_stats.render_payload_match(payload_stats.compare_payloads(source_stats, destination_stats)):
         print(line)
@@ -93,32 +85,33 @@ def _print_payload_match(config: AppConfig, results: list[DestroyResult], state_
 
 
 def _print_result(result: DestroyResult, *, dry_run: bool) -> None:
+    tree = result.tree
     print(f"{result.label}:")
-    print(f"  path:       {result.path}")
-    if not result.exists:
+    print(f"  path:       {tree.root}")
+    if not tree.existed:
         if not dry_run:
-            print(f"  verified configured root absent: {'yes' if result.verified_root_absent else 'no'}")
-        print("  result:     already missing" if result.success else "  result:     incomplete")
+            print(f"  verified configured root absent: {'yes' if tree.verified_root_absent else 'no'}")
+        print("  result:     already missing" if tree.success else "  result:     incomplete")
     else:
-        print(f"  subvolumes: {len(result.subvolumes)}")
+        print(f"  subvolumes: {len(tree.planned)}")
         if dry_run:
-            for path in result.subvolumes:
+            for path in tree.planned:
                 print(f"    would delete subvolume: {path}")
-            if result.errors:
+            if tree.errors:
                 print("  result:     incomplete")
-                for error in result.errors:
+                for error in tree.errors:
                     print(f"    error: {error}")
             else:
                 print("  result:     dry-run plan complete")
             return
-        print(f"  deleted subvolumes: {result.deleted_subvolumes}")
-        print(f"  verified configured root absent: {'yes' if result.verified_root_absent else 'no'}")
-        if result.remaining_subvolumes:
+        print(f"  deleted subvolumes: {len(tree.confirmed)}")
+        print(f"  verified configured root absent: {'yes' if tree.verified_root_absent else 'no'}")
+        if tree.remaining:
             print("  remaining Btrfs subvolumes:")
-            for path in result.remaining_subvolumes:
+            for path in tree.remaining:
                 print(f"    {path}")
-        print("  result:     complete" if result.success else "  result:     incomplete")
-    for error in result.errors:
+        print("  result:     complete" if tree.success else "  result:     incomplete")
+    for error in tree.errors:
         print(f"    error: {error}")
 
 
@@ -201,7 +194,7 @@ def destroy_leftovers(
     _print_payload_match(config, results, payload_state)
     failures = [
         result for result in results
-        if result.errors or (not dry_run and not result.success)
+        if result.tree.errors or (not dry_run and not result.tree.success)
     ]
     print("DESTROY SUMMARY")
     print("===============")

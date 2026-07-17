@@ -3,8 +3,6 @@
 This project runs on the backup/destination machine. The source machine is reached over SSH and needs `btrfs`, `timeshift`, `cat`, `id`, SSH access, and the minimal sudo rules described in the README. `cat` and `id` are not run through sudo. The configured SSH account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
 
 
-Version 0.1.49 includes the shared architecture, the 0.1.48 regression-audit fixes, and complete nested Btrfs discovery for local/SSH recursive tree deletion. No installation step or configuration key changed.
-
 The executable or Python install does **not** include system tools such as `btrfs`, `timeshift`, `ssh`, `sudo`, `mbuffer`, or `sshpass`. Those must be installed on the relevant machines.
 
 ## System packages
@@ -56,7 +54,7 @@ nano config.toml
 Recommended first checks:
 
 ```bash
-ts-btrfs test-ssh --config ./config.toml
+ts-btrfs test-source --config ./config.toml
 ts-btrfs list-source --config ./config.toml
 ts-btrfs sync --config ./config.toml --dry-run
 ts-btrfs sync --config ./config.toml --run --limit 1
@@ -147,14 +145,14 @@ The executable uses the same config file and command flags as the Python module.
 Folder-style build:
 
 ```bash
-./dist/ts-btrfs/ts-btrfs test-ssh --config ./config.toml
+./dist/ts-btrfs/ts-btrfs test-source --config ./config.toml
 ./dist/ts-btrfs/ts-btrfs sync --config ./config.toml --dry-run
 ```
 
 One-file build:
 
 ```bash
-./dist/ts-btrfs test-ssh --config ./config.toml
+./dist/ts-btrfs test-source --config ./config.toml
 ./dist/ts-btrfs sync --config ./config.toml --dry-run
 ```
 
@@ -164,6 +162,6 @@ PyInstaller creates `build/`, `dist/`, and a `.spec` file. These are build artif
 
 ## Moving configured roots
 
-State schema version 2 stores source snapshot paths relative to `source.snapshot_root`, app-created send paths relative to `source.cache_root`, and destination paths relative to `destination.target_root`. After moving or remounting one of these roots, update the matching config value. The app resolves the saved suffix under the new root and still requires the same Btrfs UUID before it accepts an incremental parent. Existing absolute paths from older state files are migrated on load when their exact snapshot/subvolume suffix is valid.
+State schema version 3 stores source snapshot paths relative to `source.snapshot_root`, app-created send paths relative to `source.cache_root`, and destination paths relative to `destination.target_root`. After moving or remounting one of these roots, update the matching config value. The app resolves the saved suffix under the new root and still requires the same Btrfs UUID before it accepts an incremental parent. State files must already use the current relative schema.
 
 When a writable Timeshift snapshot needs a read-only send-cache copy, the app first probes the exact `<source.cache_root>/<date>/<subvolume>` target inside the same source command used for optional creation and verification. A valid existing cache snapshot is reused after read-only and Parent UUID checks. This also protects remounted cache trees whose `btrfs subvolume list` path contains an on-disk prefix not present in the mount path: the exact target is never blindly passed to `btrfs subvolume snapshot -r`, so an existing `<date>/@` cannot accidentally become a nested `<date>/@/@`.

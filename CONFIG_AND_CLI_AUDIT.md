@@ -1,446 +1,146 @@
-## Current audit note
+# Configuration and CLI audit
 
-- Version 0.1.49 is a behavior-preserving Btrfs discovery/deletion correction for the shared architecture: no config key, CLI flag, state-format, retention, full/incremental, or destructive-confirmation behavior was added or removed. The shared recursive tree engine now reads the exact root subvolume ID and uses one filesystem-wide `btrfs subvolume list -a -p` containment graph so nested `@`/`@home` payloads are included before parent deletion without admitting unrelated subvolumes. Normal source/destination inventory remains root-scoped.
-- Source snapshot/cache preflight sentinel output is parsed by one defined shared parser in both local and SSH modes; a static undefined-global audit and an executed parser regression test protect the lock-to-preflight command path.
-- Sync planning keeps all retention-selected subvolumes in oldest-to-newest order so the existing live destination/state UUID, recovery, and `info.json` checks remain authoritative.
-- Prune preserves destination-tree → source-cache-tree → state-entry order.
-- Shared tree cleanup refuses ordinary non-empty roots in dry-run and real-run modes and refuses unexpected nested destination Btrfs subvolumes.
-- Runtime workflows share one `CommandEndpoint`, one `BtrfsOps` facade, one coherent `inventory.py` implementation, one combined `SnapshotRecord` model, one action-plan model, one `WorkflowExecutor`, one `CacheManager`, and one verified `delete_subvolume_tree()` implementation.
-- `remote_index.py` and `btrfs.py` are compatibility export modules only; they do not retain competing command, discovery, cache, or deletion logic.
-- Architecture regression tests verify that authoritative definitions exist in exactly one module and that sync planning remains pure and oldest-to-newest.
-- State schema version 2 stores `source_path` relative to `source.snapshot_root`, cache/direct `send_path` relative to the root selected by `send_path_kind`, `parent_source_path` relative to the root selected by `parent_source_path_kind`, and `destination_path` relative to `destination.target_root`.
-- Older absolute state paths are migrated in memory only when their exact `<snapshot>/<subvolume>` suffix matches the state identity. Parent selection and prune resolve paths under the current config roots and still require Btrfs UUID proof.
-- Every managed destination `snapshots/<date>` entry is now required to be a Btrfs subvolume. New dates are created with `btrfs subvolume create`; prune/recovery delete `@` and optional `@home` first, then delete the date subvolume so its regular `info.json` disappears with the container.
-- Legacy ordinary destination date folders are unsupported and refused. `destroy-leftovers` also refuses ordinary non-empty source-cache or destination roots; recursive ordinary deletion is not available for backup/cache trees.
-- Real `destroy-leftovers` completion requires exact confirmation for every planned subvolume deletion plus an independent final check that the configured root is absent. Surviving roots are re-indexed and all remaining Btrfs subvolumes are printed; zero/partial confirmations or failed verification are incomplete.
-- Automatic manual/on-demand snapshot creation is gated by preflight, optional state recovery, source identity checks, and a sync-viability check.
-- On existing destinations, the app must prove a UUID-confirmed sync floor and a usable incremental parent before running `timeshift --create`.
-- No new config or CLI option was added for this safety behavior; it is mandatory when `manual_snapshot.enabled = true`.
-- No new config or CLI option was added for quiet optional Btrfs existence probes; required failures still print and log stderr.
-- No new config or CLI option was added for retention source-cache parent cleanup. Prune now always performs a final live Btrfs child-subvolume check before deleting an app-owned timestamp cache parent.
-- Snapshot-level source-change continuation is controlled by `source.source_change_retry_count` (default `5`, `0` disables). It is used only after a failed preparation/send operation and a coherent before/after inventory comparison proves that a required original, sibling, cache, or parent path disappeared or changed UUID.
-- Normal sync discovery uses one source command in SSH mode for Timeshift plus both source Btrfs roots. Source preflight also checks snapshot/cache roots in one source command, with cache work conditional on a successful snapshot-root marker.
-- Bulk Btrfs path mapping accepts an extra filesystem-relative prefix, such as an on-disk `@/`, when the configured source root is a different mount path. Cache preparation still performs one exact target probe/create/show source command when a bulk index misses a child, reuses safe existing read-only cache snapshots, and refuses nested `<date>/@/@` creation.
-- Each Timeshift date's shared `info.json` is captured in the existing combined source inventory. SSH mode uses ordinary non-sudo `cat` within that same single SSH request, so no per-snapshot SSH request or new config option is added. The same request records the effective source account name and UID; unreadable metadata errors print that identity plus mount/path permission and `/etc/fstab` guidance.
-- Destination metadata is written once after all configured subvolumes for the date are complete; paired `@`/`@home`, root-only, and home-only configurations use the same behavior. Recovery and prune delete received child subvolumes first and then delete the owning date subvolume, which removes `info.json` with it.
-- The obsolete `source.allow_incremental_without_parent_match` key is explicitly rejected. It is not a compatibility option and cannot weaken parent UUID matching.
-- Full send remains valid only when the destination was empty at run start; a destination that was already populated with no UUID-confirmed source match fails before recovery deletion or sending.
+This file lists the current public interface. The loader rejects any key not listed here.
 
-# Config and CLI audit for current release
+## Commands
 
-This file records the current config/CLI audit for the packaged release.
+- `init-config`
+- `test-source`
+- `list-source`
+- `sync`
+- `prune`
+- `create-manual`
+- `show-state`
+- `clear-state`
+- `delete-lock`
+- `destroy-leftovers`
 
-## Audit result
+## Top-level keys
 
-- All argparse command flags are present in `python3 -m timeshift_btrfs_sync --help` or the matching subcommand help.
-- All argparse command flags are described in `README.md` under **Complete CLI command reference**.
-- All config options parsed by `timeshift_btrfs_sync/config.py`, including `[mqtt]` and `[manual_snapshot]`, are present in `config.example.toml`.
-- All config options are described in `README.md` under **Complete config option reference**.
-- `init-config` writes the same complete commented example as `timeshift_btrfs_sync/data/config.example.toml`.
-
-## CLI commands and flags checked
-
-### Global
-
-- `--help`
-- `--version`
-
-### `init-config`
-
-- `--path PATH`
-- `--force`
-
-### `test-source`
-
-- `--config CONFIG`, `-c CONFIG`
-
-### `test-ssh`
-
-- `--config CONFIG`, `-c CONFIG`
-
-### `list-source`
-
-- `--config CONFIG`, `-c CONFIG`
-- `--verify-btrfs`
-
-### `sync`
-
-- `--config CONFIG`, `-c CONFIG`
-- `--dry-run`
-- `--run`
-- `--limit LIMIT`
-- `--snapshot SNAPSHOT`
-- `--resend`
-- `--prune`
-- `--yes-delete`
-
-### `prune`
-
-- `--config CONFIG`, `-c CONFIG`
-- `--dry-run`
-- `--run`
-- `--yes-delete`
-
-### `create-manual`
-
-- `--config CONFIG`, `-c CONFIG`
-- `--comment COMMENT`
-
-### `show-state`
-
-- `--config CONFIG`, `-c CONFIG`
-- `--json`
-
-### `destroy-leftovers`
-
-- `--config CONFIG`, `-c CONFIG`
-- `--delete-source`
-- `--delete-destination`
-- `--delete-both`
-- `--dry-run`
-- `--run`
-- `--i-understand-this-destroys-data`
-
-## Config options checked
-
-### Top-level
-
-- `name`
 - `default_dry_run`
-- `prune_after_sync`
-- `log_dir`
-- `state_file`
 - `lock_file`
+- `log_dir`
+- `name`
+- `prune_after_sync`
+- `state_file`
 
-### `[mqtt]`
+## `[source]`
 
+- `btrfs_command`
+- `cache_root`
+- `cleanup_superseded_cache`
+- `create_readonly_cache`
+- `mode`
+- `send_compressed_data`
+- `send_proto`
+- `snapshot_root`
+- `source_change_retry_count`
+- `subvolumes`
+- `sudo`
+- `timeshift_command`
+- `verify_incremental_parent_once_per_run`
+- `verify_subvolumes_at_discovery`
+
+## `[destination]`
+
+- `btrfs_command`
+- `cleanup_incomplete_receive`
+- `create_target_root`
+- `sudo`
+- `target_root`
+
+## `[stream]`
+
+- `btrfs_verbose`
+- `mbuffer_command`
+- `mbuffer_extra_args`
+- `mbuffer_rate`
+- `mbuffer_size`
+- `use_mbuffer`
+
+## `[retention]`
+
+- `boot`
+- `cleanup_ondemand`
+- `daily`
+- `hourly`
+- `keep_latest`
+- `keep_latest_common_parent`
+- `monthly`
+- `ondemand`
+- `protected_snapshots`
+- `weekly`
+
+## `[manual_snapshot]`
+
+- `cleanup_enabled`
+- `comment`
 - `enabled`
+- `marker`
+- `retention_count`
+
+## `[ssh]`
+
+- `cipher`
+- `compression`
+- `control_master`
+- `control_path`
+- `control_persist`
+- `extra_args`
 - `host`
-- `port`
-- `topic`
-- `username`
+- `identity_file`
 - `password`
 - `password_file`
+- `port`
+- `user`
+
+## `[mqtt]`
+
 - `client_id`
+- `enabled`
+- `host`
+- `notify_on_failure`
+- `notify_on_success`
+- `password`
+- `password_file`
+- `port`
 - `qos`
 - `retain`
 - `timeout`
-- `notify_on_success`
-- `notify_on_failure`
+- `topic`
+- `username`
 
+## `[mail]`
 
-### `[mail]`
-
+- `attach_logs`
 - `enabled`
+- `from_addr`
+- `include_json`
+- `max_attachment_bytes`
+- `notify_on_failure`
+- `notify_on_success`
+- `password`
+- `password_file`
 - `smtp_host`
 - `smtp_port`
 - `smtp_ssl`
 - `starttls`
-- `username`
-- `password`
-- `password_file`
-- `from_addr`
-- `to_addrs`
 - `subject_prefix`
 - `timeout`
-- `notify_on_success`
-- `notify_on_failure`
-- `include_json`
-- `attach_logs`
-- `max_attachment_bytes`
-
-### `[manual_snapshot]`
-
-- `enabled`
-- `cleanup_enabled`
-- `comment`
-- `marker`
-- `retention_count`
-
-### `[ssh]`
-
-- `host`
-- `user`
-- `port`
-- `identity_file`
-- `password`
-- `password_file`
-- `compression`
-- `cipher`
-- `control_master`
-- `control_persist`
-- `control_path`
-- `extra_args`
-
-### `[source]`
-
-- `mode`
-- `sudo`
-- `btrfs_command`
-- `timeshift_command`
-- `snapshot_root`
-- `subvolumes`
-- `cache_root`
-- `create_readonly_cache`
-- `cleanup_superseded_cache`
-- `verify_subvolumes_at_discovery`
-- `verify_incremental_parent_once_per_run`
-- `send_compressed_data`
-- `send_proto`
-
-### `[destination]`
-
-- `target_root`
-- `sudo`
-- `btrfs_command`
-- `create_target_root`
-- `cleanup_incomplete_receive`
-
-### `[stream]`
-
-- `use_mbuffer`
-- `mbuffer_command`
-- `mbuffer_size`
-- `mbuffer_rate`
-- `mbuffer_extra_args`
-- `btrfs_verbose`
-
-### `[retention]`
-
-- `hourly`
-- `daily`
-- `weekly`
-- `monthly`
-- `boot`
-- `ondemand`
-- `cleanup_ondemand`
-- `keep_latest`
-- `keep_latest_common_parent`
-- `protected_snapshots`
-
-## Help commands used during audit
-
-```bash
-python3 -m timeshift_btrfs_sync --help
-python3 -m timeshift_btrfs_sync init-config --help
-python3 -m timeshift_btrfs_sync test-source --help
-python3 -m timeshift_btrfs_sync test-ssh --help
-python3 -m timeshift_btrfs_sync list-source --help
-python3 -m timeshift_btrfs_sync sync --help
-python3 -m timeshift_btrfs_sync prune --help
-python3 -m timeshift_btrfs_sync create-manual --help
-python3 -m timeshift_btrfs_sync show-state --help
-python3 -m timeshift_btrfs_sync destroy-leftovers --help
-```
-
-
-
-
-## 0.5.4 audit addition
-
-- Bumped project version from `0.4.12` to `0.5.4` at user request.
-- Added documentation that destination compression is outside the app: users who want compressed destination storage must mount the receiving Btrfs filesystem/subvolume with compression enabled before running the app.
-- Confirmed removed destination compression config keys remain rejected so old configs do not silently imply that the app manages destination compression.
-
-## 0.4.12 audit addition
-
-- Removed destination compression config options from `config.example.toml` and `ts-btrfs.toml`.
-- Removed destination compression parsing from `timeshift_btrfs_sync/config.py`; old removed keys now raise a clear `ConfigError` instead of being silently ignored.
-- Removed destination compression property-setting calls from `timeshift_btrfs_sync/sync.py`.
-- Removed the local compression helper from `timeshift_btrfs_sync/btrfs.py`.
-- Confirmed `init-config` writes the same updated config example.
-
-## 0.2.5 audit addition
-
-- Added and documented `destination.cleanup_incomplete_receive`.
-- Confirmed `config.example.toml` parses with the new option.
-- `init-config` now writes the updated full config example.
-
-
-## 0.2.6 audit addition
-
-- Added and documented every `[mqtt]` config option.
-- Confirmed `config.example.toml` includes the full `[mqtt]` section.
-- Confirmed `init-config` writes the same full commented config including `[mqtt]`.
-- Confirmed MQTT support is optional: paho-mqtt is imported only when publishing is enabled.
-
-
-## 0.2.8 audit addition
-
-- Confirmed no new config or CLI flags were added for high-watermark sync; it is automatic normal sync behavior.
-- Superseded by v0.5.5: destination compression options were later removed from config and code.
-- Confirmed `config.example.toml` parses with the new default.
-- Confirmed `init-config` writes the same full commented config example.
-
-
-## 0.2.14 audit addition
-
-- The old manual snapshot source-identity switch was later removed; source identity checks are mandatory when the destination already contains snapshots.
-- Confirmed `config.example.toml` includes the new source verification guard.
-- Confirmed `init-config` writes the same full commented config including the verification guard.
-- Confirmed no new CLI flags were needed; verified automatic manual snapshot creation is controlled from config.
-- Confirmed the existing `create-manual` command uses the same mandatory source/destination identity guard as automatic manual snapshot creation.
-
-
-## 0.2.13 audit addition
-
-- Added and documented `manual_snapshot.cleanup_enabled`.
-- Added and documented `retention.cleanup_ondemand`.
-- Confirmed `config.example.toml` includes both independent on-demand cleanup controls.
-- Confirmed `init-config` writes the same full commented config including the new cleanup controls.
-- Confirmed no new CLI flags were needed; on-demand creation/cleanup is controlled from config plus existing prune/--yes-delete safety.
-
-
-## 0.2.16 audit addition
-
-- Confirmed no new config options were added.
-- Confirmed no new CLI flags were added.
-- Confirmed manual snapshot command building now uses readable remote-safe double-quote escaping for `timeshift --create --comments`.
-
-
-## 0.2.16 audit addition
-
-No new CLI flags or config options were added. The audit remains valid.
-
-Runtime behavior changed for failed manual Timeshift snapshot creation:
-`timeshift_btrfs_sync.commands.CommandError` now includes both stdout and stderr
-when available, and `timeshift_btrfs_sync.timeshift.create_remote_manual_snapshot`
-asks the command runner to mirror stdout when the create command fails.
-
-
-## 0.4.1 version bump audit
-
-- Bumped package version from `0.2.20` to `0.4.1`.
-- Updated `pyproject.toml`, `timeshift_btrfs_sync/__init__.py`, README version text, config header, generated config text, MQTT JSON examples, and VERSIONING.md.
-- No CLI flags or config options changed.
-
-
-## 0.2.19 audit note
-
-Docs-only README front matter update. No CLI flags or config options changed.
-
-## 0.2.17 audit note
-
-Manual snapshot create commands intentionally omit explicit `--tags O`; Timeshift defaults creates to on-demand/tag O and some versions reject explicit O.
-
-
-## 0.2.19 mail notification audit
-
-- Added `[mail]` config section to `config.example.toml` and `README.md`.
-- Added `timeshift_btrfs_sync/mail.py`.
-- Added `MailConfig` parsing and validation in `config.py`.
-- Added success/failure mail notification calls in `cli.py`.
-- Verified mail disabled does not require any third-party Python dependency.
-
-## 0.2.20 mail attachment audit
-
-- Added `[mail].attach_logs` to `config.example.toml` and README.
-- Added `[mail].max_attachment_bytes` to `config.example.toml` and README.
-- Added `MailConfig.attach_logs` and `MailConfig.max_attachment_bytes`.
-- Added mail attachment support in `timeshift_btrfs_sync/mail.py` using Python standard library `email.message` attachments.
-- Added `RunLogger.attachment_paths()` so the mail layer can attach `.log`, `.err`, `.mbuffer`, and `.btrfs-out` files if they exist.
-- Updated `cli.py` so success/failure mail notifications receive current run log paths when `log_dir` is enabled.
-- Confirmed no new CLI flags were needed; attachment behavior is controlled in config.
-
-## 0.4.2 safe config defaults audit
-
-- Replaced `config.example.toml` with the user-provided safe-default baseline.
-- Updated `init-config` so it writes the same config.
-- Confirmed the example parses as valid TOML.
-
-
-## 0.4.3 simplified docs audit
-
-- Replaced `README.md` with the simplified version supplied by the user.
-- Replaced `VERSIONING.md` with the version-history-focused version supplied by the user.
-- Kept detailed config and CLI audit information in this file instead of expanding README.md again.
-- Confirmed no CLI flags or config options changed.
-- Confirmed `config.example.toml` still parses and `init-config` still writes the same config.
-
-
-## 0.4.4 short README audit
-
-- README was shortened to focus on current behavior, how features work, and why they are needed.
-- Detailed version history remains in VERSIONING.md.
-- config.example.toml remains the complete commented config reference.
-
-
-## 0.4.5 README reference audit
-
-- README keeps the shorter current-behavior style and avoids changelog/history clutter.
-- README includes a compact command reference for every argparse flag.
-- README includes a compact config reference for every option present in `config.example.toml`.
-- No CLI flags or config options changed.
-
-
-## 0.4.6 PyInstaller build audit
-
-- Added optional `pyinstaller` dependency extra in `pyproject.toml`.
-- Added `tools/pyinstaller_entry.py` as a small executable build entry point.
-- Added `scripts/build_pyinstaller.py` with `--mode onedir`, `--mode onefile`, and `--mode both`.
-- README documented recommended onedir and one-file build commands; those details were moved to INSTALL.md in 0.4.11.
-- MQTT remains optional; use `python3 -m pip install -e '.[mqtt,pyinstaller]'` and `--with-mqtt` for MQTT-capable executables.
-
-
-## 0.4.7 install docs audit
-
-- Added `INSTALL.md`.
-- README links to `INSTALL.md` for installation and PyInstaller executable builds.
-- PyInstaller helper commands remain documented in `INSTALL.md`.
-- No CLI/config behavior changed.
-
-
-## 0.4.8 audit note
-
-- No new config options or CLI flags were added.
-- Confirmed `sync --dry-run` is strict: it skips `prepare_destination()`, does not create the destination lock file, does not receive data, does not save state, and prune runs in dry-run mode only.
-- Confirmed `prune --dry-run` does not create/take the lock file and does not save state.
-- Confirmed file logging is activated immediately after config loading and before command work begins.
-- Confirmed normal app stdout is copied to `.log`.
-
-## 0.4.11 audit note
-
-- No new config options or CLI flags were added.
-- Confirmed all captured command stderr is copied to `.err` and mirrored to the terminal, even for expected negative probes.
-- Confirmed pipeline stderr from remote `btrfs send`, local `btrfs receive`, and `mbuffer` is copied to `.err` live.
-- Confirmed mbuffer output is also copied to `.mbuffer`, and Btrfs verbose output is also copied to `.btrfs-out` when enabled.
-
-
-## Removed config options
-
-- `source.allow_incremental_without_parent_match` is removed and explicitly rejected instead of being silently ignored. Incremental parent mismatches are hard errors.
-- `source.verify_incremental_parent` was removed in 0.5.5. Incremental parent verification is mandatory and no longer configurable.
-- Full send is allowed only when the destination was empty at run start. If snapshots existed at run start and no matching parent can be proven, sync errors before recovery deletion instead of allowing cleanup-created temporary emptiness to start a separate full-send chain in the same target.
-
-## 0.1.15 audit addition
-
-- Confirmed `source.mode`, SSH/local source support, and the preflight create-or-hard-error behavior are documented.
-- Confirmed the canonical config template remains `timeshift_btrfs_sync/data/config.example.toml`.
-- Confirmed the requested `.gitignore` is included in the release archive.
-
-
-## 0.1.17 audit addition
-
-- Documentation cleanup only.
-- `README.md` now focuses on the app as it currently works instead of release-by-release notes.
-- `COMMENTED_CODE_MAP.md` now focuses on current CLI commands, shell command families, functions, and classes.
-
-## 0.1.16 audit addition
-
-- `.gitignore` now ignores `*.toml` to reduce the chance of committing local TOML configuration/secrets.
-- The `!config.example.toml` exception remains after the ignore rule, so example configuration can still be tracked.
-
-
-## State recovery safety
-
-When `state.json` is missing or empty and destination snapshots already exist, `sync` may rebuild state from exact Btrfs UUID matches. Destination names alone are not trusted, and existing unadopted destination subvolumes are not deleted automatically.
-
-For normal non-empty state files, `sync` also performs guarded recovery for incomplete current-version snapshots, but a destination populated at run start must first have a complete UUID-confirmed source/destination anchor. Without that anchor, sync errors before recovery deletion. After the anchor is proven, a snapshot date missing one configured source subvolume under `source.snapshot_root` is treated as vanished/stale and the matching app-owned cache version, destination version, and state entry are removed before continuing. If all configured source subvolumes still exist but the current destination/state version is partial, the app clears the failed cache/destination/state version so the same date can be transferred again incrementally from the confirmed chain.
-
-
-## Maintenance and destructive command logging
-
-- `destroy-leftovers`, `clear-state`, and `delete-lock` use the same `_with_logging()` wrapper as normal app commands when `log_dir` is enabled.
-- `destroy-leftovers` must not write logs into a selected delete target. If the configured `log_dir` is inside a target being destroyed, the CLI chooses a survivor log directory outside that target.
-- `destroy-leftovers --delete-source` detects an existing Btrfs `source.cache_root` with configured sudo+Btrfs before relying on source-shell path visibility, while still avoiding source-side sudo `test`, `rm`, `find`, `chmod`, and `chown`.
-- `clear-state` and `delete-lock` operate only on exact configured files and still produce logs for dry-run and real execution.
+- `to_addrs`
+- `username`
+
+## Current behavior checks
+
+- Local source mode does not construct an SSH configuration or SSH command.
+- SSH source mode requires `[ssh].host` and uses one source endpoint abstraction.
+- The source snapshot root is Timeshift-owned and is never a delete target.
+- The source cache root and destination root are app-owned Btrfs trees.
+- Incremental sends require source UUID to match destination Received UUID.
+- Full send begins a chain only when the destination is empty at run start.
+- Retention selects snapshots by Timeshift tags and processes transfers oldest-to-newest.
+- Prune deletes destination, source cache, then state for each selected snapshot.
+- Recursive Btrfs cleanup discovers the complete subvolume graph and deletes deepest-first.
+- Ordinary non-empty managed roots are refused; recursive ordinary deletion is not used.
+- State must use schema version 3, relative managed paths, and explicit send-path kinds.
+- Real prune and destroy operations require their destructive confirmations.

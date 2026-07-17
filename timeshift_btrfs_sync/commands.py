@@ -22,7 +22,6 @@ class CommandError(RuntimeError):
     """Raised when an external command exits with a non-zero status."""
 
     def __init__(self, cmd: list[str] | str, returncode: int, stdout: str = "", stderr: str = ""):
-        self.cmd = cmd
         self.returncode = returncode
         self.stdout = stdout
         self.stderr = stderr
@@ -38,9 +37,8 @@ class CommandError(RuntimeError):
 
 @dataclass(slots=True)
 class Completed:
-    """Small command result object."""
+    """Captured exit status and text streams for one command."""
 
-    cmd: list[str] | str
     returncode: int
     stdout: str
     stderr: str
@@ -123,7 +121,7 @@ def run_local(
         check=False,
         env=_merged_env(env),
     )
-    result = Completed(cmd=cmd, returncode=proc.returncode, stdout=proc.stdout, stderr=proc.stderr)
+    result = Completed(returncode=proc.returncode, stdout=proc.stdout, stderr=proc.stderr)
 
     logger = runlog.get_logger()
     if logger:

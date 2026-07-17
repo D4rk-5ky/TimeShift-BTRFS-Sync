@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.1.49 config
+# timeshift-btrfs-sync v0.1.52 config
 # Run this config on the BACKUP/DESTINATION machine.
 # source.mode = "ssh" pulls from another machine over SSH.
 # source.mode = "local" copies from Timeshift snapshots on this same machine and skips SSH.
@@ -295,12 +295,11 @@ subvolumes = ["@", "@home"]
 # `list-source` remains Timeshift-only unless its --verify-btrfs flag is used.
 verify_subvolumes_at_discovery = false
 
-# Incremental parent verification is mandatory and no longer configurable.
-# Before using an existing destination snapshot as an incremental parent, the app
-# compares current source Btrfs UUID metadata with destination `received_uuid`
-# metadata. Parent mismatch is always a hard error. Old configs containing the
-# removed source.allow_incremental_without_parent_match key are rejected; delete
-# that line. Only a destination empty at run start may start a full-send chain.
+# Incremental parent verification is mandatory. Before using an existing
+# destination snapshot as an incremental parent, the app compares current source
+# Btrfs UUID metadata with destination `received_uuid` metadata. Parent mismatch
+# is always a hard error. Only a destination empty at run start may begin a
+# full-send chain.
 
 # Performance/safety balance for the current run only. Parent paths from previous
 # runs are always checked against destination received_uuid before use. When true,
@@ -341,11 +340,9 @@ source_change_retry_count = 5
 cache_root = "/timeshift-btrfs/.ts-btrfs-sync/send-cache"
 create_readonly_cache = true
 
-# Source send-cache cleanup. Keep true. The historical option name is kept for
-# config compatibility, but send-cache cleanup is now retention-based, not
-# immediate superseded-parent cleanup. `sync` keeps every read-only cache
-# snapshot it creates. Later, when `prune` deletes a destination snapshot by the
-# normal retention plan, it also deletes that snapshot's matching source
+# Source send-cache cleanup. `sync` keeps every read-only cache snapshot it
+# creates. When `prune` deletes a destination snapshot by the retention plan, it
+# also deletes that snapshot's matching source
 # send-cache subvolumes with:
 #   sudo -n btrfs subvolume delete <cache-subvolume>
 # Safety invariant: source.snapshot_root and all Timeshift snapshots below it
@@ -355,6 +352,10 @@ create_readonly_cache = true
 # cleanup confirms no cached child subvolumes remain below it. Child cache
 # subvolumes are deleted first, then the timestamp parent is deleted with
 # `btrfs subvolume delete`. Ordinary-directory cleanup is not used as a fallback.
+# Applies to standalone `prune` and to pruning invoked after `sync` by
+# `--prune` or `prune_after_sync = true`, for both local and SSH sources.
+# The cache date is deleted only after the matching destination date is gone.
+# Normal transfer keeps cache snapshots for future incremental parents.
 cleanup_superseded_cache = true
 
 # Optional Btrfs send compressed-data mode.
@@ -387,8 +388,8 @@ send_compressed_data = true
 # These helper paths may be Btrfs subvolumes or ordinary directories. Missing
 # helpers try `btrfs subvolume create` first, then mkdir fallback.
 # Every new snapshots/<date> container is always created as a Btrfs subvolume.
-# Existing ordinary date folders are an unsupported old layout and cause a hard
-# error; the app does not migrate or recursively delete them.
+# Every destination date path must be a Btrfs subvolume. An ordinary date
+# directory causes a hard error and must be inspected and removed manually.
 #
 # If you completely reset/start over with a new full sync, clean both folders.
 # Do not delete only .ts-btrfs-sync/state.json while leaving old snapshots/.

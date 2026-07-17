@@ -72,24 +72,6 @@ class BtrfsIndex:
 
         return self.by_path.get(normalize_path(path)) if path else None
 
-    def child_paths(self, path: str | Path) -> list[str]:
-        """Return indexed descendants below ``path``."""
-
-        root = normalize_path(path)
-        return sorted(
-            [candidate for candidate in self.by_path if candidate != root and is_under(candidate, root)],
-            key=lambda item: (item.count("/"), item),
-            reverse=True,
-        )
-
-    def is_empty(self, path: str | Path) -> bool | None:
-        """Return whether an indexed path has indexed child subvolumes."""
-
-        root = normalize_path(path)
-        if root not in self.by_path:
-            return None
-        return not any(candidate != root and is_under(candidate, root) for candidate in self.by_path)
-
     def remove_tree(self, path: str | Path) -> None:
         """Remove a deleted path and all indexed descendants."""
 
@@ -136,12 +118,6 @@ class SourceInventory:
             if meta is not None:
                 return meta
         return self.snapshot_index.meta(path)
-
-    def info_json(self, snapshot_name: str) -> str | None:
-        """Return captured Timeshift ``info.json`` content for one snapshot."""
-
-        return self.snapshot_info_json.get(snapshot_name)
-
 
 def _clean_uuid(value: str | None) -> str | None:
     """Normalize Btrfs UUID fields from list/show output."""

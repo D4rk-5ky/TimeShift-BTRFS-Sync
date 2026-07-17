@@ -17,8 +17,7 @@ from .config import AppConfig
 from .models import SnapshotMeta, tags_text
 from .state import (
     STATE_VERSION,
-    normalize_state_paths,
-    remove_snapshot_from_state,
+        remove_snapshot_from_state,
     resolve_destination_path,
     resolve_state_send_path,
     save_state,
@@ -119,8 +118,7 @@ def _source_cache_delete_paths(
     Original Timeshift snapshot paths are deliberately excluded even when they
     were used as direct read-only send sources. Timeshift owns
     source.snapshot_root; this app only prunes app-created source-cache paths.
-    Older state did not store send_path_kind, so the compatibility fallback
-    still treats only paths below source.cache_root as app-owned.
+    Ownership is taken from the required ``send_path_kind`` state field.
     """
 
     if not config.source.cleanup_superseded_cache or not config.source.cache_root:
@@ -131,11 +129,7 @@ def _source_cache_delete_paths(
             continue
         if not subvol.get("send_path"):
             continue
-        if not state_send_path_is_app_cache(
-            subvol,
-            cache_root=config.source.cache_root,
-            snapshot_root=config.source.snapshot_root,
-        ):
+        if not state_send_path_is_app_cache(subvol):
             continue
         try:
             send_path = resolve_state_send_path(
@@ -172,11 +166,7 @@ def _protected_timeshift_send_paths(
             continue
         if not subvol.get("send_path"):
             continue
-        if not state_send_path_is_protected_timeshift_original(
-            subvol,
-            cache_root=config.source.cache_root,
-            snapshot_root=config.source.snapshot_root,
-        ):
+        if not state_send_path_is_protected_timeshift_original(subvol):
             continue
         try:
             paths[subvol_name] = resolve_state_send_path(
@@ -372,7 +362,7 @@ def build_prune_plan(config: AppConfig, state: dict) -> PrunePlan:
     return plan
 
 
-def _delete_destination_snapshot_for_prune(config: AppConfig, state: dict, snapshot_name: str) -> bool:
+def _delete_destination_snapshot_for_prune(config: AppConfig, snapshot_name: str) -> bool:
     """Delete one destination date through the shared tree engine."""
 
     snapshot_path = config.destination.target_root / "snapshots" / snapshot_name
@@ -426,7 +416,7 @@ def _delete_prune_item(
 
     def delete_destination(_action):
         print("\nRetention Delete Destination")
-        status["destination"] = _delete_destination_snapshot_for_prune(config, state, name)
+        status["destination"] = _delete_destination_snapshot_for_prune(config, name)
         return status["destination"]
 
     def delete_cache(_action):
@@ -507,12 +497,6 @@ def print_prune_plan(config: AppConfig, plan: PrunePlan, state: dict, *, dry_run
 def prune(config: AppConfig, state: dict, *, dry_run: bool, yes_delete: bool) -> PrunePlan:
     """Apply destination retention rules."""
 
-    normalize_state_paths(
-        state,
-        target_root=config.destination.target_root,
-        snapshot_root=config.source.snapshot_root,
-        cache_root=config.source.cache_root,
-    )
     plan = build_prune_plan(config, state)
     print_prune_plan(config, plan, state, dry_run=dry_run)
     if dry_run:

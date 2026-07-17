@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 import shlex
@@ -12,13 +11,6 @@ from .models import SubvolumeMeta
 
 if TYPE_CHECKING:
     from .inventory import BtrfsIndex
-
-
-@dataclass(frozen=True, slots=True)
-class CacheResult:
-    path: str
-    status: str  # original, reused, created, concurrent-reuse
-    meta: SubvolumeMeta
 
 
 def _safe_name(value: str, label: str) -> str:
@@ -96,7 +88,7 @@ class CacheManager:
         original: SubvolumeMeta,
         cache_path: str,
         subvolume_name: str,
-    ) -> CacheResult:
+    ) -> SubvolumeMeta:
         """Probe, create if absent, and verify exact cache path in one command."""
 
         show = self.ops.endpoint.shell_command(self.ops.argv(["subvolume", "show", cache_path]))
@@ -177,7 +169,7 @@ exit 0
             return validated
 
         if statuses["existing"] == 0:
-            return CacheResult(cache_path, "reused", meta("existing"))
+            return meta("existing")
         if path_exists:
             detail = "\n".join(outputs["existing"]).strip()
             raise RuntimeError(
@@ -191,9 +183,9 @@ exit 0
                     "Created read-only source cache snapshot, but metadata verification failed:\n"
                     f"  {cache_path}\n" + ("\n".join(outputs["show"]).strip() or f"return code {statuses['show']}")
                 )
-            return CacheResult(cache_path, "created", meta("show"))
+            return meta("show")
         if statuses["race"] == 0:
-            return CacheResult(cache_path, "concurrent-reuse", meta("race"))
+            return meta("race")
         detail = "\n".join(outputs["create"]).strip() or f"return code {statuses['create']}"
         raise RuntimeError("Failed to create read-only source cache snapshot.\n" + detail)
 
@@ -205,7 +197,7 @@ exit 0
         subvolume_name: str,
         cache_index: BtrfsIndex | None = None,
         original_index: BtrfsIndex | None = None,
-    ) -> CacheResult:
+    ) -> SubvolumeMeta:
         """Return original read-only source or create/reuse one exact cache child."""
 
         original = original_index.meta(original_path) if original_index else None
@@ -214,7 +206,7 @@ exit 0
         if original is None:
             raise RuntimeError(f"Source path is not a Btrfs subvolume or cannot be read: {original_path}")
         if original.readonly is True:
-            return CacheResult(original_path, "original", original)
+            return original
         if not self.create_enabled:
             raise RuntimeError(
                 f"Source subvolume is not confirmed read-only and cache creation is disabled: {original_path}"
@@ -230,11 +222,11 @@ exit 0
             original=original,
         )
         if indexed:
-            return CacheResult(child, "reused", indexed)
+            return indexed
 
         self._ensure_subvolume(self.cache_root, cache_index)
         self._ensure_subvolume(parent, cache_index)
         result = self._probe_create_verify(original=original, cache_path=child, subvolume_name=subvolume_name)
         if cache_index:
-            cache_index.add(result.meta)
+            cache_index.add(result)
         return result

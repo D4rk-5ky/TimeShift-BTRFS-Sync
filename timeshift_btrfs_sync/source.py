@@ -27,6 +27,8 @@ class SourceRunner:
 
         if config.source.mode == "local":
             return cls(mode="local")
+        if config.ssh is None:
+            raise ValueError("source.mode is ssh but no SSH configuration was loaded")
         return cls(mode="ssh", ssh=SSHRunner(config.ssh))
 
     @property
@@ -40,12 +42,6 @@ class SourceRunner:
         """Return the metadata location label used by Btrfs helpers."""
 
         return "remote" if self.uses_ssh else "local"
-
-    @property
-    def display_location(self) -> str:
-        """Return human text for source status output."""
-
-        return "remote SSH source" if self.uses_ssh else "local source"
 
     def command(self, source_shell_command: str) -> list[str]:
         """Return argv that runs one source-side shell command."""

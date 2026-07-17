@@ -596,3 +596,28 @@ This build is version `0.1.17`.
 ### 0.6.0
 
 - Version-only bump.
+
+## 0.1.50
+
+- Removed runtime modules, command aliases, helper functions, method branches, parameters, imports, persistent fields, tests, and documentation that are not used by the current workflows.
+- Removed support for non-current configuration names and state documents.
+- The current configuration loader rejects unknown keys and uses `source.cleanup_cache_during_prune` as the only source-cache prune setting.
+- The current state format is schema version 3. It accepts only root-relative managed paths, explicit path ownership kinds, and the UUID fields used by current parent and recovery checks.
+- Removed the `test-ssh` command alias; `test-source` is the source endpoint check for both SSH and local modes.
+- Removed the compatibility facade modules and the unused alternate Btrfs descendant-list mode.
+- Rebuilt README, installation instructions, interface audit, config comments, tests, and code map so they describe only current behavior and implementation reasons.
+- Sync, retention, recovery, cache, transfer, notification, logging, and destructive safety behavior remain active through the shared operation layers.
+
+## 0.1.51
+
+- Restored `source.cleanup_superseded_cache` as the current source-cache retention option.
+- `sync`, standalone `prune`, and prune-after-sync now load and apply the setting for both local and SSH source modes.
+- When enabled, retention removes an app-owned source cache date only after the matching destination date is confirmed deleted; when disabled, the cache is retained.
+- Removed the accidental `cleanup_cache_during_prune` rename introduced in 0.1.50.
+- Added local and SSH regression coverage for config loading, sync startup, and retention endpoint selection.
+
+## 0.1.52
+
+- Fixed `destroy-leftovers --delete-both` crashing after both source and destination trees were successfully deleted.
+- The post-deletion payload comparison now reads the current `source.subvolumes` configuration instead of the removed `SourceConfig.tree` refactor object.
+- Added complete local-source and SSH-source `--delete-both` regression tests that execute source/destination payload matching and final summary reporting after both roots are verified absent.

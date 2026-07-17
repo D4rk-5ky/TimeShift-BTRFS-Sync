@@ -22,7 +22,6 @@ from .cache_ops import CacheManager, cache_parent_path, cache_child_path
 from .endpoint import CommandEndpoint
 from .paths import is_under
 from .tree_ops import delete_subvolume_tree
-from .snapshot_records import build_backup_inventory
 from .planning import ActionKind, plan_snapshot_recovery, plan_sync_queue
 from .executor import WorkflowExecutor
 from . import preflight, inventory
@@ -35,8 +34,7 @@ from .retention import initial_sync_keep_names
 from .state import (
     latest_synced_before,
     mark_subvolume_synced,
-    normalize_state_paths,
-    refresh_state_metadata_and_report,
+        refresh_state_metadata_and_report,
     remove_snapshot_from_state,
     resolve_destination_path,
     resolve_state_send_path,
@@ -526,9 +524,9 @@ def _ensure_destination_snapshot_subvolume(
 ) -> Path:
     """Create or validate one managed destination date subvolume.
 
-    Every ``snapshots/<date>`` path created by this release is a Btrfs
-    subvolume. Existing ordinary date folders are an unsupported legacy layout
-    and are refused instead of migrated or deleted automatically.
+    Every managed ``snapshots/<date>`` path is a Btrfs subvolume.
+    Ordinary date directories are refused because managed date paths must have
+    Btrfs subvolume identity and Btrfs-only cleanup semantics.
     """
 
     snapshot_dir = _target_snapshot_dir(config, snapshot_name)
@@ -543,9 +541,9 @@ def _ensure_destination_snapshot_subvolume(
         )
         if not meta:
             raise SyncError(
-                "Unsupported legacy destination layout: snapshot date path is an ordinary directory, "
-                "not a Btrfs subvolume. Move/remove it manually before retrying; automatic legacy "
-                "migration and ordinary recursive deletion are intentionally disabled:\n"
+                "Unsupported destination layout: snapshot date path is an ordinary directory, "
+                "not a Btrfs subvolume. Move or remove it manually before retrying; automatic "
+                "conversion and ordinary recursive deletion are disabled:\n"
                 f"  {snapshot_dir}"
             )
         return snapshot_dir
@@ -590,7 +588,7 @@ def _validate_destination_snapshot_layout(
         raise SyncError(
             "Unsupported destination layout detected. Every entry directly below destination "
             "snapshots/ must be a Btrfs date subvolume. Ordinary date folders/files and symlinks "
-            "are not migrated or deleted automatically. Inspect and move/remove them manually:\n  "
+            "are outside the managed layout and are not deleted automatically. Inspect and move/remove them manually:\n  "
             + "\n  ".join(sorted(invalid))
         )
 
@@ -703,13 +701,11 @@ def _sync_snapshot_info_json(
 
 
 def _destination_has_existing_snapshots(config: AppConfig) -> bool:
-    """Return True when the destination has real received snapshot content.
+    """Return true only when a date directory contains a configured payload subvolume.
 
-    Important bug fix: an earlier version created the empty destination snapshot
-    directory before selecting a parent. That empty directory made the guard
-    think the destination already contained backups and it refused the first full
-    send. Here we only count folders that contain at least one configured
-    subvolume name, for example @ or @home.
+    The helper directory itself is not backup content. Counting only ``@``,
+    ``@home``, or other configured payload names ensures an empty prepared
+    destination still starts with a full send.
     """
 
     snapshots_root = config.destination.target_root / "snapshots"
@@ -881,7 +877,7 @@ def _refresh_snapshot_source_subvolumes_live(
 
     Normal sync passes use the coherent bulk source inventory and therefore do
     not open one SSH session per snapshot child. A targeted metadata probe is
-    used only when no inventory was supplied by a legacy/internal caller.
+    used only when no inventory was supplied by a caller.
     """
 
     found: dict[str, SubvolumeMeta] = {}
@@ -1187,10 +1183,9 @@ def _select_verified_parent_send_path(
         if isinstance(path, str) and path and all(existing != path for _, existing in candidates):
             candidates.append((label, path))
 
-    # If the source-cache index already contains the exact UUID the destination
-    # received from an earlier send, prefer that path. This lets a local run
-    # adopt read-only cache snapshots left behind by an earlier SSH pull without
-    # relying on stale absolute paths in state.json.
+    # Prefer an indexed cache path whose UUID is exactly the identity recorded
+    # by the destination. This allows either source transport to reuse the same
+    # valid read-only cache snapshot.
     if source_cache_index is not None and local_parent.received_uuid:
         indexed_parent = source_cache_index.by_uuid.get(local_parent.received_uuid)
         if indexed_parent and indexed_parent.path:
@@ -1211,16 +1206,15 @@ def _select_verified_parent_send_path(
             saved_send_path_error = f"saved state send_path is invalid: {exc}"
     add_candidate("saved state send_path", saved_send_path)
 
-    # Newer state also stores the exact UUID that was streamed. If the saved
-    # path is stale but the cache index still contains that UUID at another
-    # path, try it before falling back to the writable Timeshift original.
+    # State stores the exact UUID that was streamed. If that subvolume now has
+    # a different path below the configured cache root, use the indexed UUID
+    # match before considering the Timeshift original.
     if source_cache_index is not None and state_parent:
-        for key in ("send_source_uuid", "source_uuid", "destination_received_uuid"):
-            value = state_parent.get(key)
-            if isinstance(value, str) and value:
-                indexed_parent = source_cache_index.by_uuid.get(value)
-                if indexed_parent and indexed_parent.path:
-                    add_candidate(f"indexed source-cache state {key}", indexed_parent.path)
+        value = state_parent.get("send_source_uuid")
+        if isinstance(value, str) and value:
+            indexed_parent = source_cache_index.by_uuid.get(value)
+            if indexed_parent and indexed_parent.path:
+                add_candidate("indexed source-cache state UUID", indexed_parent.path)
 
     original_source_path = parent_subvol.path if parent_subvol else ""
     add_candidate("original Timeshift source path", original_source_path)
@@ -1246,11 +1240,7 @@ def _select_verified_parent_send_path(
         failures.append(reason)
 
     cache_hint = ""
-    if state_parent and state_send_path_is_app_cache(
-        state_parent,
-        cache_root=config.source.cache_root,
-        snapshot_root=config.source.snapshot_root,
-    ):
+    if state_parent and state_send_path_is_app_cache(state_parent):
         cache_hint = (
             "\n\nThe saved source parent was a read-only cache snapshot. If that exact "
             "cache UUID still exists anywhere below source.cache_root, the app can "
@@ -1274,40 +1264,15 @@ def _state_uuid_values_for_path(
     source_path: str,
     send_path: str | None,
 ) -> set[str]:
-    """Return UUID values that may safely identify the source path.
-
-    State from newer versions has both original_source_uuid and
-    send_source_uuid. Older state may only have source_uuid and
-    destination_received_uuid. For the exact send_path, destination_received_uuid
-    is a strong identifier because Btrfs receive stores the UUID of the streamed
-    source subvolume there. For the original Timeshift path, original_source_uuid
-    is the strong identifier when available.
-    """
-
-    values: set[str] = set()
-
-    def add_key(key: str) -> None:
-        value = state_subvol.get(key)
-        if isinstance(value, str) and value and value != "-":
-            values.add(value)
+    """Return the current state UUID that identifies one source candidate."""
 
     if path == send_path:
-        add_key("send_source_uuid")
-        add_key("source_uuid")
-        add_key("destination_received_uuid")
-
-    if path == source_path:
-        add_key("original_source_uuid")
-        # For direct sends, source_path and send_path are the same path. Older
-        # states also used source_uuid for direct sends, so allow those values
-        # only when the saved send path is missing or is the original path.
-        if not send_path or send_path == source_path:
-            add_key("send_source_uuid")
-            add_key("source_uuid")
-            add_key("destination_received_uuid")
-
-    return values
-
+        value = state_subvol.get("send_source_uuid")
+    elif path == source_path:
+        value = state_subvol.get("original_source_uuid")
+    else:
+        value = None
+    return {value} if isinstance(value, str) and value and value != "-" else set()
 
 def _find_confirmed_sync_floor(
     config: AppConfig,
@@ -1452,23 +1417,16 @@ def _expected_original_source_path(config: AppConfig, snapshot_name: str, subvol
 
 
 def _source_cache_meta_by_uuid(
-    config: AppConfig,
-    source: SourceRunner,
     source_cache_index: inventory.BtrfsIndex | None,
     uuid: str | None,
-    subvolume_name: str,
 ) -> SubvolumeMeta | None:
-    """Return coherent indexed source-cache metadata for an exact UUID match.
+    """Return indexed read-only source-cache metadata for an exact UUID match.
 
-    The combined source inventory already captures UUID and read-only metadata
-    for the complete cache root in one SSH session. Re-reading every candidate
-    with a targeted ``subvolume show`` would add one SSH round trip per parent
-    comparison without strengthening the exact UUID rule. Mutating operations
-    refresh or update the index, and failed sends trigger a full inventory
-    rebuild before source-change recovery is considered.
+    The combined inventory already contains cache UUID and read-only metadata.
+    Mutating operations refresh that index, and source-change recovery rebuilds
+    it before retrying work.
     """
 
-    del config, source, subvolume_name  # Kept in the signature for existing callers.
     if not uuid or source_cache_index is None:
         return None
     indexed = source_cache_index.by_uuid.get(uuid)
@@ -1523,11 +1481,8 @@ def _match_existing_destination_to_source(
             return source_snapshot, original_subvol, original_path, original_meta, original_meta, "matched original Timeshift source UUID"
 
     cache_meta = _source_cache_meta_by_uuid(
-        config,
-        source,
         source_cache_index,
         destination_meta.received_uuid,
-        subvolume_name,
     )
     if cache_meta and cache_meta.path:
         if source_snapshot is None:
@@ -1741,7 +1696,7 @@ def _select_parent(
         state_parent_data[parent_name] = parent_state
 
     # If the newest state parent no longer matches because its source cache was
-    # deleted, an older state parent can still be a valid incremental parent. Add
+    # deleted, an earlier snapshot recorded in state can still be a valid incremental parent. Add
     # every older synced state candidate, newest first. A candidate may be used
     # through its saved send_path even if Timeshift already pruned the original.
     for name in sorted(state.get("snapshots", {}).keys(), reverse=True):
@@ -1980,12 +1935,6 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
     later snapshots in the same run can become incremental.
     """
 
-    normalize_state_paths(
-        state,
-        target_root=config.destination.target_root,
-        snapshot_root=config.source.snapshot_root,
-        cache_root=config.source.cache_root,
-    )
 
     if dry_run:
         print("Strict dry-run: destination preparation is skipped; no target directories or internal metadata directories are created/changed.")
@@ -2194,17 +2143,8 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
         else:
             selected_snapshots = _snapshots_in_sync_order(source_by_name.values())
 
-        combined = build_backup_inventory(
-            source_inventory=source_inventory,
-            source_snapshots=source_by_name,
-            destination_index=destination_index,
-            state=state,
-            cache_root=config.source.cache_root,
-            target_root=config.destination.target_root,
-            subvolume_names=config.source.subvolumes,
-        )
         plan = plan_sync_queue(
-            combined,
+            source_by_name,
             [snapshot.name for snapshot in selected_snapshots],
             config.source.subvolumes,
         )
@@ -2594,7 +2534,6 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             # updated with both original-source and send-path UUID metadata so a
             # later run can establish a prune-safe high-watermark without keeping
             # tombstones for every deleted destination snapshot.
-            subvolume.send_path = current_send_path
 
             # Create the local receive directory only after parent selection.
             # This prevents an empty in-progress directory from being mistaken as

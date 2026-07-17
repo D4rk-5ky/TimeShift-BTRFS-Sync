@@ -5,7 +5,7 @@ matching backup payloads. The source side can contain helper/container
 subvolumes such as ``send-cache/<snapshot-date>`` while the destination stores
 only the received ``@``/``@home`` payload subvolumes below its snapshot tree.
 
-Since v0.1.2, read-only Timeshift originals may also be used directly as send
+Read-only Timeshift originals may be used directly as send
 sources. Those protected Timeshift-owned paths are not under ``source.cache_root``
 and are not destroy-leftovers targets, so this module can merge direct-send
 payload entries from state.json with the app-owned source-cache payload before
@@ -149,13 +149,13 @@ def destination_payload_stats(root: str | Path, subvolume_paths: list[str], subv
     return stats
 
 
-def direct_send_payload_stats(state_doc: dict[str, Any], subvolume_names: list[str], *, cache_root: str | None = None) -> PayloadTreeStats:
+def direct_send_payload_stats(state_doc: dict[str, Any], subvolume_names: list[str]) -> PayloadTreeStats:
     """Return payload entries streamed directly from protected Timeshift originals.
 
     Direct-send paths are Timeshift-owned and must never be removed by
     destroy-leftovers or prune. They are still valid source-side payload when
-    explaining why source and destination snapshots match after v0.1.2 direct
-    read-only sends.
+    explaining why source and destination snapshots match when protected direct
+    read-only sends are used.
     """
 
     stats = PayloadTreeStats(root="state.json direct Timeshift send paths", kind="source-direct", subvolume_names=tuple(subvolume_names))
@@ -171,7 +171,7 @@ def direct_send_payload_stats(state_doc: dict[str, Any], subvolume_names: list[s
                 continue
             if subvol_state.get("status") != "ok":
                 continue
-            if not state_mod.state_send_path_is_protected_timeshift_original(subvol_state, cache_root=cache_root):
+            if not state_mod.state_send_path_is_protected_timeshift_original(subvol_state):
                 continue
             key = (str(snapshot_name), str(subvol_name))
             stats.payload.add(key)

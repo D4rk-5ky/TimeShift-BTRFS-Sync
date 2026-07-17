@@ -8,7 +8,6 @@ from .commands import quote_join, remote_double_quote, sudo_prefix
 from .btrfs_ops import BtrfsOps
 from .endpoint import CommandEndpoint
 from .models import SnapshotMeta, SubvolumeMeta
-from .ssh import SSHRunner
 from .source import SourceRunner
 
 SNAPSHOT_RE = re.compile(r"(?P<name>\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})")
@@ -105,31 +104,6 @@ def list_source_snapshots(
     return snapshots
 
 
-def list_remote_snapshots(
-    ssh: SSHRunner,
-    *,
-    snapshot_root: str,
-    subvolumes: list[str],
-    sudo: str,
-    timeshift_command: str,
-    btrfs_command: str,
-    include_btrfs_info: bool = True,
-    btrfs_index=None,
-) -> list[SnapshotMeta]:
-    """Discover source snapshots using only sudo timeshift and sudo btrfs."""
-
-    return list_source_snapshots(
-        SourceRunner(mode="ssh", ssh=ssh),
-        snapshot_root=snapshot_root,
-        subvolumes=subvolumes,
-        sudo=sudo,
-        timeshift_command=timeshift_command,
-        btrfs_command=btrfs_command,
-        include_btrfs_info=include_btrfs_info,
-        btrfs_index=btrfs_index,
-    )
-
-
 def create_remote_manual_snapshot_cmd(sudo: str, timeshift_command: str, comment: str) -> str:
     """Build the Timeshift manual/on-demand snapshot create command.
 
@@ -155,15 +129,3 @@ def create_source_manual_snapshot(source: SourceRunner, *, sudo: str, timeshift_
     source.run(create_remote_manual_snapshot_cmd(sudo, timeshift_command, comment), mirror_stdout_on_failure=True)
 
 
-def create_remote_manual_snapshot(ssh: SSHRunner, *, sudo: str, timeshift_command: str, comment: str) -> None:
-    """Create a Timeshift on-demand snapshot.
-
-    Timeshift assigns the on-demand/O tag automatically when no other tag is
-    supplied. This avoids the known CLI bug where explicit ``--tags O`` can
-    fail even though the man page lists O as valid.
-    """
-
-    # Timeshift sometimes reports the useful reason for create failures on
-    # stdout rather than stderr. Mirror stdout on failure so users can see the
-    # real Timeshift error instead of only "Command failed (1)".
-    create_source_manual_snapshot(SourceRunner(mode="ssh", ssh=ssh), sudo=sudo, timeshift_command=timeshift_command, comment=comment)

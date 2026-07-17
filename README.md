@@ -40,21 +40,21 @@ There should not be a root-level `config.example.toml` in the release zip. The `
 
 ## Shared workflow architecture
 
-Version 0.1.49 keeps the shared architecture introduced in 0.1.47, includes the 0.1.48 regression-audit fixes, and corrects complete nested Btrfs discovery for recursive tree deletion. It removes duplicated local/SSH, cleanup, cache, and discovery implementations while preserving the established command behavior. The same operations are composed in different orders for sync, prune, recovery, and `destroy-leftovers`:
+The app uses one shared implementation for each Btrfs, inventory, cache, planning, execution, and deletion responsibility. Sync, prune, recovery, and `destroy-leftovers` compose those operations in the order required by each workflow:
 
 1. `endpoint.py` selects local, local-source, or SSH command transport.
 2. `btrfs_ops.py` owns exact Btrfs probe, list, create, read-only snapshot, delete, send, and receive commands.
-3. `inventory.py` builds the coherent Timeshift, `info.json`, snapshot-root, and cache-root inventory. `remote_index.py` is only a compatibility re-export, not another scanner.
-4. `snapshot_records.py` joins source, cache, destination, and state into one record for each snapshot date.
-5. `planning.py` creates ordered, side-effect-free workflow actions; sync selection remains oldest-to-newest.
-6. `executor.py` executes or previews those actions through workflow-specific handlers.
-7. `cache_ops.py` and `tree_ops.py` provide the one cache ensure/reuse operation and the one verified deepest-first Btrfs tree deletion operation.
+3. `inventory.py` builds the coherent Timeshift, `info.json`, snapshot-root, cache-root, and destination indexes.
+4. `planning.py` creates ordered, side-effect-free workflow actions; sync selection remains oldest-to-newest.
+5. `executor.py` executes or previews those actions through workflow-specific handlers.
+6. `cache_ops.py` provides the exact cache ensure/reuse operation.
+7. `tree_ops.py` provides verified deepest-first Btrfs tree discovery and deletion.
 
 This structure does not weaken the UUID rules. Plans locate work; Btrfs UUID, Parent UUID, Received UUID, read-only, protected-root, and post-deletion checks still prove whether each action is safe. Dry-run and real workflows consume the same ordered plan model, while real execution performs the required live verification before changing data.
 
 The pure sync planner intentionally keeps every retention-selected source subvolume in the oldest-to-newest queue, including entries already represented in state. The real workflow then performs the authoritative destination existence, UUID, recovery, and `info.json` checks. This prevents a shallow planning decision from bypassing live validation or metadata refresh.
 
-Source preflight emits one tab-delimited sentinel protocol for both local and SSH source modes and parses it through one shared result parser. The parser is exercised by regression tests because it runs immediately after the destination lock is acquired and before source/cache creation or transfer work begins.
+Source preflight emits one tab-delimited sentinel protocol for both local and SSH source modes and parses it through one shared result parser. The parser is tested directly because it runs immediately after the destination lock is acquired and before source/cache creation or transfer work begins.
 
 ## Safety model
 
@@ -141,8 +141,6 @@ Replace `btrbk-source` with the name printed by the application and use its prin
 Source cache payloads and timestamp containers are Btrfs subvolumes. Cleanup deletes child cache subvolumes first and then deletes the timestamp parent with `btrfs subvolume delete`. The app does not use ordinary-directory cleanup as a fallback. If a configured cache path is an ordinary non-empty directory, cleanup stops and requires manual inspection.
 
 
-> ⚠️ AI-assisted / vibe-coded experimental software. Use at your own risk.
-
 ## Destination layout
 
 The destination `target_root` is the backup job folder. The app creates and owns:
@@ -160,9 +158,9 @@ Timeshift uses one `info.json` for the whole snapshot date. It sits beside `@` a
 
 The destination `target_root` must be a Btrfs subvolume. If it is missing and `destination.create_target_root = true`, the app creates it with `btrfs subvolume create`. The lock-file parent is prepared before the rest of the sync/prune checks so a real job can acquire the lock early. General helper paths such as `snapshots/`, `.ts-btrfs-sync/`, the lock-file parent, and optional `log_dir` may be ordinary directories or Btrfs subvolumes. Every individual `snapshots/<date>` container is different: it must be a Btrfs subvolume. New date containers are created with `btrfs subvolume create` before `btrfs receive`. Existing ordinary date folders, files, or symlinks directly below `snapshots/` are refused as an unsupported layout and must be inspected and moved or removed manually.
 
-`state.json` records successfully received snapshots and the metadata needed for incremental sends. Do not manually delete `state.json` while a job is running. Use the guarded `clear-state` command when you intentionally want to remove the configured state file after a failed transfer or before a controlled state-recovery run. Do not delete only `snapshots/` while keeping old state.
+`state.json` records successfully received snapshots and the metadata needed for incremental sends. Do not manually delete `state.json` while a job is running. Use the guarded `clear-state` command when you intentionally want to remove the configured state file after a failed transfer or before a controlled state-recovery run. Do not delete only `snapshots/` while keeping the corresponding state file.
 
-State schema version 2 stores every managed path relative to the configured root that owns it:
+State schema version 3 stores every managed path relative to the configured root that owns it:
 
 ```json
 {
@@ -177,7 +175,7 @@ State schema version 2 stores every managed path relative to the configured root
 
 `source_path` is always relative to `source.snapshot_root`. `send_path` is resolved under `source.cache_root` when `send_path_kind = "source-cache"`, or under `source.snapshot_root` when `send_path_kind = "timeshift-original-readonly"`. `parent_source_path` follows the same rule through `parent_source_path_kind`. `destination_path` remains relative to `destination.target_root`.
 
-This lets you move or remount `source.snapshot_root`, `source.cache_root`, or the whole destination target, then update those roots in the config. State paths resolve below the new locations. The app still verifies Btrfs UUID identity before using a moved send-cache or Timeshift path as an incremental parent; a cache subvolume that was deleted and recreated has a new UUID and is not treated as the old parent. State files from 0.1.43 and earlier that contain absolute paths are normalized in memory when loaded, using the exact `<snapshot-name>/<subvolume>` suffix. The next state write stores the migrated relative format. Unknown or mismatching legacy paths are not silently rewritten.
+This lets you move or remount `source.snapshot_root`, `source.cache_root`, or the whole destination target, then update those roots in the config. State paths resolve below the new locations. Btrfs UUID identity is still required before a moved send-cache or Timeshift path can be used as an incremental parent. `state.json` must use schema version 3 and root-relative managed paths; unsupported versions, absolute stored paths, missing ownership kinds, and mismatching snapshot/subvolume suffixes are rejected.
 
 During `sync` and before standalone `prune`, mutable Timeshift metadata for already-synced snapshots is refreshed from the latest `timeshift --list`. This updates snapshot-level `tags`, `comment`, `created`, and `path` in `state.json` without re-sending data and without changing Btrfs UUID, parent-chain, send-path, destination-path, or status fields. This lets retention follow Timeshift when it later promotes or changes flags such as `O`, `H`, `D`, `W`, or `M`. The metadata refresh uses the fast Timeshift list path and does not run `btrfs subvolume show` for every already-synced snapshot.
 
@@ -230,7 +228,7 @@ If `source.snapshot_root` is missing, not a directory, or not Btrfs-accessible t
 
 Incremental parent verification is mandatory. If the destination is empty when the sync run starts, the app can start with a normal full sync. If matching snapshots exist, the app uses an incremental send after proving the source parent matches the destination parent. If the destination already contains snapshots but no matching parent can be proven across any usable snapshot, the app refuses to send and tells the user to use an empty/separate backup directory for a new full sync or repair the existing backup state/cache.
 
-There is no override that permits an unmatched incremental chain. A config containing `source.allow_incremental_without_parent_match` is rejected at startup and the line must be removed. This prevents an old config from appearing to permit a full send into a destination that already belongs to another source or backup chain.
+There is no setting that permits an unmatched incremental chain. If the destination contains snapshots, sync requires at least one source UUID to match a destination Received UUID. Only a destination that is empty when the run begins may start with a full send.
 
 Incremental Btrfs send uses:
 
@@ -268,7 +266,7 @@ A missing exact-path probe is expected when the cache snapshot has not been crea
 
 Every read-only cache snapshot created by `sync` is kept until retention runs. Its state `send_path` is stored as `<date>/<subvolume>` relative to the current `source.cache_root`, not as an absolute mount path. This preserves more possible source/destination UUID common ground when short-lived snapshots, such as hourly snapshots, disappear later. For each pruned snapshot, `prune` attempts both destination deletion and matching source send-cache deletion in one coordinated item. It removes the `state.json` entry only after destination subvolumes and source send-cache are both confirmed gone or already absent. If either side is unavailable, it still attempts the available side and keeps state so the next prune can retry.
 
-Prune only deletes send paths that are explicitly app-owned source-cache paths below `source.cache_root`. On the destination, prune requires `snapshots/<date>` to be a Btrfs subvolume, deletes its configured received child subvolumes first, and then deletes the date subvolume. The final Btrfs deletion removes the regular `info.json` automatically. Before deleting a timestamp cache parent such as `send-cache/<snapshot>`, prune re-reads live Btrfs children under that parent and deletes remaining child subvolumes deepest-first. No ordinary-directory cleanup fallback is used. Unexpected content, an ordinary legacy date folder, or an ordinary non-empty configured root causes a manual-inspection error. Source delete candidates at or below `source.snapshot_root` are always refused.
+Prune only deletes send paths that are explicitly app-owned source-cache paths below `source.cache_root`. On the destination, prune requires `snapshots/<date>` to be a Btrfs subvolume, deletes its configured received child subvolumes first, and then deletes the date subvolume. The final Btrfs deletion removes the regular `info.json` automatically. Before deleting a timestamp cache parent such as `send-cache/<snapshot>`, prune re-reads live Btrfs children under that parent and deletes remaining child subvolumes deepest-first. No ordinary-directory cleanup fallback is used. Unexpected content, an ordinary date folder, or an ordinary non-empty configured root causes a manual-inspection error. Source delete candidates at or below `source.snapshot_root` are always refused.
 
 ## Source/destination Btrfs index optimization
 
@@ -441,9 +439,9 @@ Writes the complete commented config template.
 | `--path PATH` | Writes the template to `PATH`; default is `./ts-btrfs.toml`. | Lets you create a config in the folder or name you prefer. |
 | `--force` | Overwrites the target file if it already exists. | Needed when refreshing an existing generated template. Review changes before replacing a real config. |
 
-### `test-source` / `test-ssh`
+### `test-source`
 
-Tests the configured source endpoint and the required source sudo commands. `test-ssh` is an alias for the same check. In `source.mode = "local"`, SSH is skipped.
+Tests the configured source endpoint and the required source sudo commands. In `source.mode = "local"`, SSH is skipped.
 
 | Flag | What it does | Why it may be needed |
 |---|---|---|
@@ -664,7 +662,7 @@ Leave `control_master = false` for maximum isolation, on shared machines, or any
 | `source_change_retry_count` | Maximum automatic full-inventory rebuild/recovery attempts per snapshot/subvolume after a required source or parent path disappears or changes UUID during preparation or send. `0` disables continuation. | Lets hourly Timeshift pruning be recovered safely without an infinite retry loop or treating unrelated failures as source churn. |
 | `cache_root` | Source-side root for read-only send-cache snapshots. | Needed when Timeshift snapshots are writable and cannot be sent directly. Must be outside `source.snapshot_root`; do not point it at the Timeshift snapshots directory. If missing, real preflight creates it as a Btrfs subvolume when `create_readonly_cache = true`; its parent must already exist and be Btrfs-accessible. `destroy-leftovers --delete-source` checks this path with configured sudo+Btrfs before falling back to source-shell visibility. |
 | `create_readonly_cache` | Creates read-only cache snapshots for writable source snapshots. | Required for writable Timeshift snapshots because `btrfs send` needs read-only sources. |
-| `cleanup_superseded_cache` | Source send-cache cleanup setting used during prune. | `sync` keeps all created cache snapshots; `prune` deletes cache snapshots only when the same destination snapshot is deleted by retention. |
+| `cleanup_superseded_cache` | Controls app-owned source send-cache cleanup during retention. | Applies to standalone `prune` and prune invoked after `sync`, in local and SSH modes. The cache date is deleted only after the matching destination date is confirmed gone; normal transfer keeps cache snapshots for incremental parents. |
 | `send_compressed_data` | Adds `btrfs send --compressed-data`. | Attempts to preserve already-compressed source extents when supported. It does not configure destination compression; mount the receiving Btrfs filesystem/subvolume with compression enabled if you want destination compression. |
 | `send_proto` | Adds `btrfs send --proto <N>`. | Needed only when you intentionally want a specific Btrfs send protocol version. |
 

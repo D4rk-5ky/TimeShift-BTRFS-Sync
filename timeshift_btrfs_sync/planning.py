@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Iterable, Mapping, Any
 
-from .snapshot_records import BackupInventory
+from .models import SnapshotMeta
 
 
 class ActionKind(str, Enum):
@@ -50,7 +50,7 @@ class WorkflowPlan:
         return action
 
 def plan_sync_queue(
-    inventory: BackupInventory,
+    source_snapshots: Mapping[str, SnapshotMeta],
     selected_snapshot_names: Iterable[str],
     subvolume_names: Iterable[str],
 ) -> WorkflowPlan:
@@ -58,11 +58,11 @@ def plan_sync_queue(
 
     plan = WorkflowPlan("sync")
     for snapshot_name in sorted(set(selected_snapshot_names)):
-        record = inventory.get(snapshot_name)
-        if not record or not record.source:
+        snapshot = source_snapshots.get(snapshot_name)
+        if not snapshot:
             continue
         for subvolume_name in subvolume_names:
-            source_meta = record.source_meta(subvolume_name)
+            source_meta = snapshot.subvolumes.get(subvolume_name)
             if not source_meta:
                 continue
             # The planner deliberately retains already-recorded items. Only the
@@ -88,7 +88,7 @@ def plan_snapshot_recovery(snapshot_name: str) -> WorkflowPlan:
 
 def plan_prune_snapshot(snapshot_name: str, *, delete_cache: bool, delete_destination: bool) -> WorkflowPlan:
     plan = WorkflowPlan("prune")
-    # Preserve the historical prune order: remove the received destination
+    # Use the required prune order: remove the received destination
     # version first, then retire its source send-cache, and remove state only
     # after both sides are confirmed gone.
     if delete_destination:

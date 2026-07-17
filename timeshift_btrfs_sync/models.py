@@ -15,9 +15,7 @@ class SubvolumeMeta:
     parent_uuid: str | None = None
     received_uuid: str | None = None
     readonly: bool | None = None
-    send_path: str | None = None
     subvolume_id: int | None = None
-    containing_parent_id: int | None = None
 
 
 @dataclass(slots=True)

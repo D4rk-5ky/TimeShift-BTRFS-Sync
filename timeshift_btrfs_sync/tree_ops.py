@@ -16,11 +16,9 @@ class TreeDeleteResult:
     root: str
     endpoint: str
     existed: bool = False
-    root_is_subvolume: bool = False
     planned: list[str] = field(default_factory=list)
     confirmed: list[str] = field(default_factory=list)
     remaining: list[str] = field(default_factory=list)
-    verification_attempted: bool = False
     verified_root_absent: bool = False
     errors: list[str] = field(default_factory=list)
 
@@ -28,29 +26,6 @@ class TreeDeleteResult:
     def success(self) -> bool:
         return not self.errors and self.verified_root_absent
 
-    @property
-    def path(self) -> str:
-        return self.root
-
-    @property
-    def location(self) -> str:
-        return self.endpoint
-
-    @property
-    def subvolumes(self) -> list[str]:
-        return self.planned
-
-    @property
-    def deleted_subvolumes(self) -> int:
-        return len(self.confirmed)
-
-    @property
-    def remaining_subvolumes(self) -> list[str]:
-        return self.remaining
-
-    @property
-    def exists(self) -> bool:
-        return self.existed
 
 
 def _path_exists(ops: BtrfsOps, path: str) -> tuple[bool | None, str]:
@@ -124,7 +99,6 @@ def _validate_confirmations(result: TreeDeleteResult) -> None:
 
 
 def _verify_absent(result: TreeDeleteResult, ops: BtrfsOps) -> None:
-    result.verification_attempted = True
     exists, error = _path_exists(ops, result.root)
     root_meta = ops.meta(result.root, required=False)
     if exists is None:
@@ -174,11 +148,9 @@ def delete_subvolume_tree(
         result.errors.append(f"could not check path existence: {existence_error}")
         return result
     result.existed = bool(exists or meta)
-    result.root_is_subvolume = meta is not None
     if not result.existed:
         if not dry_run:
-            result.verification_attempted = True
-            result.verified_root_absent = True
+                    result.verified_root_absent = True
         return result
 
     if meta is None:
@@ -195,7 +167,7 @@ def delete_subvolume_tree(
         if entries:
             result.errors.append(
                 "configured root is an ordinary non-empty directory. Recursive ordinary deletion is disabled; "
-                "inspect and remove or migrate it manually: " + root_text
+                "inspect and remove it manually: " + root_text
             )
             return result
         script = f"rmdir -- {shlex.quote(root_text)}"

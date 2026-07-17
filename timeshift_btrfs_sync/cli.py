@@ -52,12 +52,7 @@ def add_yes_delete_arg(parser, help_text: str) -> None:
 def _load_config_state(config):
     """Load state and resolve all root-relative paths against this config."""
 
-    return load_state(
-        config.state_file,
-        config.destination.target_root,
-        snapshot_root=config.source.snapshot_root,
-        cache_root=config.source.cache_root,
-    )
+    return load_state(config.state_file)
 
 
 def _failure_exit_code(exc: BaseException) -> int:
@@ -109,7 +104,7 @@ def _send_notifications(
         version=__version__,
     )
 
-    mqtt_config = getattr(config, "mqtt", None)
+    mqtt_config = config.mqtt
     if mqtt_config and mqtt_config.enabled:
         if (success and mqtt_config.notify_on_success) or (not success and mqtt_config.notify_on_failure):
             try:
@@ -117,7 +112,7 @@ def _send_notifications(
             except Exception as mqtt_exc:
                 print(f"WARNING: MQTT notification failed: {mqtt_exc}", file=sys.stderr)
 
-    mail_config = getattr(config, "mail", None)
+    mail_config = config.mail
     if mail_config and mail_config.enabled:
         if (success and mail_config.notify_on_success) or (not success and mail_config.notify_on_failure):
             try:
@@ -245,7 +240,7 @@ def cmd_init_config(args) -> int:
     return 0
 
 
-def cmd_test_ssh(args) -> int:
+def cmd_test_source(args) -> int:
     config = load_config(args.config)
 
     def _run() -> int:
@@ -481,7 +476,6 @@ TOP_LEVEL_HELP = """
 Available commands:
   init-config    Write a starter TOML config from the packaged template.
   test-source    Test source command endpoint and required source sudo commands.
-  test-ssh       Backward-compatible alias for test-source.
   list-source    List source Timeshift snapshots.
   sync           Pull missing snapshots and optionally prune.
   prune          Apply destination retention rules only.
@@ -524,10 +518,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--path", default="./ts-btrfs.toml", help="where to write the example config; default: ./ts-btrfs.toml")
     p.add_argument("--force", action="store_true", help="overwrite the destination config file if it already exists")
 
-    p = new_subparser(sub, "test-source", "test source endpoint and source sudo permissions", "Verify source mode works and source sudo can run timeshift --list and btrfs --version. In local mode, SSH is skipped.", cmd_test_ssh)
-    add_config_arg(p)
-
-    p = new_subparser(sub, "test-ssh", "alias for test-source", "Backward-compatible alias for test-source. In local mode, SSH is skipped.", cmd_test_ssh)
+    p = new_subparser(sub, "test-source", "test source endpoint and source sudo permissions", "Verify source mode works and source sudo can run timeshift --list and btrfs --version. In local mode, SSH is skipped.", cmd_test_source)
     add_config_arg(p)
 
     p = new_subparser(
