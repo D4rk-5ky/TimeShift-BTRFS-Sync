@@ -7,13 +7,14 @@ from .paths import is_local_same_or_under as _path_is_same_or_under
 from importlib.resources import files
 import argparse
 import json
+import shlex
 import sys
 from . import __version__, timeshift
 from .commands import CommandError
 from .btrfs_ops import BtrfsOps
 from .endpoint import CommandEndpoint
 from .config import ConfigError, load_config
-from .lock import FileLock
+from .lock import FileLock, RemoteFileLock
 from .log import active_logger, create_run_logger
 from .mail import send_status as send_mail_status
 from .mqtt import publish_status
@@ -235,9 +236,17 @@ def cmd_init_config(args) -> int:
     if path.exists() and not args.force:
         print(f"Refusing to overwrite existing file: {path}", file=sys.stderr)
         return 2
+    template_name = (
+        "config.restore-pull.example.toml"
+        if args.profile == "restore-pull"
+        else "config.example.toml"
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(files("timeshift_btrfs_sync").joinpath("data/config.example.toml").read_text(encoding="utf-8"), encoding="utf-8")
-    print(f"Wrote example config: {path}")
+    path.write_text(
+        files("timeshift_btrfs_sync").joinpath(f"data/{template_name}").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    print(f"Wrote {args.profile} config: {path}")
     return 0
 
 
@@ -355,7 +364,7 @@ def cmd_prune(args) -> int:
 def cmd_restore(args) -> int:
     """Restore one snapshot or the complete post-common backup chain into Timeshift."""
 
-    config = load_config(args.config)
+    config = load_config(args.config, require_ssh=args.backup_over_ssh)
     dry_run = _resolve_dry_run(args, config)
 
     def _run() -> int:
@@ -367,18 +376,43 @@ def cmd_restore(args) -> int:
             danger_confirmed=args.i_understand_this_modifies_timeshift,
             allow_no_common_parent=args.allow_no_common_parent,
             allow_os_identity_mismatch=args.allow_os_identity_mismatch,
+            backup_over_ssh=args.backup_over_ssh,
         )
         return 0
 
     if dry_run:
         return _with_logging(config, "restore", _run)
 
+    print("Run mode: real restore")
+    if args.backup_over_ssh:
+        if config.source.mode != "local":
+            raise ConfigError(
+                "restore --backup-over-ssh requires source.mode = \"local\"; the SSH profile identifies the remote backup host"
+            )
+        backup_runner = SourceRunner.from_mode("ssh", config.ssh)
+        backup_endpoint = CommandEndpoint.for_source(backup_runner)
+        lock_parent = str(config.lock_file.parent)
+        parent_check = backup_endpoint.run_shell(
+            f"test -d {shlex.quote(lock_parent)}",
+            check=False,
+            log_stderr=False,
+            mirror_stderr=False,
+        )
+        if parent_check.returncode != 0:
+            detail = parent_check.stderr.strip() or parent_check.stdout.strip() or "missing or inaccessible"
+            raise RuntimeError(
+                "Remote restore requires the existing application lock directory beside the backup; "
+                f"it will not create a missing remote backup target: {lock_parent}: {detail}"
+            )
+        print(f"Acquiring remote backup lock: {config.lock_file}")
+        with RemoteFileLock(config.lock_file, backup_runner):
+            return _with_logging(config, "restore", _run)
+
     if not config.lock_file.parent.is_dir():
         raise RuntimeError(
             "Restore requires the existing application lock directory beside the backup; "
             f"it will not create a missing backup target: {config.lock_file.parent}"
         )
-    print("Run mode: real restore")
     print(f"Acquiring lock: {config.lock_file}")
     with FileLock(config.lock_file):
         return _with_logging(config, "restore", _run)
@@ -524,7 +558,7 @@ Command-specific flags are shown by asking the command for help, for example:
   ts-btrfs prune --help
   ts-btrfs init-config --help
 
-Config options are documented in README.md and the packaged config.example.toml template.
+Config options are documented in README.md and both packaged init-config profiles.
 Typical first test:
   ts-btrfs sync --config ./config.toml --dry-run
 """
@@ -548,8 +582,24 @@ def build_parser() -> argparse.ArgumentParser:
         description="Run 'ts-btrfs COMMAND --help' to see that command's flags.",
     )
 
-    p = new_subparser(sub, "init-config", "write an example TOML config", "Write a complete commented TOML config template.", cmd_init_config)
-    p.add_argument("--path", default="./ts-btrfs.toml", help="where to write the example config; default: ./ts-btrfs.toml")
+    p = new_subparser(
+        sub,
+        "init-config",
+        "write a complete commented TOML config",
+        (
+            "Write one of the packaged complete TOML profiles.\n"
+            "The default sync profile supports local or SSH source backup.\n"
+            "The restore-pull profile is preconfigured for SSH backup -> local Timeshift restore."
+        ),
+        cmd_init_config,
+    )
+    p.add_argument("--path", default="./ts-btrfs.toml", help="where to write the config; default: ./ts-btrfs.toml")
+    p.add_argument(
+        "--profile",
+        choices=("sync", "restore-pull"),
+        default="sync",
+        help="config profile to write; default: sync",
+    )
     p.add_argument("--force", action="store_true", help="overwrite the destination config file if it already exists")
 
     p = new_subparser(sub, "test-source", "test source endpoint and source sudo permissions", "Verify source mode works and source sudo can run timeshift --list and btrfs --version. In local mode, SSH is skipped.", cmd_test_source)
@@ -612,6 +662,7 @@ def build_parser() -> argparse.ArgumentParser:
         "restore one backup or a complete chain into Timeshift",
         (
             "Restore destination backups to source.snapshot_root in Timeshift's native Btrfs layout.\n"
+            "By default the backup is local. --backup-over-ssh pulls destination.target_root from the configured SSH host into a local Timeshift repository.\n"
             "Use --snapshot for one full restore, or --all to find the newest UUID- and info.json-confirmed common snapshot and restore every newer backup.\n"
             "A chain reuses an exact read-only source send parent for an incremental first restore when available; otherwise it uses one full hidden seed followed by incrementals. No-common-parent restoration requires an extra danger override.\n"
             "Every real restore warns that original H/D/W/M tags remain subject to Timeshift retention and requires an exact typed risk acknowledgement."
@@ -634,6 +685,11 @@ def build_parser() -> argparse.ArgumentParser:
         dest="restore_all",
         action="store_true",
         help="restore every backup newer than the latest UUID- and info.json-confirmed common Timeshift snapshot",
+    )
+    p.add_argument(
+        "--backup-over-ssh",
+        action="store_true",
+        help="pull the backup repository, state_file, and lock_file from the configured SSH host and restore into local source.snapshot_root; requires source.mode=local",
     )
     p.add_argument(
         "--allow-no-common-parent",

@@ -26,10 +26,10 @@ from .btrfs_ops import BtrfsOps
 from .commands import CommandError, stream_pipeline, sudo_prefix
 from .config import AppConfig
 from .endpoint import CommandEndpoint
-from .inventory import SourceInventory, build_source_inventory
+from .inventory import BtrfsIndex, SourceInventory, build_source_btrfs_index, build_source_inventory
 from .models import SnapshotMeta, SubvolumeMeta
 from .source import SourceRunner
-from .state import load_state, resolve_state_send_path
+from .state import empty_state, resolve_state_send_path, validate_state_document
 from .timeshift import SNAPSHOT_RE, list_source_snapshots, parse_timeshift_list, timeshift_cmd
 
 
@@ -52,13 +52,200 @@ class TimeshiftOsIdentity:
 
 @dataclass(slots=True)
 class BackupSnapshot:
-    """One validated destination snapshot available for restore."""
+    """One validated local or SSH backup snapshot available for restore."""
 
     name: str
-    path: Path
+    path: str
     info_content: str
     payloads: dict[str, SubvolumeMeta]
     os_identity: TimeshiftOsIdentity | None = None
+
+
+@dataclass(slots=True)
+class BackupDirectoryRecord:
+    """Ordinary filesystem facts for one backup timestamp directory."""
+
+    name: str
+    kind: str
+    entries: dict[str, str]
+    info_content: str | None
+    info_error: str | None = None
+
+
+@dataclass(slots=True)
+class BackupRepository:
+    """Access one local or SSH backup repository through one transport layer."""
+
+    config: AppConfig
+    runner: SourceRunner
+    endpoint: CommandEndpoint
+    ops: BtrfsOps
+
+    @classmethod
+    def from_config(cls, config: AppConfig, *, over_ssh: bool) -> "BackupRepository":
+        mode = "ssh" if over_ssh else "local"
+        runner = SourceRunner.from_mode(mode, config.ssh)
+        endpoint = CommandEndpoint.for_source(runner) if over_ssh else CommandEndpoint.local("backup destination")
+        return cls(
+            config=config,
+            runner=runner,
+            endpoint=endpoint,
+            ops=BtrfsOps(endpoint, config.destination.sudo, config.destination.btrfs_command),
+        )
+
+    @property
+    def root(self) -> str:
+        return str(PurePosixPath(str(self.config.destination.target_root)))
+
+    @property
+    def snapshots_root(self) -> str:
+        return str(PurePosixPath(self.root) / "snapshots")
+
+    @property
+    def environment(self) -> dict[str, str] | None:
+        return self.runner.environment()
+
+    @property
+    def location_label(self) -> str:
+        return "remote SSH backup" if self.runner.uses_ssh else "local backup"
+
+    def load_state(self) -> dict[str, Any]:
+        """Read and validate state.json from the same endpoint as the backup."""
+
+        path = str(PurePosixPath(str(self.config.state_file)))
+        script = f"""
+state_file={shlex.quote(path)}
+if [ -L "$state_file" ]; then
+    printf 'TSBTRFS_STATE_SYMLINK\n'
+    exit 0
+fi
+if [ ! -e "$state_file" ]; then
+    printf 'TSBTRFS_STATE_MISSING\n'
+    exit 0
+fi
+if [ ! -f "$state_file" ]; then
+    printf 'TSBTRFS_STATE_NOT_REGULAR\n'
+    exit 0
+fi
+if [ ! -r "$state_file" ]; then
+    printf 'TSBTRFS_STATE_UNREADABLE\n'
+    exit 0
+fi
+printf 'TSBTRFS_STATE_BEGIN\n'
+cat -- "$state_file"
+printf '\nTSBTRFS_STATE_END\n'
+""".strip()
+        result = self.endpoint.run_shell(script, log_stderr=False, mirror_stderr=False)
+        lines = result.stdout.splitlines()
+        if lines == ["TSBTRFS_STATE_MISSING"]:
+            return empty_state()
+        markers = {
+            "TSBTRFS_STATE_SYMLINK": "is a symlink",
+            "TSBTRFS_STATE_NOT_REGULAR": "is not a regular file",
+            "TSBTRFS_STATE_UNREADABLE": "is not readable by the backup SSH/local account",
+        }
+        if lines and lines[0] in markers:
+            raise RestoreError(f"Backup state.json {path} {markers[lines[0]]}")
+        try:
+            start = lines.index("TSBTRFS_STATE_BEGIN")
+            end = lines.index("TSBTRFS_STATE_END", start + 1)
+        except ValueError as exc:
+            raise RestoreError(f"Could not frame backup state.json from {self.location_label}: {path}") from exc
+        content = "\n".join(lines[start + 1 : end])
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise RestoreError(f"Backup state.json is invalid JSON: {path}: {exc}") from exc
+        if not isinstance(data, dict):
+            raise RestoreError(f"Backup state.json must contain a JSON object: {path}")
+        validate_state_document(data)
+        return data
+
+    def scan_directories(self) -> dict[str, BackupDirectoryRecord]:
+        """Read direct date entries and all info.json files in one endpoint call."""
+
+        root = self.snapshots_root
+        script = f"""
+root={shlex.quote(root)}
+if [ ! -d "$root" ]; then
+    printf 'TSBTRFS_BACKUP_ROOT_MISSING\n'
+    exit 0
+fi
+for date_path in "$root"/*; do
+    [ -e "$date_path" ] || [ -L "$date_path" ] || continue
+    name=${{date_path##*/}}
+    if [ -L "$date_path" ]; then date_kind=symlink
+    elif [ -d "$date_path" ]; then date_kind=directory
+    else date_kind=other
+    fi
+    printf 'TSBTRFS_BACKUP_DATE\t%s\t%s\n' "$name" "$date_kind"
+    [ "$date_kind" = directory ] || continue
+    for entry_path in "$date_path"/* "$date_path"/.[!.]* "$date_path"/..?*; do
+        [ -e "$entry_path" ] || [ -L "$entry_path" ] || continue
+        entry=${{entry_path##*/}}
+        if [ -L "$entry_path" ]; then entry_kind=symlink
+        elif [ -f "$entry_path" ]; then entry_kind=file
+        elif [ -d "$entry_path" ]; then entry_kind=directory
+        else entry_kind=other
+        fi
+        printf 'TSBTRFS_BACKUP_ENTRY\t%s\t%s\t%s\n' "$name" "$entry" "$entry_kind"
+    done
+    info_path="$date_path/info.json"
+    if [ -L "$info_path" ]; then
+        printf 'TSBTRFS_BACKUP_INFO_ERROR\t%s\tsymlink\n' "$name"
+    elif [ ! -f "$info_path" ]; then
+        printf 'TSBTRFS_BACKUP_INFO_ERROR\t%s\tnot-regular\n' "$name"
+    elif [ ! -r "$info_path" ]; then
+        printf 'TSBTRFS_BACKUP_INFO_ERROR\t%s\tunreadable\n' "$name"
+    else
+        encoded=$(base64 < "$info_path" | tr -d '\n') || exit 41
+        printf 'TSBTRFS_BACKUP_INFO\t%s\t%s\n' "$name" "$encoded"
+    fi
+done
+""".strip()
+        result = self.endpoint.run_shell(script, log_stderr=False, mirror_stderr=False)
+        if result.stdout.strip() == "TSBTRFS_BACKUP_ROOT_MISSING":
+            raise RestoreError(f"Backup snapshots root is unavailable on {self.location_label}: {root}")
+        records: dict[str, BackupDirectoryRecord] = {}
+        for line in result.stdout.splitlines():
+            parts = line.split("\t")
+            if not parts:
+                continue
+            if parts[0] == "TSBTRFS_BACKUP_DATE" and len(parts) == 3:
+                records[parts[1]] = BackupDirectoryRecord(parts[1], parts[2], {}, None)
+            elif parts[0] == "TSBTRFS_BACKUP_ENTRY" and len(parts) == 4:
+                record = records.get(parts[1])
+                if record is not None:
+                    record.entries[parts[2]] = parts[3]
+            elif parts[0] == "TSBTRFS_BACKUP_INFO" and len(parts) == 3:
+                record = records.get(parts[1])
+                if record is not None:
+                    try:
+                        record.info_content = base64.b64decode(parts[2], validate=True).decode("utf-8")
+                    except (ValueError, UnicodeError) as exc:
+                        record.info_error = f"invalid base64/UTF-8 metadata: {exc}"
+            elif parts[0] == "TSBTRFS_BACKUP_INFO_ERROR" and len(parts) == 3:
+                record = records.get(parts[1])
+                if record is not None:
+                    record.info_error = parts[2]
+        return records
+
+    def btrfs_index(self) -> BtrfsIndex:
+        """Build one local or SSH Btrfs index for the complete backup tree."""
+
+        index = build_source_btrfs_index(
+            self.runner,
+            self.snapshots_root,
+            sudo=self.config.destination.sudo,
+            btrfs_command=self.config.destination.btrfs_command,
+            include_root=True,
+            required=True,
+        )
+        if index.errors:
+            raise RestoreError(
+                f"Could not inventory backup Btrfs tree on {self.location_label}: " + "; ".join(index.errors)
+            )
+        return index
 
 
 def _effective_send_uuid(meta: SubvolumeMeta) -> str:
@@ -268,34 +455,37 @@ trap - EXIT HUP INT TERM
 
 def _validate_backup_snapshot(
     config: AppConfig,
-    backup_ops: BtrfsOps,
-    snapshot_name: str,
+    repository: BackupRepository,
+    record: BackupDirectoryRecord,
+    btrfs_index: BtrfsIndex,
 ) -> BackupSnapshot:
     """Validate one backup date, payload set, metadata file, and Btrfs identity."""
 
+    snapshot_name = record.name
     if SNAPSHOT_RE.fullmatch(snapshot_name) is None or PurePosixPath(snapshot_name).name != snapshot_name:
         raise RestoreError(f"Invalid Timeshift snapshot name: {snapshot_name}")
 
-    backup_date = config.destination.target_root / "snapshots" / snapshot_name
-    info_path = backup_date / "info.json"
-    date_meta = backup_ops.meta(backup_date, required=False)
+    backup_date = str(PurePosixPath(repository.snapshots_root) / snapshot_name)
+    if record.kind == "symlink":
+        raise RestoreError(f"Refusing symlinked backup snapshot date: {backup_date}")
+    if record.kind != "directory":
+        raise RestoreError(f"Backup snapshot date is not a directory: {backup_date}")
+    date_meta = btrfs_index.meta(backup_date)
+    if date_meta is None:
+        date_meta = repository.ops.meta(backup_date, name=snapshot_name, required=False)
     if date_meta is None:
         raise RestoreError(f"Backup snapshot date is missing or is not a Btrfs subvolume: {backup_date}")
-    if backup_date.is_symlink():
-        raise RestoreError(f"Refusing symlinked backup snapshot date: {backup_date}")
-    if info_path.is_symlink() or not info_path.is_file():
-        raise RestoreError(f"Backup snapshot has no regular info.json: {info_path}")
-    try:
-        info_content = info_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as exc:
-        raise RestoreError(f"Backup info.json is unreadable: {info_path}: {exc}") from exc
+
+    info_path = str(PurePosixPath(backup_date) / "info.json")
+    if record.info_error:
+        raise RestoreError(f"Backup snapshot has unusable info.json ({record.info_error}): {info_path}")
+    if record.entries.get("info.json") != "file" or record.info_content is None:
+        raise RestoreError(f"Backup snapshot has no readable regular info.json: {info_path}")
+    info_content = record.info_content
     _info_doc, os_identity = _parse_info_json(info_content, label=f"Backup info.json {info_path}")
 
     expected_names = set(config.source.subvolumes) | {"info.json"}
-    try:
-        actual_names = {entry.name for entry in backup_date.iterdir()}
-    except OSError as exc:
-        raise RestoreError(f"Could not inspect backup snapshot date {backup_date}: {exc}") from exc
+    actual_names = set(record.entries)
     unknown = sorted(actual_names - expected_names)
     missing = sorted(set(config.source.subvolumes) - actual_names)
     if unknown:
@@ -307,8 +497,14 @@ def _validate_backup_snapshot(
 
     payloads: dict[str, SubvolumeMeta] = {}
     for subvolume_name in config.source.subvolumes:
-        path = backup_date / subvolume_name
-        meta = backup_ops.meta(path, name=subvolume_name, required=False)
+        path = str(PurePosixPath(backup_date) / subvolume_name)
+        if record.entries.get(subvolume_name) == "symlink":
+            raise RestoreError(f"Refusing symlinked backup payload: {path}")
+        if record.entries.get(subvolume_name) != "directory":
+            raise RestoreError(f"Backup payload is not a directory/Btrfs subvolume: {path}")
+        meta = btrfs_index.meta(path)
+        if meta is None:
+            meta = repository.ops.meta(path, name=subvolume_name, required=False)
         if meta is None:
             raise RestoreError(f"Backup payload is not a Btrfs subvolume: {path}")
         if meta.readonly is not True:
@@ -319,20 +515,29 @@ def _validate_backup_snapshot(
     return BackupSnapshot(snapshot_name, backup_date, info_content, payloads, os_identity)
 
 
-def _discover_backups(config: AppConfig, backup_ops: BtrfsOps) -> dict[str, BackupSnapshot]:
-    """Return every valid destination backup ordered by Timeshift timestamp."""
+def _discover_backups(
+    config: AppConfig,
+    repository: BackupRepository,
+    *,
+    selected_name: str | None = None,
+) -> dict[str, BackupSnapshot]:
+    """Return selected or all valid backups ordered by Timeshift timestamp."""
 
-    snapshots_root = config.destination.target_root / "snapshots"
-    if not snapshots_root.is_dir():
-        raise RestoreError(f"Destination backup snapshots root is unavailable: {snapshots_root}")
-    names = sorted(
-        child.name
-        for child in snapshots_root.iterdir()
-        if child.is_dir() and SNAPSHOT_RE.fullmatch(child.name) is not None
-    )
+    records = repository.scan_directories()
+    if selected_name is not None:
+        record = records.get(selected_name)
+        if record is None or SNAPSHOT_RE.fullmatch(selected_name) is None:
+            raise RestoreError(f"Backup snapshot was not found below {repository.snapshots_root}: {selected_name}")
+        names = [selected_name]
+    else:
+        names = sorted(name for name in records if SNAPSHOT_RE.fullmatch(name) is not None)
     if not names:
-        raise RestoreError(f"No restorable backup snapshots were found below {snapshots_root}")
-    return {name: _validate_backup_snapshot(config, backup_ops, name) for name in names}
+        raise RestoreError(f"No restorable backup snapshots were found below {repository.snapshots_root}")
+    btrfs_index = repository.btrfs_index()
+    return {
+        name: _validate_backup_snapshot(config, repository, records[name], btrfs_index)
+        for name in names
+    }
 
 
 def _source_snapshots(
@@ -499,7 +704,7 @@ def _find_reusable_receive_parent(
 
 def _build_restore_plan(
     config: AppConfig,
-    backup_ops: BtrfsOps,
+    repository: BackupRepository,
     source: SourceRunner,
     *,
     source_ops: BtrfsOps | None = None,
@@ -521,7 +726,7 @@ def _build_restore_plan(
     source_identities = _source_info_identities(source_inventory)
 
     if snapshot_name:
-        backup = _validate_backup_snapshot(config, backup_ops, snapshot_name)
+        backup = _discover_backups(config, repository, selected_name=snapshot_name)[snapshot_name]
         backup_identity, consistency_reason = _consistent_backup_identity({snapshot_name: backup}, [snapshot_name])
         os_match, os_reason = _compare_repository_os_identity(backup_identity, source_identities)
         return (
@@ -540,12 +745,12 @@ def _build_restore_plan(
             source_inventory.timeshift_output,
         )
 
-    backups = _discover_backups(config, backup_ops)
+    backups = _discover_backups(config, repository)
     names = list(backups)
     backup_identity, consistency_reason = _consistent_backup_identity(backups, names)
     os_match, os_reason = _compare_repository_os_identity(backup_identity, source_identities)
     try:
-        state = load_state(config.state_file)
+        state = repository.load_state()
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         raise RestoreError(f"Could not load current state.json for common-parent validation: {exc}") from exc
     common_parent, reason = _find_latest_common_parent(
@@ -731,6 +936,7 @@ def _print_restore_plan(
     plan: RestorePlan,
     *,
     dry_run: bool,
+    repository: BackupRepository | None = None,
 ) -> None:
     print("TIMESHIFT SNAPSHOT RESTORE")
     print("==========================")
@@ -738,7 +944,10 @@ def _print_restore_plan(
     print(f"  snapshot_root:  {config.source.snapshot_root.rstrip('/')}")
     print("  date path type: ordinary directory")
     print(f"  payloads:       {', '.join(config.source.subvolumes)}")
-    print(f"  source mode:    {'SSH remote' if source.uses_ssh else 'local'}")
+    print(f"  Timeshift side: {'SSH remote' if source.uses_ssh else 'local'}")
+    if repository is not None:
+        print(f"  backup side:    {'SSH remote' if repository.runner.uses_ssh else 'local'}")
+        print(f"  backup root:    {repository.root}")
     print(f"  run mode:       {'dry-run' if dry_run else 'REAL RESTORE'}")
     if plan.backup_identity:
         print(f"  backup OS UUID: {plan.backup_identity.sys_uuid}")
@@ -796,26 +1005,27 @@ def restore_backups(
     danger_confirmed: bool,
     allow_no_common_parent: bool,
     allow_os_identity_mismatch: bool = False,
+    backup_over_ssh: bool = False,
 ) -> None:
     """Restore one snapshot or a complete backup chain into Timeshift."""
 
-    backup_ops = BtrfsOps(
-        CommandEndpoint.local("backup destination"),
-        config.destination.sudo,
-        config.destination.btrfs_command,
-    )
+    if backup_over_ssh and config.source.mode != "local":
+        raise RestoreError(
+            "--backup-over-ssh requires source.mode = \"local\" because this mode pulls a remote backup into the local Timeshift repository"
+        )
+    repository = BackupRepository.from_config(config, over_ssh=backup_over_ssh)
     source = SourceRunner.from_config(config)
     source_endpoint = CommandEndpoint.for_source(source)
     source_ops = BtrfsOps(source_endpoint, config.source.sudo, config.source.btrfs_command)
     plan, source_by_name, _timeshift_output = _build_restore_plan(
         config,
-        backup_ops,
+        repository,
         source,
         source_ops=source_ops,
         snapshot_name=snapshot_name,
         restore_all=restore_all,
     )
-    _print_restore_plan(config, source, plan, dry_run=dry_run)
+    _print_restore_plan(config, source, plan, dry_run=dry_run, repository=repository)
 
     if not plan.restore_names:
         return
@@ -934,9 +1144,9 @@ def restore_backups(
             chain_created.append(name)
             for subvolume_name in config.source.subvolumes:
                 backup = plan.backups[name]
-                backup_path = backup.path / subvolume_name
+                backup_path = str(PurePosixPath(backup.path) / subvolume_name)
                 parent_path = (
-                    str(plan.backups[previous_name].path / subvolume_name)
+                    str(PurePosixPath(plan.backups[previous_name].path) / subvolume_name)
                     if previous_name is not None
                     else None
                 )
@@ -944,8 +1154,8 @@ def restore_backups(
                 print()
                 print(f"Restoring chain {name}/{subvolume_name}: {'full' if parent_path is None else 'incremental'}")
                 stream_pipeline(
-                    backup_ops.send_command(
-                        str(backup_path),
+                    repository.ops.send_command(
+                        backup_path,
                         parent_path=parent_path,
                         compressed_data=False,
                         proto=None,
@@ -953,10 +1163,10 @@ def restore_backups(
                     ),
                     source_ops.receive_command(receive_dir, verbose=config.stream.btrfs_verbose),
                     middle_cmd=config.stream.command(),
-                    left_env=None,
+                    left_env=repository.environment,
                     middle_env=None,
                     right_env=source.environment(),
-                    left_label="LOCAL BACKUP SEND",
+                    left_label="REMOTE BACKUP SEND" if repository.runner.uses_ssh else "LOCAL BACKUP SEND",
                     right_label=right_label,
                 )
                 received_meta = source_ops.meta(received_path, name=subvolume_name, required=True)

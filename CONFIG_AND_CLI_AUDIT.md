@@ -17,6 +17,25 @@ This file lists the current public interface. The loader rejects any key not lis
 - `destroy-leftovers`
 
 
+
+## Packaged config profiles
+
+- `timeshift_btrfs_sync/data/config.example.toml`: complete normal sync/local-restore profile.
+- `timeshift_btrfs_sync/data/config.restore-pull.example.toml`: complete SSH-backup-to-local-Timeshift restore profile.
+- `init-config --profile sync` writes the first profile.
+- `init-config --profile restore-pull` writes the second profile.
+- Both profiles document every current schema key, including all SSH authentication and transport settings.
+- SSH password authentication is supported only through `sshpass`, using exactly one of `ssh.password` or `ssh.password_file`; key authentication remains recommended.
+
+## `init-config` flags
+
+- `--path`
+- `--profile sync`
+- `--profile restore-pull`
+- `--force`
+
+The default profile is `sync`. Both generated profiles contain every current configuration key and differ only in profile-oriented defaults and explanations.
+
 ## Destination Btrfs layout
 
 - `destination.target_root` must be a Btrfs subvolume.
@@ -156,20 +175,22 @@ This file lists the current public interface. The loader rejects any key not lis
 - Real prune and destroy operations require their destructive confirmations.
 - Restore can import one timestamp or every backup newer than the latest UUID- and stable-`info.json`-confirmed common parent. It refuses overwrite, reuses an exact recorded read-only source send parent for an incremental first restore when available, otherwise explains and uses one hidden full seed, writes the exact saved `info.json`, exposes writable CoW payload snapshots, and requires Timeshift to list every committed date.
 - Restore prints that original H/D/W/M tags remain subject to Timeshift retention, including the risk that restored snapshots or existing tagged snapshots older than the restored snapshots may be pruned, and every real local or SSH restore requires the exact sentence `I UNDERSTAND TIMESHIFT MAY DELETE RESTORED SNAPSHOTS OR OLDER THAN RESTORED SNAPSHOTS` before transfer.
-- Local and SSH restore use the same implementation; only the source endpoint transport changes.
+- Local backup restore, local-backup-to-SSH restore, and SSH-backup-to-local restore use the same planner and execution loop; only the backup and Timeshift endpoint transports change.
+- `restore --backup-over-ssh` requires `source.mode = "local"`, reads `destination.target_root`, `state_file`, and `lock_file` on the configured SSH backup host, holds that remote lock, and streams remote `btrfs send` into local `btrfs receive`.
 - Restore requires source-side ordinary filesystem privilege for `mkdir`, `tee`, `chmod`, `mv`, exact `rm`, and `rmdir` in addition to Btrfs and Timeshift privilege.
 
 ## `restore` flags
 
 - `--config`, `-c`
 - exactly one of `--snapshot` or `--all`
+- `--backup-over-ssh`
 - `--allow-no-common-parent`
 - `--allow-os-identity-mismatch`
 - `--dry-run`
 - `--run`
 - `--i-understand-this-modifies-timeshift`
 
-The backup is always read from local `destination.target_root`. The restored payload is received into the configured local or SSH source endpoint.
+By default the backup is read from local `destination.target_root` and the restored payload is received into the configured local or SSH source endpoint. With `--backup-over-ssh`, `[ssh]` identifies the backup host, `destination.target_root` plus state/lock paths are remote, and the Timeshift target must be local. Both network directions use the same restore planner, identity checks, chain rules, and staging logic.
 
 `--snapshot` performs one full restore. `--all` discovers all valid destination backups and the current coherent source Timeshift/Btrfs/`info.json` inventory, then uses `state.json` to prove the newest common date for every configured payload. A common date requires the live Timeshift UUID to match `original_source_uuid`, the backup Received UUID to match `send_source_uuid`, and source/backup `info.json` to match by `sys-uuid` and Btrfs `type`. Names alone are not accepted.
 

@@ -1,4 +1,4 @@
-"""Unified command endpoints for local and source-side operations.
+"""Unified command endpoints for local, Timeshift, and backup operations.
 
 Business logic should depend on :class:`CommandEndpoint`, not on separate local
 and SSH helper functions.  The endpoint owns only command transport; Btrfs,
@@ -17,10 +17,10 @@ from .source import SourceRunner
 
 @dataclass(slots=True)
 class CommandEndpoint:
-    """Execute commands on one local or source-side endpoint.
+    """Execute commands on one local or transported endpoint.
 
-    ``source`` is set for both SSH and local-source mode.  A destination/local
-    endpoint has ``source=None`` and executes argv directly on this machine.
+    ``source`` contains the shared local/SSH transport used for Timeshift or
+    remote-backup operations. A direct local endpoint has ``source=None``.
     """
 
     source: SourceRunner | None = None

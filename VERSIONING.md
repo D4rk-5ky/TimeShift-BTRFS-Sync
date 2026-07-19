@@ -688,3 +688,23 @@ This build is version `0.1.17`.
 - When the exact receive parent is missing, writable, or has the wrong UUID, restore retains the safe full-hidden-seed fallback and prints the precise reason. No existing Timeshift snapshot is modified to manufacture an incremental parent.
 - Added local and SSH regression coverage for incremental-first common-parent restore, exact source-cache parent validation, full-seed fallback, stable `info.json` comparison, mixed/mismatched OS identity handling, and the new danger override.
 - Updated current CLI help, README, installation guidance, interface audit, code map, tests, and package version metadata.
+
+## 0.1.60
+
+- Added `restore --backup-over-ssh` for pulling a Btrfs backup repository from the configured SSH host and restoring it into a local Timeshift repository.
+- In pull-restore mode, `source.mode = "local"` identifies the local Timeshift target, while `destination.target_root`, `state_file`, and `lock_file` are interpreted on the SSH backup host. Ambiguous SSH-backup-to-SSH-Timeshift use with the single SSH profile is refused.
+- Added one shared `BackupRepository` abstraction for local and SSH backup inventory, `info.json`, state loading, Btrfs metadata, and send commands. Existing local-backup-to-local and local-backup-to-SSH restore continue through the same restore planner and execution loop.
+- Remote backup streams use SSH `btrfs send` on the left side and local `btrfs receive` on the right side, retaining the current single/full-chain, common-parent, exact receive-parent, OS-identity, retention-warning, CoW, and failure-cleanup rules.
+- Added a persistent remote `flock` lock that holds the backup host's configured lock file for the complete real restore and coordinates with normal sync/prune processes using the same advisory lock.
+- Remote backup inventory reads direct timestamp entries and all readable `info.json` files in one SSH command. The remote account needs ordinary backup metadata read access, write access to the existing lock file, `flock` and `base64`, plus narrow Btrfs list/show/send privilege.
+- Updated current CLI help, config comments, README, installation guidance, interface audit, transport documentation, tests, code map, and package metadata.
+- Added remote-backup restore and remote-lock regression coverage for configuration loading, remote state/inventory reads, SSH-send-to-local-receive pipelines, lock acquisition/busy/timeout behavior, and local-target enforcement.
+
+## 0.1.61
+
+- Added `init-config --profile sync` and `init-config --profile restore-pull`. The default remains `sync`; `restore-pull` generates a complete SSH-backup-to-local-Timeshift configuration instead of requiring users to expand a shortened documentation snippet.
+- Added the packaged `timeshift_btrfs_sync/data/config.restore-pull.example.toml` profile. It uses `source.mode = "local"`, treats `[ssh]` as the remote backup host, and documents the remote meanings of `destination.target_root`, `state_file`, and `lock_file`.
+- Kept both generated profiles schema-complete. Every current top-level, SSH, source, destination, stream, retention, manual-snapshot, MQTT, and mail key is present as an active or commented assignment.
+- Expanded SSH configuration comments in both profiles for key authentication, optional `sshpass` password/password-file authentication, password-file permissions, port, cipher, compression, ControlMaster, strict host-key checking, known-hosts files, connection timeout, keepalives, jump hosts, and extra OpenSSH arguments.
+- Added regression coverage proving both `init-config` profiles exactly match their packaged resources, both resources are included in the package, the pull profile loads with local Timeshift plus remote backup SSH semantics, and no supported configuration key is absent from either profile.
+- Updated current README, installation guidance, CLI help, configuration audit, code map, package data, and version metadata.

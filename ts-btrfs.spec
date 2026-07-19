@@ -2,10 +2,10 @@
 
 
 a = Analysis(
-    ['/home/darkyere/Source/Timeshift-BTRFS-Sync/TimeShift-BTRFS-Sync/tools/pyinstaller_entry.py'],
-    pathex=['/home/darkyere/Source/Timeshift-BTRFS-Sync/TimeShift-BTRFS-Sync'],
+    ['/home/darkyere/Source/TimeShift-BTRFS-Sync/tools/pyinstaller_entry.py'],
+    pathex=['/home/darkyere/Source/TimeShift-BTRFS-Sync'],
     binaries=[],
-    datas=[('/home/darkyere/Source/Timeshift-BTRFS-Sync/TimeShift-BTRFS-Sync/timeshift_btrfs_sync/data/config.example.toml', 'timeshift_btrfs_sync/data')],
+    datas=[('/home/darkyere/Source/TimeShift-BTRFS-Sync/timeshift_btrfs_sync/data/config.example.toml', 'timeshift_btrfs_sync/data')],
     hiddenimports=['paho.mqtt.client'],
     hookspath=[],
     hooksconfig={},

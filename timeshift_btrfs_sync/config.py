@@ -74,7 +74,7 @@ class ManualSnapshotConfig:
 
 @dataclass(slots=True)
 class SourceConfig:
-    """Source Timeshift and Btrfs settings."""
+    """Timeshift source and restore-target settings."""
 
     # Timeshift-owned snapshot directory. It may be an ordinary directory on a
     # Btrfs filesystem, but the app must never create, prune, delete, destroy,
@@ -115,7 +115,7 @@ class SourceConfig:
 
 @dataclass(slots=True)
 class DestinationConfig:
-    """Local/destination receive settings."""
+    """Backup repository and normal local receive settings."""
 
     target_root: Path
     sudo: str = "sudo -n"
@@ -263,8 +263,13 @@ def _string_list(value: Any, field_name: str) -> list[str]:
     return value
 
 
-def load_config(path: str | Path) -> AppConfig:
-    """Read and validate TOML config."""
+def load_config(path: str | Path, *, require_ssh: bool = False) -> AppConfig:
+    """Read and validate TOML config.
+
+    ``require_ssh`` is used by restore when the backup repository is read over
+    SSH while the Timeshift restore target itself is local. Normal commands
+    leave it false, preserving the current source-mode configuration rules.
+    """
 
     path = Path(path).expanduser()
     with path.open("rb") as fh:
@@ -283,7 +288,7 @@ def load_config(path: str | Path) -> AppConfig:
 
     ssh_raw = _table(raw, "ssh")
     _reject_unknown_keys(ssh_raw, "[ssh]", SSH_KEYS)
-    if source_mode == "ssh":
+    if source_mode == "ssh" or require_ssh:
         port = _positive_int(ssh_raw.get("port"), "ssh.port")
         password = _optional_str(ssh_raw, "password")
         password_file = _optional_str(ssh_raw, "password_file")

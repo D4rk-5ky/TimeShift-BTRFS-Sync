@@ -26,17 +26,18 @@ MIT License. See [`LICENSE`](LICENSE).
 
 It supports full and incremental backup sends, Timeshift snapshot discovery, copying each snapshot date’s shared Timeshift `info.json`, writable source snapshots through a read-only send cache, restoring one backup or a full post-common backup chain to Timeshift’s native layout, safe destination pruning, optional automatic Timeshift on-demand snapshots, split logs, MQTT notifications, and email notifications with optional log attachments.
 
-The complete commented config template is packaged at `timeshift_btrfs_sync/data/config.example.toml` and can be copied with `ts-btrfs init-config`.
+Two complete commented config profiles are packaged: `config.example.toml` for normal sync/local restore and `config.restore-pull.example.toml` for SSH-backup-to-local-Timeshift restore. Generate either one with `ts-btrfs init-config --profile ...`.
 
 ## Packaged project layout
 
-The release zip keeps package data as real directories. The config template lives only at:
+The release zip keeps package data as real directories. The complete profiles live only at:
 
 ```text
 timeshift_btrfs_sync/data/config.example.toml
+timeshift_btrfs_sync/data/config.restore-pull.example.toml
 ```
 
-There should not be a root-level `config.example.toml` in the release zip. The `data` path must be a directory, not a file, because `init-config` reads the template as package data.
+There should not be root-level config templates in the release zip. The `data` path must be a directory, not a file, because `init-config` reads the selected profile as package data.
 
 ## Shared workflow architecture
 
@@ -208,6 +209,47 @@ The command has two restore selections:
 
 - `restore --snapshot <date>` restores one selected backup.
 - `restore --all` finds the newest proven common snapshot and restores every newer backup oldest-to-newest.
+
+### Pull a remote SSH backup into local Timeshift
+
+Restore can reverse the normal network direction without a second restore implementation. In pull mode the backup repository is remote and the Timeshift repository is local:
+
+```text
+SSH backup host: destination.target_root/snapshots/<date>/@
+        btrfs send over SSH
+                 ↓
+Local machine: source.snapshot_root/<date>/@
+        local btrfs receive
+```
+
+Generate the complete restore-only profile instead of building it from a shortened snippet:
+
+```bash
+ts-btrfs init-config \
+  --profile restore-pull \
+  --path ./config-restore-pull.toml
+```
+
+The generated file includes every supported top-level, SSH, source, destination, stream, retention, manual-snapshot, MQTT, and mail setting with comments. Its `[ssh]` section includes both key authentication and optional `sshpass` password/password-file authentication, plus port, cipher, compression, ControlMaster, strict host-key checking, timeouts, keepalives, and jump-host examples.
+
+In this mode `destination.target_root`, `state_file`, and `lock_file` are interpreted on the SSH backup host. `source.snapshot_root` and `log_dir` remain local. Use a separate restore config so later normal `sync`, `prune`, and `destroy-leftovers` runs do not accidentally interpret remote restore paths as local backup paths.
+
+Dry-run and real examples:
+
+```bash
+ts-btrfs restore --config ./config-restore-pull.toml \
+  --all \
+  --backup-over-ssh \
+  --dry-run
+
+ts-btrfs restore --config ./config-restore-pull.toml \
+  --all \
+  --backup-over-ssh \
+  --run \
+  --i-understand-this-modifies-timeshift
+```
+
+The remote SSH account needs ordinary traversal/read permission for the backup timestamp directories, `info.json`, and `state.json`; write access to the existing `lock_file`; access to `flock` and `base64`; and narrow passwordless sudo permission for the configured Btrfs command used by `subvolume list/show` and `send`. The local side needs the normal restore permissions for `btrfs receive`, Timeshift, ordinary date directories, and `info.json`. The real restore holds the lock on the remote backup host until all streams and verification complete.
 
 ### Same-OS identity from `info.json`
 
@@ -555,12 +597,21 @@ ts-btrfs restore --config ./config.toml --all --dry-run
 
 ## Configuration
 
-Generate the included example config:
+Generate the complete normal sync/local-restore profile:
 
 ```bash
-ts-btrfs init-config --path ./config.toml
+ts-btrfs init-config --profile sync --path ./config.toml
 nano config.toml
 ```
+
+Generate the complete SSH-backup-to-local-Timeshift pull-restore profile:
+
+```bash
+ts-btrfs init-config --profile restore-pull --path ./config-restore-pull.toml
+nano config-restore-pull.toml
+```
+
+Both packaged profiles contain every current configuration key with comments. The pull-restore profile is preconfigured with `source.mode = "local"`, `[ssh]` describing the backup host, and remote meanings for `destination.target_root`, `state_file`, and `lock_file`. Its SSH section documents key authentication, `password`, `password_file`, `sshpass`, port, cipher, compression, ControlMaster, host-key checking, timeouts, keepalives, and jump-host arguments.
 
 The packaged `timeshift_btrfs_sync/data/config.example.toml` file contains all options with safe defaults. Keep `default_dry_run = true` and `retention.cleanup_ondemand = false` unless you intentionally want less conservative behavior. Incremental sends require a proven matching parent; there is no unsafe override to continue when source and destination parent metadata does not match. Manual snapshot creation follows the same safety model: existing destinations require a UUID-confirmed source/destination anchor and a proven next-parent path before Timeshift is asked to create a new source snapshot, while a destination that was empty at run start may start with a full seed.
 
@@ -577,11 +628,13 @@ Top-level help lists every command. Command-specific flags are visible with `ts-
 
 ### `init-config`
 
-Writes the complete commented config template.
+Writes one complete commented config profile.
 
 | Flag | What it does | Why it may be needed |
 |---|---|---|
-| `--path PATH` | Writes the template to `PATH`; default is `./ts-btrfs.toml`. | Lets you create a config in the folder or name you prefer. |
+| `--path PATH` | Writes the selected profile to `PATH`; default is `./ts-btrfs.toml`. | Lets you create a config in the folder or name you prefer. |
+| `--profile sync` | Writes the normal sync/local-restore profile; this is the default. | Use for SSH-source backup, local backup, and restore from a locally mounted backup repository. |
+| `--profile restore-pull` | Writes the complete SSH-backup-to-local-Timeshift profile. | Use with `restore --backup-over-ssh`; includes every supported SSH authentication and transport option with comments. |
 | `--force` | Overwrites the target file if it already exists. | Needed when refreshing an existing generated template. Review changes before replacing a real config. |
 
 ### `test-source`
@@ -640,6 +693,7 @@ Restores either one backup or a complete backup chain to `source.snapshot_root` 
 | `--allow-os-identity-mismatch` | Allows restore when current Timeshift `info.json` files do not match the backup `sys-uuid` and Btrfs type. | Dangerous escape hatch when the backup may belong to another OS. It requires `I UNDERSTAND THIS BACKUP MAY BELONG TO ANOTHER OS`. |
 | `--dry-run` | Validates backup/source/state UUIDs, `info.json` OS identity, and exact receive-parent availability without changing Timeshift. | Always use first; it shows whether the first transfer will be incremental or why a full seed is required. |
 | `--run` | Performs the restore. | Required to modify the Timeshift repository. |
+| `--backup-over-ssh` | Restore-only transport switch. | Reads `destination.target_root`, `state_file`, and `lock_file` from `[ssh]` and restores into local `source.snapshot_root`; requires `source.mode = "local"`. |
 | `--i-understand-this-modifies-timeshift` | Required with `--run`. | Confirms direct Timeshift changes; the command then also requires `I UNDERSTAND TIMESHIFT MAY DELETE RESTORED SNAPSHOTS OR OLDER THAN RESTORED SNAPSHOTS` before receiving data. |
 
 A local restore normally needs to run as root unless `source.sudo` can run the exact ordinary filesystem commands listed in the restore-permissions section. In SSH mode those permissions are required on the remote source.
@@ -708,7 +762,7 @@ When `--delete-both` is used, the command prints `SOURCE / DESTINATION SNAPSHOT 
 
 ## Config reference
 
-Every option below is present in the packaged `timeshift_btrfs_sync/data/config.example.toml`. Commented entries are optional but supported.
+Every option below is present in both packaged profiles. Commented entries are optional but supported. The two files differ only in profile-oriented defaults and path/transport explanations; they expose the same current schema.
 
 ### Top-level options
 
@@ -763,12 +817,12 @@ Every option below is present in the packaged `timeshift_btrfs_sync/data/config.
 
 ### `[ssh]`
 
-Used only when `source.mode = "ssh"`. In `source.mode = "local"`, the `[ssh]` section may be omitted and SSH settings are not validated.
+Used when `source.mode = "ssh"` or when `restore --backup-over-ssh` pulls a backup repository from SSH. In local source mode the section may be omitted unless that restore flag is used.
 
 | Option | What it does | Why it may be needed |
 |---|---|---|
-| `host` | Source hostname or IP. | Required only in SSH mode so the destination can pull snapshots from the source. |
-| `user` | SSH user on the source. | Use a dedicated low-privilege user with only the minimal sudo rules. |
+| `host` | SSH endpoint hostname or IP. | In normal SSH source mode this is the Timeshift host; with `restore --backup-over-ssh` it is the backup host. |
+| `user` | SSH endpoint user. | Use a dedicated low-privilege account with only the permissions required by the selected direction. |
 | `port` | Optional SSH port. | Needed if the source does not use port `22`. |
 | `identity_file` | SSH private key path passed with `ssh -i`. | Recommended for unattended scheduled jobs. |
 | `compression` | Adds `ssh -C`. | Can help on slow links; often unnecessary on fast LANs or already-compressed streams. |
@@ -813,7 +867,7 @@ Leave `control_master = false` for maximum isolation, on shared machines, or any
 
 | Option | What it does | Why it may be needed |
 |---|---|---|
-| `mode` | Chooses `ssh` or `local`. Default is `ssh`. | Use `local` when Timeshift snapshots and the destination are on the same machine and you want to skip SSH while keeping the same safety rules. |
+| `mode` | Chooses where Timeshift source/restore-target commands run. Default is `ssh`. | Use `local` for a local Timeshift repository. `restore --backup-over-ssh` requires `local` because `[ssh]` identifies the backup host in that mode. |
 | `sudo` | Source sudo prefix, normally `sudo -n`. | Required for Timeshift/Btrfs commands without interactive prompts. |
 | `btrfs_command` | Source Btrfs command name/path. | Use an absolute path if the remote sudo PATH is restricted. |
 | `timeshift_command` | Source Timeshift command name/path. | Use an absolute path if needed by sudo or your distro. |
@@ -832,7 +886,7 @@ Leave `control_master = false` for maximum isolation, on shared machines, or any
 
 | Option | What it does | Why it may be needed |
 |---|---|---|
-| `target_root` | Local backup root. | Required. The app stores received snapshots and metadata under this path. If missing and creation is enabled, preflight creates this exact path as a Btrfs subvolume. |
+| `target_root` | Backup repository root. | Normal sync/prune/destroy use it locally. `restore --backup-over-ssh` reads this path on the SSH backup host. If missing during normal sync and creation is enabled, preflight creates it locally as a Btrfs subvolume. |
 | `sudo` | Destination sudo prefix, normally `sudo -n`. | Required for local `btrfs receive` and subvolume delete commands. |
 | `btrfs_command` | Destination Btrfs command name/path. | Use an absolute path if needed by sudo or your distro. |
 | `create_target_root` | Allows preflight to create a missing `target_root` as a Btrfs subvolume and create internal metadata directories. | Convenient for first setup. Disable if you want missing paths to be an error. |

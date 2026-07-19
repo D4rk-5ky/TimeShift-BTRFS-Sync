@@ -1,35 +1,42 @@
-"""Source command runner for SSH and local source modes."""
+"""Command runner for local or SSH Timeshift and backup endpoints."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from .commands import Completed, CommandError, run_local
-from .ssh import SSHRunner
+from .ssh import SSHConfig, SSHRunner
 
 
 @dataclass(slots=True)
 class SourceRunner:
-    """Run source-side commands either over SSH or locally.
+    """Run commands through one local or SSH endpoint.
 
-    The rest of the app treats the source as a command endpoint. In the
-    original mode that endpoint is an SSH session. In local mode it is the same
-    machine running ``ts-btrfs``. Local mode still uses the source-side sudo and
-    command settings; it only removes the SSH wrapper.
+    Normal workflows use this as the Timeshift source endpoint. Pull restore
+    also uses it for the SSH backup endpoint, allowing both directions to share
+    one transport implementation.
     """
 
     mode: str
     ssh: SSHRunner | None = None
 
     @classmethod
-    def from_config(cls, config) -> "SourceRunner":
-        """Create a source runner from validated app config."""
+    def from_mode(cls, mode: str, ssh_config: SSHConfig | None) -> "SourceRunner":
+        """Create a local or SSH command runner from one validated mode."""
 
-        if config.source.mode == "local":
+        if mode == "local":
             return cls(mode="local")
-        if config.ssh is None:
-            raise ValueError("source.mode is ssh but no SSH configuration was loaded")
-        return cls(mode="ssh", ssh=SSHRunner(config.ssh))
+        if mode != "ssh":
+            raise ValueError(f"unsupported command endpoint mode: {mode}")
+        if ssh_config is None:
+            raise ValueError("SSH mode was requested but no SSH configuration was loaded")
+        return cls(mode="ssh", ssh=SSHRunner(ssh_config))
+
+    @classmethod
+    def from_config(cls, config) -> "SourceRunner":
+        """Create the configured Timeshift source runner."""
+
+        return cls.from_mode(config.source.mode, config.ssh)
 
     @property
     def uses_ssh(self) -> bool:
