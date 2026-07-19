@@ -195,6 +195,9 @@ def stream_pipeline(
     middle_env: dict[str, str] | None = None,
     right_env: dict[str, str] | None = None,
     passthrough_right_stdout: bool = False,
+    left_label: str = "REMOTE SEND",
+    middle_label: str = "STREAM BUFFER",
+    right_label: str = "LOCAL RECEIVE",
 ) -> None:
     """Stream left command into optional middle command, then right command.
 
@@ -225,12 +228,12 @@ def stream_pipeline(
         # to the next.
         term_err = runlog.terminal_stderr()
         print(file=term_err)
-        print("REMOTE SEND:", shlex.join(left_cmd), file=term_err)
+        print(f"{left_label}:", shlex.join(left_cmd), file=term_err)
         print(file=term_err)
         if middle_cmd:
-            print("STREAM BUFFER:", shlex.join(middle_cmd), file=term_err)
+            print(f"{middle_label}:", shlex.join(middle_cmd), file=term_err)
             print(file=term_err)
-        print("LOCAL RECEIVE:", shlex.join(right_cmd), file=term_err)
+        print(f"{right_label}:", shlex.join(right_cmd), file=term_err)
         print(file=term_err)
 
     if logger:

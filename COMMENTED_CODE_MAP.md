@@ -58,15 +58,19 @@ No runtime classes or functions are defined in this file.
 
 - `BtrfsOps.list_children` (function/method, line 152): Return all descendants selected from one Btrfs containment graph. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
-- `BtrfsOps.create` (function/method, line 171): Create create after validation. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
+- `BtrfsOps.create` (function/method, line 171): Perform the create step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
-- `BtrfsOps.delete` (function/method, line 174): Delete delete under the workflow safety rules. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
+- `BtrfsOps.snapshot` (function/method, line 174): Create one exact writable or read-only Btrfs snapshot. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
-- `BtrfsOps.send_command` (function/method, line 189): Perform the send command step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
+- `BtrfsOps.delete` (function/method, line 190): Perform the delete step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
-- `BtrfsOps.receive_command` (function/method, line 210): Perform the receive command step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
+- `BtrfsOps.send_command` (function/method, line 205): Perform the send command step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
-- `BtrfsOps.batch_delete` (function/method, line 217): Delete exact paths in one endpoint command and validate confirmations. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
+- `BtrfsOps.receive_command` (function/method, line 226): Perform the receive command step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
+
+- `BtrfsOps.set_readonly` (function/method, line 233): Set the Btrfs subvolume read-only property explicitly. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
+
+- `BtrfsOps.batch_delete` (function/method, line 238): Delete exact paths in one endpoint command and validate confirmations. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
 ## `timeshift_btrfs_sync/cache_ops.py`
 
@@ -100,77 +104,81 @@ No runtime classes or functions are defined in this file.
 
 **Why this module exists:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `new_subparser` (function/method, line 34): Perform the new subparser step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `new_subparser` (function/method, line 35): Perform the new subparser step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `add_config_arg` (function/method, line 40): Perform the add config arg step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `add_config_arg` (function/method, line 41): Perform the add config arg step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `add_run_mode_args` (function/method, line 42): Perform the add run mode args step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `add_run_mode_args` (function/method, line 43): Perform the add run mode args step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `add_yes_delete_arg` (function/method, line 48): Perform the add yes delete arg step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `add_yes_delete_arg` (function/method, line 49): Perform the add yes delete arg step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `_load_config_state` (function/method, line 52): Load state and resolve all root-relative paths against this config. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `_load_config_state` (function/method, line 53): Load state and resolve all root-relative paths against this config. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `_failure_exit_code` (function/method, line 58): Return a stable CLI exit code for failure notifications. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `_failure_exit_code` (function/method, line 59): Return a stable CLI exit code for failure notifications. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `_stderr_tail_for_exception` (function/method, line 74): Return the best available recent stderr text for failure notifications. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `_stderr_tail_for_exception` (function/method, line 75): Return the best available recent stderr text for failure notifications. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `_send_notifications` (function/method, line 84): Send optional MQTT/email status without changing the command exit code. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `_send_notifications` (function/method, line 85): Send optional MQTT/email status without changing the command exit code. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `_mail_attachment_paths` (function/method, line 124): Return current run log paths for optional email attachment. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `_mail_attachment_paths` (function/method, line 125): Return current run log paths for optional email attachment. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `_safe_destroy_log_dir` (function/method, line 134): Return a log directory that will survive a destructive cleanup. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `_safe_destroy_log_dir` (function/method, line 135): Return a log directory that will survive a destructive cleanup. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `_with_logging` (function/method, line 175): Run a command with optional logging and MQTT notification. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `_with_logging` (function/method, line 176): Run a command with optional logging and MQTT notification. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `_resolve_dry_run` (function/method, line 224): Resolve dry run to its current runtime value. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `_resolve_dry_run` (function/method, line 225): Perform the resolve dry run step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_init_config` (function/method, line 232): Perform the cmd init config step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_init_config` (function/method, line 233): Perform the cmd init config step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_test_source` (function/method, line 243): Perform the cmd test source step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_test_source` (function/method, line 244): Perform the cmd test source step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_test_source._run` (function/method, line 246): Perform the run step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_test_source._run` (function/method, line 247): Perform the run step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `_refresh_state_metadata_from_timeshift` (function/method, line 264): Refresh mutable state metadata from one fast Timeshift list read. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `_refresh_state_metadata_from_timeshift` (function/method, line 265): Refresh mutable state metadata from one fast Timeshift list read. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_list_source` (function/method, line 272): List snapshots on the source machine. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_list_source` (function/method, line 273): List snapshots on the source machine. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_list_source._run` (function/method, line 282): Perform the run step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_list_source._run` (function/method, line 283): Perform the run step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_sync` (function/method, line 295): Perform the cmd sync step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_sync` (function/method, line 296): Perform the cmd sync step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_sync._run_dry` (function/method, line 299): Perform the run dry step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_sync._run_dry` (function/method, line 300): Perform the run dry step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_sync._run_locked` (function/method, line 308): Perform the run locked step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_sync._run_locked` (function/method, line 309): Perform the run locked step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_prune` (function/method, line 325): Perform the cmd prune step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_prune` (function/method, line 326): Perform the cmd prune step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_prune._run_dry` (function/method, line 329): Perform the run dry step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_prune._run_dry` (function/method, line 330): Perform the run dry step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_prune._run_locked` (function/method, line 337): Perform the run locked step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_prune._run_locked` (function/method, line 338): Perform the run locked step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_create_manual` (function/method, line 354): Perform the cmd create manual step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_restore` (function/method, line 355): Restore one snapshot or the complete post-common backup chain into Timeshift. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_create_manual._run` (function/method, line 357): Perform the run step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_restore._run` (function/method, line 361): Perform the run step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_clear_state` (function/method, line 383): Guardedly remove the configured state_file with normal run logging. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_create_manual` (function/method, line 387): Perform the cmd create manual step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_clear_state._run` (function/method, line 389): Perform the run step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_create_manual._run` (function/method, line 390): Perform the run step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_delete_lock` (function/method, line 411): Guardedly remove the configured lock_file if it is stale, with logging. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_clear_state` (function/method, line 416): Guardedly remove the configured state_file with normal run logging. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_delete_lock._run` (function/method, line 417): Perform the run step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_clear_state._run` (function/method, line 422): Perform the run step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_destroy_leftovers` (function/method, line 428): Destroy configured leftovers with normal run logging enabled. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_delete_lock` (function/method, line 444): Guardedly remove the configured lock_file if it is stale, with logging. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_destroy_leftovers._run` (function/method, line 442): Perform the run step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_delete_lock._run` (function/method, line 450): Perform the run step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_show_state` (function/method, line 454): Perform the cmd show state step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_destroy_leftovers` (function/method, line 461): Destroy configured leftovers with normal run logging enabled. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `cmd_show_state._run` (function/method, line 457): Perform the run step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_destroy_leftovers._run` (function/method, line 475): Perform the run step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `build_parser` (function/method, line 499): Create the argparse parser and command-specific flag help. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_show_state` (function/method, line 487): Perform the cmd show state step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
-- `main` (function/method, line 670): Perform the main step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+- `cmd_show_state._run` (function/method, line 490): Perform the run step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+
+- `build_parser` (function/method, line 533): Create the argparse parser and command-specific flag help. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
+
+- `main` (function/method, line 749): Perform the main step used by this module. **Why:** Connects the current command-line interface to the runtime workflows and shared notification/logging lifecycle.
 
 ## `timeshift_btrfs_sync/commands.py`
 
@@ -214,43 +222,43 @@ No runtime classes or functions are defined in this file.
 
 - `SourceConfig` (class, line 76): Source Timeshift and Btrfs settings. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `DestinationConfig` (class, line 116): Local/destination receive settings. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `DestinationConfig` (class, line 117): Local/destination receive settings. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `StreamConfig` (class, line 130): Optional pipeline display/buffering settings. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `StreamConfig` (class, line 131): Optional pipeline display/buffering settings. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `StreamConfig.command` (function/method, line 150): Return mbuffer command argv or None when disabled. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `StreamConfig.command` (function/method, line 151): Return mbuffer command argv or None when disabled. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `RetentionConfig` (class, line 164): Destination retention counts by Timeshift tag. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `RetentionConfig` (class, line 165): Destination retention counts by Timeshift tag. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `RetentionConfig.counts_by_tag` (function/method, line 183): Return retention counts keyed by Timeshift tag letters. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `RetentionConfig.counts_by_tag` (function/method, line 184): Return retention counts keyed by Timeshift tag letters. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `AppConfig` (class, line 189): Complete validated app configuration. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `AppConfig` (class, line 190): Complete validated app configuration. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `ConfigError` (class, line 207): Raised when the TOML config is invalid. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `ConfigError` (class, line 208): Raised when the TOML config is invalid. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `_table` (function/method, line 210): Perform the table step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `_table` (function/method, line 211): Perform the table step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `_optional_str` (function/method, line 216): Perform the optional str step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `_optional_str` (function/method, line 217): Perform the optional str step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `_positive_int` (function/method, line 219): Perform the positive int step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `_positive_int` (function/method, line 220): Perform the positive int step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `_stripped` (function/method, line 226): Perform the stripped step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `_stripped` (function/method, line 227): Perform the stripped step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `_bool` (function/method, line 229): Perform the bool step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `_bool` (function/method, line 230): Perform the bool step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `_int` (function/method, line 232): Perform the int step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `_int` (function/method, line 233): Perform the int step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `_as_str` (function/method, line 235): Perform the as str step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `_as_str` (function/method, line 236): Perform the as str step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `_as_path` (function/method, line 240): Perform the as path step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `_as_path` (function/method, line 241): Perform the as path step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `_as_bool` (function/method, line 243): Perform the as bool step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `_as_bool` (function/method, line 244): Perform the as bool step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `_as_int` (function/method, line 250): Perform the as int step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `_as_int` (function/method, line 251): Perform the as int step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `_string_list` (function/method, line 257): Perform the string list step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `_string_list` (function/method, line 258): Perform the string list step used by this module. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
-- `load_config` (function/method, line 265): Read and validate TOML config. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
+- `load_config` (function/method, line 266): Read and validate TOML config. **Why:** Defines and validates the complete current configuration surface before filesystem work begins.
 
 ## `timeshift_btrfs_sync/destroy.py`
 
@@ -266,13 +274,13 @@ No runtime classes or functions are defined in this file.
 
 - `_mode_text` (function/method, line 51): Perform the mode text step used by this module. **Why:** Applies destructive confirmations and presents results from the shared Btrfs tree engine.
 
-- `_load_payload_state` (function/method, line 57): Load paystate for the current workflow. **Why:** Applies destructive confirmations and presents results from the shared Btrfs tree engine.
+- `_load_payload_state` (function/method, line 57): Perform the load payload state step used by this module. **Why:** Applies destructive confirmations and presents results from the shared Btrfs tree engine.
 
 - `_result_by_label` (function/method, line 64): Perform the result by label step used by this module. **Why:** Applies destructive confirmations and presents results from the shared Btrfs tree engine.
 
-- `_print_payload_match` (function/method, line 68): Present payload match to the user. **Why:** Applies destructive confirmations and presents results from the shared Btrfs tree engine.
+- `_print_payload_match` (function/method, line 68): Perform the print payload match step used by this module. **Why:** Applies destructive confirmations and presents results from the shared Btrfs tree engine.
 
-- `_print_result` (function/method, line 87): Present result to the user. **Why:** Applies destructive confirmations and presents results from the shared Btrfs tree engine.
+- `_print_result` (function/method, line 87): Perform the print result step used by this module. **Why:** Applies destructive confirmations and presents results from the shared Btrfs tree engine.
 
 - `destroy_leftovers` (function/method, line 118): Plan and execute selected source/destination tree retirement. **Why:** Applies destructive confirmations and presents results from the shared Btrfs tree engine.
 
@@ -616,11 +624,11 @@ No runtime classes or functions are defined in this file.
 
 **Why this module exists:** Creates ordered action plans without touching the filesystem.
 
-- `ActionKind` (class, line 17): Holds or coordinates ActionKind. **Why:** Creates ordered action plans without touching the filesystem.
+- `ActionKind` (class, line 17): Perform the ActionKind step used by this module. **Why:** Creates ordered action plans without touching the filesystem.
 
-- `WorkflowAction` (class, line 28): Holds or coordinates WorkflowAction. **Why:** Creates ordered action plans without touching the filesystem.
+- `WorkflowAction` (class, line 28): Perform the WorkflowAction step used by this module. **Why:** Creates ordered action plans without touching the filesystem.
 
-- `WorkflowPlan` (class, line 36): Holds or coordinates WorkflowPlan. **Why:** Creates ordered action plans without touching the filesystem.
+- `WorkflowPlan` (class, line 36): Perform the WorkflowPlan step used by this module. **Why:** Creates ordered action plans without touching the filesystem.
 
 - `WorkflowPlan.add` (function/method, line 40): Perform the add step used by this module. **Why:** Creates ordered action plans without touching the filesystem.
 
@@ -638,43 +646,101 @@ No runtime classes or functions are defined in this file.
 
 **Why this module exists:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `PathPreflightError` (class, line 43): Raised before any destructive/creating sync work when required paths fail. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `PathPreflightError` (class, line 44): Raised before any destructive/creating sync work when required paths fail. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `PathCheck` (class, line 48): One configured path availability result. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `PathCheck` (class, line 49): One configured path availability result. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `_shell_words` (function/method, line 59): Return a shell-safe string for configured command-prefix words. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `_shell_words` (function/method, line 60): Return a shell-safe string for configured command-prefix words. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `_parse_path_check_output` (function/method, line 65): Parse source-path preflight sentinel lines into structured checks. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `_parse_path_check_output` (function/method, line 66): Parse source-path preflight sentinel lines into structured checks. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `_source_snapshot_root_script` (function/method, line 98): Build a source script that validates Timeshift-owned source.snapshot_root. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `_source_snapshot_root_script` (function/method, line 99): Build a source script that validates Timeshift-owned source.snapshot_root. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `_cache_root_check_script` (function/method, line 166): Build a source script that validates or creates source.cache_root. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `_cache_root_check_script` (function/method, line 167): Build a source script that validates or creates source.cache_root. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `_combined_source_path_check_script` (function/method, line 242): Run both source-root preflight checks inside one source command. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `_combined_source_path_check_script` (function/method, line 243): Run both source-root preflight checks inside one source command. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `_source_path_checks` (function/method, line 274): Check/create both source roots with at most one SSH command. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `_source_path_checks` (function/method, line 275): Check/create both source roots with at most one SSH command. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `_parent_of_path` (function/method, line 353): Return the immediate parent path used for exact-path creation checks. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `_parent_of_path` (function/method, line 354): Return the immediate parent path used for exact-path creation checks. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `_local_btrfs_result` (function/method, line 360): Run one local destination sudo+btrfs command for preflight checks. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `_local_btrfs_result` (function/method, line 361): Run one local destination sudo+btrfs command for preflight checks. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `_compact_process_error` (function/method, line 372): Return compact stderr/stdout text from a failed subprocess. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `_compact_process_error` (function/method, line 373): Return compact stderr/stdout text from a failed subprocess. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `_compact_os_error` (function/method, line 379): Return compact text for local filesystem creation errors. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `_compact_os_error` (function/method, line 380): Return compact text for local filesystem creation errors. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `_print_check_block` (function/method, line 385): Print one human-readable preflight result block. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `_print_check_block` (function/method, line 386): Print one human-readable preflight result block. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `_raise_for_failed_checks` (function/method, line 400): Raise a hard preflight error when any check failed. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `_raise_for_failed_checks` (function/method, line 401): Raise a hard preflight error when any check failed. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `ensure_local_helper_dir` (function/method, line 410): Ensure one local helper directory exists. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `ensure_local_helper_dir` (function/method, line 411): Ensure one local helper directory exists. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `prepare_lock_path` (function/method, line 526): Create/verify the lock directory before other sync/prune directories. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `prepare_lock_path` (function/method, line 565): Create/verify the lock directory before other sync/prune directories. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `prepare_destination_helper_paths` (function/method, line 558): Create/verify local destination helper folders used by sync/prune. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `prepare_destination_helper_paths` (function/method, line 597): Create/verify local destination helper folders used by sync/prune. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `_local_target_path_check` (function/method, line 597): Check/create destination.target_root locally. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `_local_target_path_check` (function/method, line 644): Check/create destination.target_root locally. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
 
-- `check_required_sync_paths` (function/method, line 739): Verify/create required configured roots before manual snapshot creation or send. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+- `check_required_sync_paths` (function/method, line 786): Verify/create required configured roots before manual snapshot creation or send. **Why:** Validates required paths, permissions, commands, and Btrfs layout before a real workflow changes data.
+
+## `timeshift_btrfs_sync/restore.py`
+
+**Module role:** Restore one backed-up snapshot or a complete full-plus-incremental chain into the source Timeshift repository.
+
+**Why this module exists:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `RestoreError` (class, line 40): Raised when backups cannot be imported safely into Timeshift. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `TimeshiftOsIdentity` (class, line 45): Stable Timeshift metadata used to identify one OS installation. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `BackupSnapshot` (class, line 54): One validated destination snapshot available for restore. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_effective_send_uuid` (function/method, line 64): Return the UUID identity carried by a Btrfs send stream. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_info_os_identity` (function/method, line 78): Return stable Timeshift OS identity while ignoring per-snapshot fields. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_parse_info_json` (function/method, line 98): Parse one Timeshift control file and extract its stable OS identity. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_same_os_identity` (function/method, line 110): Return whether two Timeshift identities prove the same OS installation. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_consistent_backup_identity` (function/method, line 121): Require one non-conflicting OS identity across the selected backup set. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_source_info_identities` (function/method, line 148): Parse stable OS identities from the coherent source info.json inventory. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_compare_repository_os_identity` (function/method, line 161): Compare one backup identity with all current Timeshift control files. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `RestorePlan` (class, line 189): A side-effect-free single or chain restore plan. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `RestorePlan.seed_name` (property, line 206): Perform the seed name step used by this module. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_source_path_exists` (function/method, line 210): Perform the source path exists step used by this module. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_privileged_argv` (function/method, line 224): Perform the privileged argv step used by this module. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_write_source_info_json` (function/method, line 228): Write exact captured metadata through the configured source privilege prefix. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_validate_backup_snapshot` (function/method, line 269): Validate one backup date, payload set, metadata file, and Btrfs identity. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_discover_backups` (function/method, line 322): Return every valid destination backup ordered by Timeshift timestamp. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_source_snapshots` (function/method, line 338): Read one coherent source Timeshift/Btrfs/info.json inventory. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_find_latest_common_parent` (function/method, line 367): Find the newest date proven common by UUID state and info.json identity. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_find_reusable_receive_parent` (function/method, line 434): Find the exact read-only source subvolumes required for first incremental receive. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_build_restore_plan` (function/method, line 500): Build a single or complete-chain restore plan without changing either side. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_remove_restore_directory` (function/method, line 597): Remove one exact app-created ordinary restore directory and its payloads. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_cleanup_restore_attempt` (function/method, line 651): Roll back only directories created by the current restore attempt. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_print_restored_snapshot_retention_warning` (function/method, line 711): Explain that restored Timeshift tags remain subject to normal retention. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `_print_restore_plan` (function/method, line 728): Perform the print restore plan step used by this module. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
+
+- `restore_backups` (function/method, line 790): Restore one snapshot or a complete backup chain into Timeshift. **Why:** Owns one shared local/SSH restore implementation, native Timeshift layout validation, stable info.json OS identity checks, UUID-confirmed common-parent selection, exact receive-parent reuse, justified full-seed fallback, writable CoW exposure, mandatory risk acknowledgements, staged commit, and exact failed-attempt cleanup.
 
 ## `timeshift_btrfs_sync/retention.py`
 
@@ -712,9 +778,9 @@ No runtime classes or functions are defined in this file.
 
 - `_delete_prune_item` (function/method, line 391): Execute one pure prune plan and remove state after both trees are gone. **Why:** Selects retained snapshots and executes safe destination/cache/state pruning in the required order.
 
-- `_delete_prune_item.delete_destination` (function/method, line 417): Delete destination under the workflow safety rules. **Why:** Selects retained snapshots and executes safe destination/cache/state pruning in the required order.
+- `_delete_prune_item.delete_destination` (function/method, line 417): Perform the delete destination step used by this module. **Why:** Selects retained snapshots and executes safe destination/cache/state pruning in the required order.
 
-- `_delete_prune_item.delete_cache` (function/method, line 422): Delete cache under the workflow safety rules. **Why:** Selects retained snapshots and executes safe destination/cache/state pruning in the required order.
+- `_delete_prune_item.delete_cache` (function/method, line 422): Perform the delete cache step used by this module. **Why:** Selects retained snapshots and executes safe destination/cache/state pruning in the required order.
 
 - `_delete_prune_item.remove_state` (function/method, line 434): Perform the remove state step used by this module. **Why:** Selects retained snapshots and executes safe destination/cache/state pruning in the required order.
 
@@ -858,111 +924,111 @@ No runtime classes or functions are defined in this file.
 
 - `prepare_destination` (function/method, line 171): Create/validate destination helper folders before writes. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `list_source_snapshots` (function/method, line 192): Discover source Timeshift snapshots. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `list_source_snapshots` (function/method, line 191): Discover source Timeshift snapshots. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `source_snapshot_index` (function/method, line 215): Perform the source snapshot index step used by this module. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `source_snapshot_index` (function/method, line 214): Perform the source snapshot index step used by this module. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_snapshots_from_source_inventory` (function/method, line 219): Build Timeshift snapshot objects from one coherent source inventory. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_snapshots_from_source_inventory` (function/method, line 218): Build Timeshift snapshot objects from one coherent source inventory. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_required_pipeline_source_changes` (function/method, line 237): Return identity changes to source paths required by current work. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_required_pipeline_source_changes` (function/method, line 236): Return identity changes to source paths required by current work. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `confirm_source_identity_before_manual_snapshot` (function/method, line 276): Print and enforce the shared manual-snapshot source identity guard. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `confirm_source_identity_before_manual_snapshot` (function/method, line 275): Print and enforce the shared manual-snapshot source identity guard. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_is_app_manual_snapshot` (function/method, line 328): Return True for source Timeshift O snapshots created by this app. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_is_app_manual_snapshot` (function/method, line 327): Return True for source Timeshift O snapshots created by this app. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_pending_app_manual_snapshots` (function/method, line 344): Return app-created on-demand snapshots that still need syncing. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_pending_app_manual_snapshots` (function/method, line 343): Return app-created on-demand snapshots that still need syncing. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_maybe_create_manual_snapshot` (function/method, line 369): Optionally create a source Timeshift tag O snapshot before sync. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_maybe_create_manual_snapshot` (function/method, line 368): Optionally create a source Timeshift tag O snapshot before sync. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_snapshots_in_sync_order` (function/method, line 458): Return source snapshots oldest-to-newest for Btrfs send. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_snapshots_in_sync_order` (function/method, line 457): Return source snapshots oldest-to-newest for Btrfs send. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_select_initial_sync_snapshots` (function/method, line 464): Return retention-kept source snapshots for a fresh destination seed. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_select_initial_sync_snapshots` (function/method, line 463): Return retention-kept source snapshots for a fresh destination seed. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `print_snapshot_table` (function/method, line 483): Print source snapshots in table form. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `print_snapshot_table` (function/method, line 482): Print source snapshots in table form. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_dest_subvolume_path` (function/method, line 494): Return the final local path for one received subvolume. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_dest_subvolume_path` (function/method, line 493): Return the final local path for one received subvolume. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_target_snapshot_dir` (function/method, line 504): Return the managed destination date subvolume passed to `btrfs receive`. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_target_snapshot_dir` (function/method, line 503): Return the managed destination date subvolume passed to `btrfs receive`. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_destination_info_json_path` (function/method, line 514): Return the destination Timeshift control-file path for one snapshot. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_destination_info_json_path` (function/method, line 513): Return the destination Timeshift control-file path for one snapshot. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_ensure_destination_snapshot_subvolume` (function/method, line 520): Create or validate one managed destination date subvolume. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_ensure_destination_snapshot_subvolume` (function/method, line 519): Create or validate one managed destination date subvolume. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_validate_destination_snapshot_layout` (function/method, line 570): Refuse every existing ordinary/symlinked destination date entry. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_validate_destination_snapshot_layout` (function/method, line 569): Refuse ordinary/symlinked date entries after exact Btrfs verification. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_atomic_write_snapshot_info_json` (function/method, line 596): Atomically write one captured Timeshift ``info.json`` file. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_atomic_write_snapshot_info_json` (function/method, line 630): Atomically write one captured Timeshift ``info.json`` file. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_require_snapshot_info_json` (function/method, line 629): Return captured control-file content or raise a precise sync error. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_require_snapshot_info_json` (function/method, line 663): Return captured control-file content or raise a precise sync error. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_sync_snapshot_info_json` (function/method, line 663): Create or refresh destination ``info.json`` for one complete snapshot. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_sync_snapshot_info_json` (function/method, line 697): Create or refresh destination ``info.json`` for one complete snapshot. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_destination_has_existing_snapshots` (function/method, line 703): Return true only when a date directory contains a configured payload subvolume. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_destination_has_existing_snapshots` (function/method, line 737): Return true only when a date directory contains a configured payload subvolume. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_snapshot_destination_paths_exist` (function/method, line 724): Return True only when every expected destination subvolume path exists. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_snapshot_destination_paths_exist` (function/method, line 758): Return True only when every expected destination subvolume path exists. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_preview_send_path` (function/method, line 729): Return the send path that would be used, without creating cache snapshots. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_preview_send_path` (function/method, line 763): Return the send path that would be used, without creating cache snapshots. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_send_path_kind_text` (function/method, line 743): Return human text explaining who owns the selected send path. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_send_path_kind_text` (function/method, line 777): Return human text explaining who owns the selected send path. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_ensure_source_send_path` (function/method, line 753): Resolve one real send path through the shared cache operation. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_ensure_source_send_path` (function/method, line 787): Resolve one real send path through the shared cache operation. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_cleanup_incomplete_destination_receive` (function/method, line 780): Delete one exact incomplete destination Btrfs child before retrying. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_cleanup_incomplete_destination_receive` (function/method, line 814): Delete one exact incomplete destination Btrfs child before retrying. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_cleanup_source_cache_snapshot_version` (function/method, line 810): Delete one app-owned cache date through the shared tree engine. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_cleanup_source_cache_snapshot_version` (function/method, line 844): Delete one app-owned cache date through the shared tree engine. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_cleanup_destination_snapshot_version` (function/method, line 841): Delete one destination date through the shared tree engine. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_cleanup_destination_snapshot_version` (function/method, line 875): Delete one destination date through the shared tree engine. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_refresh_snapshot_source_subvolumes_live` (function/method, line 870): Return configured source subvolumes, preferring the bulk index. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_refresh_snapshot_source_subvolumes_live` (function/method, line 904): Return configured source subvolumes, preferring the bulk index. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_snapshot_destination_has_any_path` (function/method, line 899): Return True when the destination date folder or configured children exist. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_snapshot_destination_has_any_path` (function/method, line 933): Return True when the destination date folder or configured children exist. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_snapshot_state_is_complete_with_destination` (function/method, line 908): Return True only when state and destination contain every configured subvolume. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_snapshot_state_is_complete_with_destination` (function/method, line 942): Return True only when state and destination contain every configured subvolume. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_recover_snapshot_version` (function/method, line 915): Remove stale current-version traces from cache, destination, and state. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_recover_snapshot_version` (function/method, line 949): Remove stale current-version traces from cache, destination, and state. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_recover_snapshot_version.handle` (function/method, line 948): Perform the handle step used by this module. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_recover_snapshot_version.handle` (function/method, line 982): Perform the handle step used by this module. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_prepare_snapshot_for_transfer_or_recover` (function/method, line 970): Return True when a snapshot can be transferred, False when skipped. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_prepare_snapshot_for_transfer_or_recover` (function/method, line 1004): Return True when a snapshot can be transferred, False when skipped. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_recover_stale_state_snapshots_missing_from_source` (function/method, line 1044): Clean incomplete state entries whose Timeshift source name is gone. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_recover_stale_state_snapshots_missing_from_source` (function/method, line 1078): Clean incomplete state entries whose Timeshift source name is gone. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_read_local_destination_parent_metadata` (function/method, line 1076): Read metadata for the destination snapshot that would be the receiver parent. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_read_local_destination_parent_metadata` (function/method, line 1110): Read metadata for the destination snapshot that would be the receiver parent. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_match_source_path_to_destination_received_uuid` (function/method, line 1098): Check whether a source subvolume UUID matches the destination identity. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_match_source_path_to_destination_received_uuid` (function/method, line 1132): Check whether a source subvolume UUID matches the destination identity. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_select_verified_parent_send_path` (function/method, line 1152): Select a safe source parent path for incremental send without recreating it. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_select_verified_parent_send_path` (function/method, line 1186): Select a safe source parent path for incremental send without recreating it. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_select_verified_parent_send_path.add_candidate` (function/method, line 1182): Perform the add candidate step used by this module. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_select_verified_parent_send_path.add_candidate` (function/method, line 1216): Perform the add candidate step used by this module. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_state_uuid_values_for_path` (function/method, line 1260): Return the current state UUID that identifies one source candidate. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_state_uuid_values_for_path` (function/method, line 1294): Return the current state UUID that identifies one source candidate. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_find_confirmed_sync_floor` (function/method, line 1277): Return newest state snapshot that still exists on source and matches UUIDs. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_find_confirmed_sync_floor` (function/method, line 1311): Return newest state snapshot that still exists on source and matches UUIDs. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_destination_snapshot_names` (function/method, line 1404): Return destination snapshot folder names sorted oldest-to-newest. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_destination_snapshot_names` (function/method, line 1438): Return destination snapshot folder names sorted oldest-to-newest. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_expected_original_source_path` (function/method, line 1413): Return the Timeshift-owned original source path for one snapshot/subvolume. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_expected_original_source_path` (function/method, line 1447): Return the Timeshift-owned original source path for one snapshot/subvolume. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_source_cache_meta_by_uuid` (function/method, line 1419): Return indexed read-only source-cache metadata for an exact UUID match. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_source_cache_meta_by_uuid` (function/method, line 1453): Return indexed read-only source-cache metadata for an exact UUID match. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_match_existing_destination_to_source` (function/method, line 1438): Match one existing destination subvolume to an exact source/cache UUID. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_match_existing_destination_to_source` (function/method, line 1472): Match one existing destination subvolume to an exact source/cache UUID. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_recover_state_from_existing_destination` (function/method, line 1509): Rebuild missing/empty state.json from proven source/destination matches. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_recover_state_from_existing_destination` (function/method, line 1543): Rebuild missing/empty state.json from proven source/destination matches. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_filesystem_parent_candidates` (function/method, line 1634): Find local destination parent candidates by matching snapshot names. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_filesystem_parent_candidates` (function/method, line 1668): Find local destination parent candidates by matching snapshot names. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_select_parent` (function/method, line 1658): Choose the newest valid incremental parent. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_select_parent` (function/method, line 1692): Choose the newest valid incremental parent. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_verify_sync_viability_before_manual_snapshot` (function/method, line 1802): Prove sync can start before asking Timeshift to create a snapshot. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_verify_sync_viability_before_manual_snapshot` (function/method, line 1836): Prove sync can start before asking Timeshift to create a snapshot. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `_verify_sync_viability_before_manual_snapshot.verify_parent_for` (function/method, line 1859): Perform the verify parent for step used by this module. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `_verify_sync_viability_before_manual_snapshot.verify_parent_for` (function/method, line 1893): Perform the verify parent for step used by this module. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `sync_once` (function/method, line 1930): Run one sync pass. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `sync_once` (function/method, line 1964): Run one sync pass. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `sync_once.load_source_inventory` (function/method, line 1971): Build and report one coherent source inventory generation. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `sync_once.load_source_inventory` (function/method, line 2006): Build and report one coherent source inventory generation. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `sync_once.build_snapshot_queue` (function/method, line 2130): Build one pure oldest-to-newest sync plan, then return its snapshot queue. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `sync_once.build_snapshot_queue` (function/method, line 2165): Build one pure oldest-to-newest sync plan, then return its snapshot queue. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
-- `sync_once.recover_from_source_inventory_change` (function/method, line 2173): Recover one failed snapshot version and rebuild all source lists. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
+- `sync_once.recover_from_source_inventory_change` (function/method, line 2208): Recover one failed snapshot version and rebuild all source lists. **Why:** Orchestrates discovery, retention selection, cache preparation, UUID-safe transfer, recovery, and state updates.
 
 ## `timeshift_btrfs_sync/timeshift.py`
 
@@ -988,7 +1054,7 @@ No runtime classes or functions are defined in this file.
 
 **Why this module exists:** Discovers complete nested Btrfs trees, deletes deepest-first, and verifies the configured root is absent.
 
-- `TreeDeleteResult` (class, line 15): Holds or coordinates TreeDeleteResult. **Why:** Discovers complete nested Btrfs trees, deletes deepest-first, and verifies the configured root is absent.
+- `TreeDeleteResult` (class, line 15): Perform the TreeDeleteResult step used by this module. **Why:** Discovers complete nested Btrfs trees, deletes deepest-first, and verifies the configured root is absent.
 
 - `TreeDeleteResult.success` (property, line 26): Perform the success step used by this module. **Why:** Discovers complete nested Btrfs trees, deletes deepest-first, and verifies the configured root is absent.
 
@@ -998,7 +1064,7 @@ No runtime classes or functions are defined in this file.
 
 - `list_direct_entries` (function/method, line 68): List exact direct children with shell built-ins on either endpoint. **Why:** Discovers complete nested Btrfs trees, deletes deepest-first, and verifies the configured root is absent.
 
-- `_validate_confirmations` (function/method, line 84): Validate confirmations before it is used. **Why:** Discovers complete nested Btrfs trees, deletes deepest-first, and verifies the configured root is absent.
+- `_validate_confirmations` (function/method, line 84): Perform the validate confirmations step used by this module. **Why:** Discovers complete nested Btrfs trees, deletes deepest-first, and verifies the configured root is absent.
 
 - `_verify_absent` (function/method, line 101): Perform the verify absent step used by this module. **Why:** Discovers complete nested Btrfs trees, deletes deepest-first, and verifies the configured root is absent.
 
@@ -1011,8 +1077,3 @@ No runtime classes or functions are defined in this file.
 **Why this module exists:** Provides the packaged executable entry point.
 
 No runtime classes or functions are defined in this file.
-
-## Coverage
-
-- Current classes, functions, methods, properties, and nested helpers documented: **409**.
-- Generated from the packaged Python source; deleted modules and symbols are not listed.

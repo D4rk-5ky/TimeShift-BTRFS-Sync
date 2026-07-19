@@ -171,6 +171,22 @@ class BtrfsOps:
     def create(self, path: str | Path, *, check: bool = True) -> Completed:
         return self.run(["subvolume", "create", str(path)], check=check)
 
+    def snapshot(
+        self,
+        source_path: str | Path,
+        destination_path: str | Path,
+        *,
+        readonly: bool,
+        check: bool = True,
+    ) -> Completed:
+        """Create one exact writable or read-only Btrfs snapshot."""
+
+        args = ["subvolume", "snapshot"]
+        if readonly:
+            args.append("-r")
+        args.extend([str(source_path), str(destination_path)])
+        return self.run(args, check=check)
+
     def delete(
         self,
         path: str | Path,
@@ -213,6 +229,11 @@ class BtrfsOps:
             args.append("-v")
         args.append(str(destination_dir))
         return self.endpoint.command(self.argv(args))
+
+    def set_readonly(self, path: str | Path, readonly: bool) -> Completed:
+        """Set the Btrfs subvolume read-only property explicitly."""
+
+        return self.run(["property", "set", "-ts", str(path), "ro", "true" if readonly else "false"])
 
     def batch_delete(self, paths: list[str]) -> tuple[list[str], list[str]]:
         """Delete exact paths in one endpoint command and validate confirmations.

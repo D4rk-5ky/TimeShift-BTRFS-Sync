@@ -19,6 +19,7 @@ from .mail import send_status as send_mail_status
 from .mqtt import publish_status
 from .notify import build_notification_payload
 from .retention import prune
+from .restore import restore_backups
 from .destroy import destroy_leftovers
 from .maintenance import clear_state_file, delete_lock_file
 from .source import SourceRunner
@@ -351,6 +352,38 @@ def cmd_prune(args) -> int:
         return _with_logging(config, "prune", _run_locked)
 
 
+def cmd_restore(args) -> int:
+    """Restore one snapshot or the complete post-common backup chain into Timeshift."""
+
+    config = load_config(args.config)
+    dry_run = _resolve_dry_run(args, config)
+
+    def _run() -> int:
+        restore_backups(
+            config,
+            snapshot_name=args.snapshot,
+            restore_all=args.restore_all,
+            dry_run=dry_run,
+            danger_confirmed=args.i_understand_this_modifies_timeshift,
+            allow_no_common_parent=args.allow_no_common_parent,
+            allow_os_identity_mismatch=args.allow_os_identity_mismatch,
+        )
+        return 0
+
+    if dry_run:
+        return _with_logging(config, "restore", _run)
+
+    if not config.lock_file.parent.is_dir():
+        raise RuntimeError(
+            "Restore requires the existing application lock directory beside the backup; "
+            f"it will not create a missing backup target: {config.lock_file.parent}"
+        )
+    print("Run mode: real restore")
+    print(f"Acquiring lock: {config.lock_file}")
+    with FileLock(config.lock_file):
+        return _with_logging(config, "restore", _run)
+
+
 def cmd_create_manual(args) -> int:
     config = load_config(args.config)
 
@@ -479,7 +512,8 @@ Available commands:
   list-source    List source Timeshift snapshots.
   sync           Pull missing snapshots and optionally prune.
   prune          Apply destination retention rules only.
-  create-manual      Create a source Timeshift on-demand snapshot.
+  restore        Restore one backup or a complete chain into the source Timeshift repository.
+  create-manual  Create a source Timeshift on-demand snapshot.
   show-state         Show local state.json.
   clear-state        Remove configured state.json after guarded confirmation.
   delete-lock        Remove stale configured lock file after guarded confirmation.
@@ -571,6 +605,51 @@ def build_parser() -> argparse.ArgumentParser:
     add_config_arg(p)
     add_run_mode_args(p, dry_run_help="show what would be deleted; do not create a lock file, save state, or delete anything", run_help="perform real pruning if --yes-delete is also present")
     add_yes_delete_arg(p, "explicit safety confirmation required before real prune deletes")
+
+    p = new_subparser(
+        sub,
+        "restore",
+        "restore one backup or a complete chain into Timeshift",
+        (
+            "Restore destination backups to source.snapshot_root in Timeshift's native Btrfs layout.\n"
+            "Use --snapshot for one full restore, or --all to find the newest UUID- and info.json-confirmed common snapshot and restore every newer backup.\n"
+            "A chain reuses an exact read-only source send parent for an incremental first restore when available; otherwise it uses one full hidden seed followed by incrementals. No-common-parent restoration requires an extra danger override.\n"
+            "Every real restore warns that original H/D/W/M tags remain subject to Timeshift retention and requires an exact typed risk acknowledgement."
+        ),
+        cmd_restore,
+    )
+    add_config_arg(p)
+    add_run_mode_args(
+        p,
+        dry_run_help="validate UUIDs, info.json OS identity, receive-parent availability, and the single/chain plan without changing Timeshift",
+        run_help="perform the real full-plus-incremental restore into source.snapshot_root",
+    )
+    restore_selection = p.add_mutually_exclusive_group(required=True)
+    restore_selection.add_argument(
+        "--snapshot",
+        help="restore exactly one backup timestamp with a full receive, for example 2026-06-23_07-10-24",
+    )
+    restore_selection.add_argument(
+        "--all",
+        dest="restore_all",
+        action="store_true",
+        help="restore every backup newer than the latest UUID- and info.json-confirmed common Timeshift snapshot",
+    )
+    p.add_argument(
+        "--allow-no-common-parent",
+        action="store_true",
+        help="with --all, allow a dangerous full-chain restore when no source/backup UUID common parent can be proven",
+    )
+    p.add_argument(
+        "--allow-os-identity-mismatch",
+        action="store_true",
+        help="allow restore when stable Timeshift info.json sys-uuid/type does not match the current repository; requires an exact typed danger acknowledgement",
+    )
+    p.add_argument(
+        "--i-understand-this-modifies-timeshift",
+        action="store_true",
+        help="required with --run; real restore also requires the exact typed acknowledgement that Timeshift retention may delete restored snapshots or older tagged snapshots",
+    )
 
     p = new_subparser(
         sub,

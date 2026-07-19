@@ -1,6 +1,6 @@
 # Installation
 
-This project runs on the backup/destination machine. The source machine is reached over SSH and needs `btrfs`, `timeshift`, `cat`, `id`, SSH access, and the minimal sudo rules described in the README. `cat` and `id` are not run through sudo. The configured SSH account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
+This project runs on the backup/destination machine. The source machine is reached over SSH or selected locally and needs `btrfs`, `timeshift`, `cat`, `id`, and the minimal sudo rules described in the README. `cat` and `id` are not run through sudo during normal discovery. The configured source account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
 
 
 The executable or Python install does **not** include system tools such as `btrfs`, `timeshift`, `ssh`, `sudo`, `mbuffer`, or `sshpass`. Those must be installed on the relevant machines.
@@ -58,7 +58,61 @@ ts-btrfs test-source --config ./config.toml
 ts-btrfs list-source --config ./config.toml
 ts-btrfs sync --config ./config.toml --dry-run
 ts-btrfs sync --config ./config.toml --run --limit 1
+ts-btrfs restore --config ./config.toml --snapshot 2026-07-15_05-00-02 --dry-run
+ts-btrfs restore --config ./config.toml --all --dry-run
 ```
+
+
+## Restore permissions
+
+`restore` writes directly into the Timeshift repository. Timeshift expects an ordinary `<snapshot_root>/<date>` directory containing writable Btrfs payload subvolumes and a regular `info.json`, so restore needs both Btrfs privilege and ordinary directory/file privilege on the source endpoint.
+
+The same permissions are used for both restore selections:
+
+```bash
+# One full snapshot.
+ts-btrfs restore --config ./config.toml --snapshot 2026-07-15_05-00-02 --dry-run
+
+# Latest UUID- and info.json-confirmed common parent, then every newer backup.
+ts-btrfs restore --config ./config.toml --all --dry-run
+```
+
+For local restore, the simplest supported invocation is to run the app as root:
+
+```bash
+sudo python3 -m timeshift_btrfs_sync restore \
+  --config ./config-local.toml \
+  --all \
+  --run \
+  --i-understand-this-modifies-timeshift
+```
+
+Running the app as an unprivileged user is possible only when `source.sudo` has narrow passwordless permission for:
+
+```text
+btrfs
+timeshift
+mkdir
+tee
+chmod
+mv
+rm
+rmdir
+```
+
+For SSH restore, those permissions must be configured for the remote SSH account on the source host. Running only the destination-side process as root does not provide remote permission. The command does not need passwordless `sh` or `bash`, and granting a general shell is not recommended.
+
+`--all` uses `state.json`, live Btrfs UUID metadata, and stable `info.json` identity (`sys-uuid` plus Btrfs `type`) to identify the latest common source/backup snapshot. Snapshot-specific fields such as H/D/W/M tags, comments, creation time, file count, app version, and live status are ignored. If no common parent can be proven, a real full-chain restore additionally requires `--allow-no-common-parent`, the phrase `RESTORE ALL WITHOUT COMMON PARENT`, and the configured job name. If no current `info.json` identity matches the backup, real restore also requires `--allow-os-identity-mismatch` and `I UNDERSTAND THIS BACKUP MAY BELONG TO ANOTHER OS`.
+
+Every real restore also explains that the exact original `info.json` preserves H/D/W/M tags, so normal retention can later prune a restored snapshot or an existing tagged snapshot older than the restored snapshot. Before any receive begins, local and SSH modes both require this exact sentence:
+
+```text
+I UNDERSTAND TIMESHIFT MAY DELETE RESTORED SNAPSHOTS OR OLDER THAN RESTORED SNAPSHOTS
+```
+
+Review or pause Timeshift scheduling and retention until the intended rollback is complete.
+
+When the exact recorded read-only source send parent still exists with the expected UUID, the first newer backup is received incrementally and later backups continue incrementally. If that exact parent is unavailable, restore prints the reason and uses one full hidden seed followed by incrementals. The final Timeshift payloads are writable Btrfs CoW snapshots of the hidden read-only chain, so they retain shared extents after the hidden chain is deleted.
 
 ## PyInstaller builds
 

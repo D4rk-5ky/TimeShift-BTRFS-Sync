@@ -20,10 +20,11 @@ the path type, then verifies Btrfs accessibility before sync continues:
   destination.create_target_root is true. Existing target roots must already be
   Btrfs subvolumes and are verified with `btrfs subvolume show`.
 
-Destination helper folders, including the lock folder, are created as Btrfs
-subvolumes first and fall back to mkdir when Btrfs creation is not possible. If
-any creation attempt fails, preflight raises a hard error that names the exact
-configured path that could not be created.
+``destination.snapshots`` is part of the managed backup hierarchy and must be
+created and verified as a Btrfs subvolume; it never falls back to mkdir. State,
+lock, and optional log helper paths try Btrfs creation first and may fall back to
+mkdir. If any creation attempt fails, preflight raises a hard error naming the
+exact configured path.
 """
 
 from __future__ import annotations
@@ -407,14 +408,22 @@ def _raise_for_failed_checks(results: list[PathCheck], *, heading: str, fix_text
     raise PathPreflightError(f"{heading}\n{fix_text}\n" + details)
 
 
-def ensure_local_helper_dir(config: AppConfig, label: str, path: str | Path, *, dry_run: bool) -> PathCheck:
+def ensure_local_helper_dir(
+    config: AppConfig,
+    label: str,
+    path: str | Path,
+    *,
+    dry_run: bool,
+    require_btrfs: bool = False,
+) -> PathCheck:
     """Ensure one local helper directory exists.
 
-    Existing normal directories and existing Btrfs subvolumes are both accepted.
-    When the path is missing in a real run, the app tries to create the exact
-    path as a Btrfs subvolume first because the project primarily manages Btrfs
-    backup storage. If Btrfs creation fails, it falls back to ordinary mkdir so
-    helper paths can still live on non-Btrfs locations when configured that way.
+    Existing normal directories and existing Btrfs subvolumes are accepted for
+    ordinary helper paths. When ``require_btrfs`` is true, an existing ordinary
+    directory is refused and a missing path must be created and verified as a
+    Btrfs subvolume; no mkdir fallback is allowed. Other helper paths still try
+    Btrfs creation first and may fall back to mkdir when configured outside the
+    managed backup hierarchy.
     Parent directories are not invented; the immediate parent must already
     exist. This prevents a missing target root from being silently created as
     ordinary directories.
@@ -427,7 +436,20 @@ def ensure_local_helper_dir(config: AppConfig, label: str, path: str | Path, *, 
         if not helper_path.is_dir():
             return PathCheck(label=label, path=path_text, location="local", ok=False, detail="path exists but is not a directory")
         show_result = _local_btrfs_result(config, ["subvolume", "show", path_text])
-        detail = "exists as Btrfs subvolume" if show_result.returncode == 0 else "exists as directory"
+        is_btrfs = show_result.returncode == 0
+        detail = "exists as Btrfs subvolume" if is_btrfs else "exists as directory"
+        if require_btrfs and not is_btrfs:
+            return PathCheck(
+                label=label,
+                path=path_text,
+                location="local",
+                ok=False,
+                detail=(
+                    "path exists as an ordinary directory, but this managed backup path must be a "
+                    "Btrfs subvolume. Move/remove it manually and rerun preflight so the app can "
+                    "create the exact path with btrfs subvolume create."
+                ),
+            )
         if not os.access(path_text, os.W_OK | os.X_OK):
             return PathCheck(
                 label=label,
@@ -444,12 +466,17 @@ def ensure_local_helper_dir(config: AppConfig, label: str, path: str | Path, *, 
     parent = _parent_of_path(helper_path)
     parent_text = str(parent)
     if dry_run:
+        action = (
+            "create and verify this required Btrfs subvolume"
+            if require_btrfs
+            else "try Btrfs subvolume create first, then mkdir fallback"
+        )
         return PathCheck(
             label=label,
             path=path_text,
             location="local",
             ok=True,
-            detail=f"missing now; real run would try Btrfs subvolume create first, then mkdir fallback, after verifying parent {parent_text}",
+            detail=f"missing now; real run would {action}, after verifying parent {parent_text}",
         )
 
     if not parent.exists():
@@ -480,6 +507,18 @@ def ensure_local_helper_dir(config: AppConfig, label: str, path: str | Path, *, 
                 ),
             )
         return PathCheck(label=label, path=path_text, location="local", ok=True, detail="created Btrfs subvolume")
+
+    if require_btrfs:
+        return PathCheck(
+            label=label,
+            path=path_text,
+            location="local",
+            ok=False,
+            detail=(
+                "could not create required Btrfs subvolume; ordinary mkdir fallback is disabled for "
+                f"this managed backup path: {_compact_process_error(create_result)}"
+            ),
+        )
 
     try:
         helper_path.mkdir(mode=0o755, exist_ok=True)
@@ -558,28 +597,36 @@ def prepare_lock_path(config: AppConfig, *, dry_run: bool = False) -> list[PathC
 def prepare_destination_helper_paths(config: AppConfig, *, dry_run: bool = False) -> list[PathCheck]:
     """Create/verify local destination helper folders used by sync/prune.
 
-    Helper folders may be ordinary directories or Btrfs subvolumes. The app
-    accepts either when they already exist. When missing, it attempts Btrfs
-    subvolume creation first and falls back to mkdir when Btrfs creation is not
-    possible at that location.
+    ``destination.snapshots`` is part of the managed backup hierarchy and must
+    be a Btrfs subvolume. State, lock, and optional log helpers may be ordinary
+    directories or Btrfs subvolumes; when missing they try Btrfs creation first
+    and may fall back to mkdir.
     """
 
-    raw_paths: list[tuple[str, Path]] = [
-        ("destination.snapshots", config.destination.target_root / "snapshots"),
-        ("state_file.parent", config.state_file.parent),
-        ("lock_file.parent", config.lock_file.parent),
+    raw_paths: list[tuple[str, Path, bool]] = [
+        ("destination.snapshots", config.destination.target_root / "snapshots", True),
+        ("state_file.parent", config.state_file.parent, False),
+        ("lock_file.parent", config.lock_file.parent, False),
     ]
     if config.log_dir is not None:
-        raw_paths.append(("log_dir", config.log_dir))
+        raw_paths.append(("log_dir", config.log_dir, False))
 
     results: list[PathCheck] = []
     seen: set[str] = set()
-    for label, path in raw_paths:
+    for label, path, require_btrfs in raw_paths:
         key = str(path.expanduser())
         if key in seen:
             continue
         seen.add(key)
-        results.append(ensure_local_helper_dir(config, label, path, dry_run=dry_run))
+        results.append(
+            ensure_local_helper_dir(
+                config,
+                label,
+                path,
+                dry_run=dry_run,
+                require_btrfs=require_btrfs,
+            )
+        )
 
     _print_check_block(
         "DESTINATION HELPER PATH PREFLIGHT",

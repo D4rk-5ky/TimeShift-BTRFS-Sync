@@ -621,3 +621,70 @@ This build is version `0.1.17`.
 - Fixed `destroy-leftovers --delete-both` crashing after both source and destination trees were successfully deleted.
 - The post-deletion payload comparison now reads the current `source.subvolumes` configuration instead of the removed `SourceConfig.tree` refactor object.
 - Added complete local-source and SSH-source `--delete-both` regression tests that execute source/destination payload matching and final summary reporting after both roots are verified absent.
+
+## 0.1.53
+
+- Added the guarded `restore` command for importing one destination backup into the configured source Timeshift repository in Timeshift's native Btrfs layout.
+- Restore reads `<destination.target_root>/snapshots/<date>` locally, requires the backup date container and configured payloads to be valid Btrfs subvolumes, requires read-only send payloads, and validates that the saved `info.json` is a JSON object whose `date` matches the selected timestamp.
+- Added one shared local/SSH restore implementation. The backup side always performs a local full `btrfs send`; the configured source endpoint performs local or SSH `btrfs receive` using the existing endpoint, stream, sudo, logging, and Btrfs operation layers.
+- Restored Timeshift layout uses an ordinary `<source.snapshot_root>/<date>` directory containing writable configured payload subvolumes such as `@` and `@home` plus the exact original regular `info.json` file.
+- Added hidden ordinary staging below `source.snapshot_root`, exact UUID/Received UUID validation, writable-property validation, atomic staging-directory rename, refusal to overwrite an existing Timeshift date, and a final `timeshift --list` visibility check.
+- Restore always uses full sends and does not depend on an incremental parent or modify backup state/retention data.
+- Added failure cleanup that probes and deletes only Btrfs payload paths attempted by the current restore, removes only exact staging metadata files, and removes the staging directory only when empty. No recursive ordinary deletion is used.
+- Added restore-specific privilege diagnostics. Normal backup remains limited to source Btrfs/Timeshift privilege; restore additionally requires source-side permission for `mkdir`, `tee`, `chmod`, `mv`, exact `rm`, and `rmdir`. Local root execution is the simplest setup, while SSH restore requires those permissions on the remote source.
+- Added `--dry-run`, `--run`, required `--snapshot`, and `--i-understand-this-modifies-timeshift` restore flags plus typed real-run confirmations and shared application locking.
+- Added local and SSH restore regression coverage, dry-run/overwrite/metadata validation tests, and partial-receive staging cleanup coverage.
+
+## 0.1.54
+
+- Extended `restore` with mutually exclusive `--snapshot <date>` and `--all` selections. Single restore remains one full import; `--all` restores every backup newer than the newest UUID-confirmed common Timeshift snapshot.
+- Added common-parent safety validation for every configured payload. A date is common only when the live Timeshift UUID matches `original_source_uuid` and the backup Received UUID matches `send_source_uuid` in the same current `state.json` entry; matching timestamp names alone are not trusted.
+- Added a prominent cross-OS warning when no common parent can be proven. Real no-common restoration is refused unless `--allow-no-common-parent` is supplied and the user types `RESTORE ALL WITHOUT COMMON PARENT` plus the configured job name.
+- Added one shared local/SSH restore-chain implementation. It full-receives the common backup as a hidden read-only seed when a common parent exists, or full-receives the oldest backup when none exists, then sends every later backup incrementally oldest-to-newest with the previous backup as `btrfs send -p` parent.
+- Added stream-identity validation that uses a backup payload's Received UUID when present, otherwise its normal UUID. This preserves the UUID identity used when a previously received backup is sent again.
+- Added writable visible Timeshift snapshots as Btrfs CoW snapshots of the hidden received chain. Their timestamp containers remain ordinary directories with exact saved `info.json` files, while the hidden chain remains read-only until every incremental receive and Timeshift visibility check succeeds.
+- Added exact hidden-chain cleanup after successful restore and conservative rollback of only artifacts created by the current attempt. Fully committed Timeshift dates are left in place if a later Timeshift-list or hidden-cleanup check needs manual inspection.
+- Added local and SSH regression coverage for common-parent chain restore, no-common full-plus-incremental restore, exact incremental parent paths, current-state identity matching, CLI selection/override rules, stream UUID identity, overwrite refusal, and no-work behavior when the newest backup is already common.
+
+## 0.1.55
+
+- Added a mandatory restored-snapshot retention warning to both single-snapshot and complete-chain restore plans. The terminal explains that exact original `info.json` metadata preserves H/D/W/M tags and that normal Timeshift scheduled retention may later delete an old restored snapshot outside configured keep counts.
+- Every real local or SSH restore now requires the exact sentence `I UNDERSTAND TIMESHIFT MAY DELETE RESTORED SNAPSHOTS` before any Btrfs receive starts. This acknowledgement is additional to the existing single-snapshot, common-parent-chain, or no-common-parent confirmations.
+- Added regression coverage for warning output, failed acknowledgement blocking all streaming, and successful local/SSH single and chain restores using the shared confirmation path.
+- Updated current restore documentation, installation guidance, CLI help, interface audit, config comments, code map, and package version metadata.
+
+
+## 0.1.56
+
+- Changed the mandatory restore retention acknowledgement to `I UNDERSTAND TIMESHIFT MAY DELETE RESTORED SNAPSHOTS OR OLDER THAN RESTORED SNAPSHOTS`.
+- Expanded the terminal warning to explain that restoring tagged H/D/W/M snapshots can cause Timeshift retention to delete either a restored snapshot or an existing tagged snapshot older than the restored snapshot when configured keep counts are exceeded.
+- Applied the same shared confirmation to single-snapshot and complete-chain restores in local and SSH modes, with regression coverage for the exact sentence and warning text.
+- Updated current restore documentation, CLI help, config comments, interface audit, and package version metadata.
+
+## 0.1.57
+
+- Fixed subsequent sync runs falsely classifying all existing destination date subvolumes as ordinary directories when the destination is mounted from a Btrfs subvolume and bulk list paths begin at `snapshots/...`.
+- Destination inventory is now rooted at `<target_root>/snapshots`, matching the managed receive tree and allowing date and payload paths to map correctly across mounted-subvolume prefixes.
+- Layout validation treats the bulk index as an optimization: every direct date directory missed by the bulk scan is exact-probed with `btrfs subvolume show` before rejection. Real Btrfs date subvolumes are added to the current index; actual ordinary directories remain a hard error.
+- `destination.snapshots` is now strictly Btrfs-only. Missing paths are created and verified as Btrfs subvolumes, and Btrfs creation failure no longer falls back to `mkdir`. State, lock, and optional log helper paths retain their current flexible behavior.
+- Full and incremental transfers continue to use the same `_ensure_destination_snapshot_subvolume` path, which creates each date with `btrfs subvolume create` and verifies it before receive.
+- Added regression coverage for mounted destination path mapping, snapshots-root inventory selection, exact-probe recovery, ordinary-directory refusal, disabled mkdir fallback, and exact Btrfs create command construction.
+
+
+## 0.1.58
+
+- Fixed `restore --all` and single-snapshot restore rejecting genuine Timeshift `info.json` files that do not contain a `date` property.
+- Removed the non-Timeshift metadata requirement introduced with restore. The timestamp directory name is the snapshot identity; the original `info.json` is now validated only as a readable UTF-8 JSON object and is preserved byte-for-byte.
+- Added regression coverage using realistic Timeshift Btrfs control metadata (`sys-uuid`, `sys-distro`, `app-version`, `file_count`, `tags`, `comments`, `live`, and `type`) with no `date` key, including multi-snapshot discovery used by `restore --all`.
+- Updated current restore documentation and the code map to describe the directory timestamp as the identity source rather than a control-file date field.
+
+## 0.1.59
+
+- Added stable Timeshift `info.json` OS-identity validation for restore. The backup chain must use one consistent `sys-uuid` and Btrfs `type`, and the identity is compared with current source Timeshift control files before restore.
+- Snapshot-specific metadata is intentionally excluded from OS matching: H/D/W/M/O/B tags, comments, creation time, file counts, Timeshift app version, live status, and Btrfs statistics. `sys-distro` is displayed as diagnostic context but is not a hard match so an in-place distribution upgrade does not create a false cross-OS failure.
+- Added `--allow-os-identity-mismatch` for an explicitly accepted restore when no current `info.json` identity matches. Real execution additionally requires the exact sentence `I UNDERSTAND THIS BACKUP MAY BELONG TO ANOTHER OS`.
+- Strengthened common-parent validation so the source and backup `info.json` identities must match in addition to the existing live source UUID, backup Received UUID, and `state.json` identity checks.
+- Optimized common-parent chain restore to start incrementally when every payload's exact recorded source `send_path` still exists, has `send_source_uuid`, and remains read-only. This reuses the source/cache snapshot that Btrfs receive can identify instead of unnecessarily full-receiving the common backup.
+- When the exact receive parent is missing, writable, or has the wrong UUID, restore retains the safe full-hidden-seed fallback and prints the precise reason. No existing Timeshift snapshot is modified to manufacture an incremental parent.
+- Added local and SSH regression coverage for incremental-first common-parent restore, exact source-cache parent validation, full-seed fallback, stable `info.json` comparison, mixed/mismatched OS identity handling, and the new danger override.
+- Updated current CLI help, README, installation guidance, interface audit, code map, tests, and package version metadata.

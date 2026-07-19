@@ -172,10 +172,9 @@ def prepare_destination(config: AppConfig) -> None:
     """Create/validate destination helper folders before writes.
 
     The destination target root itself is handled by sync path preflight. Helper
-    folders such as ``snapshots/``, the state/lock directory, and optional
-    ``log_dir`` are accepted as either ordinary directories or Btrfs subvolumes.
-    When missing, the app tries ``btrfs subvolume create`` first and falls back
-    to mkdir if Btrfs creation is not possible at that location.
+    The managed ``snapshots/`` hierarchy is required to be a Btrfs subvolume.
+    State/lock and optional log helper paths may be ordinary directories or
+    Btrfs subvolumes.
     """
 
     root = config.destination.target_root
@@ -571,7 +570,13 @@ def _validate_destination_snapshot_layout(
     config: AppConfig,
     destination_index: inventory.BtrfsIndex,
 ) -> None:
-    """Refuse every existing ordinary/symlinked destination date entry."""
+    """Refuse ordinary/symlinked date entries after exact Btrfs verification.
+
+    The bulk index is an optimization, not the authority for destructive layout
+    classification. Mounted-subvolume path prefixes can vary between systems, so
+    any direct date entry missed by the bulk list is probed with exact
+    ``btrfs subvolume show`` before it can be called an ordinary directory.
+    """
 
     snapshots_root = config.destination.target_root / "snapshots"
     if not snapshots_root.exists():
@@ -580,15 +585,44 @@ def _validate_destination_snapshot_layout(
         entries = list(snapshots_root.iterdir())
     except OSError as exc:
         raise SyncError(f"Could not inspect destination snapshots root {snapshots_root}: {exc}") from exc
+
+    ops = BtrfsOps(
+        CommandEndpoint.local(),
+        config.destination.sudo,
+        config.destination.btrfs_command,
+    )
     invalid: list[str] = []
+    exact_recovered = 0
     for entry in entries:
-        if entry.is_symlink() or not entry.is_dir() or not destination_index.contains(entry):
+        if entry.is_symlink() or not entry.is_dir():
             invalid.append(str(entry))
+            continue
+        if destination_index.contains(entry):
+            continue
+        meta = inventory.refresh_path(
+            destination_index,
+            ops,
+            entry,
+            name=entry.name,
+        )
+        if meta is None:
+            invalid.append(str(entry))
+        else:
+            exact_recovered += 1
+
+    if exact_recovered:
+        print(
+            "Destination inventory fallback: exact Btrfs verification recovered "
+            f"{exact_recovered} date subvolume(s) missed by the bulk path mapping."
+        )
+        _human_rule("----")
     if invalid:
         raise SyncError(
             "Unsupported destination layout detected. Every entry directly below destination "
-            "snapshots/ must be a Btrfs date subvolume. Ordinary date folders/files and symlinks "
-            "are outside the managed layout and are not deleted automatically. Inspect and move/remove them manually:\n  "
+            "snapshots/ must be a Btrfs date subvolume. Each unindexed directory was checked with "
+            "an exact btrfs subvolume show probe before rejection. Ordinary date folders/files and "
+            "symlinks are outside the managed layout and are not deleted automatically. Inspect and "
+            "move/remove them manually:\n  "
             + "\n  ".join(sorted(invalid))
         )
 
@@ -1959,8 +1993,9 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
     if not dry_run:
         prepare_destination(config)
 
+    destination_snapshots_root = config.destination.target_root / "snapshots"
     destination_index = inventory.build_local_btrfs_index(
-        config.destination.target_root,
+        destination_snapshots_root,
         sudo=config.destination.sudo,
         btrfs_command=config.destination.btrfs_command,
         include_root=True,
