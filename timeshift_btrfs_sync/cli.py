@@ -7,14 +7,13 @@ from .paths import is_local_same_or_under as _path_is_same_or_under
 from importlib.resources import files
 import argparse
 import json
-import shlex
 import sys
 from . import __version__, timeshift
 from .commands import CommandError
 from .btrfs_ops import BtrfsOps
 from .endpoint import CommandEndpoint
 from .config import ConfigError, load_config
-from .lock import FileLock, RemoteFileLock
+from .lock import FileLock
 from .log import active_logger, create_run_logger
 from .mail import send_status as send_mail_status
 from .mqtt import publish_status
@@ -387,32 +386,12 @@ def cmd_restore(args) -> int:
 
     print("Run mode: real restore")
     print(f"Restore mode: {config.restore.mode}")
-    if config.restore.backup_uses_ssh:
-        backup_runner = SourceRunner.from_mode("ssh", config.ssh)
-        backup_endpoint = CommandEndpoint.for_source(backup_runner)
-        lock_parent = str(config.lock_file.parent)
-        parent_check = backup_endpoint.run_shell(
-            f"test -d {shlex.quote(lock_parent)}",
-            check=False,
-            log_stderr=False,
-            mirror_stderr=False,
-        )
-        if parent_check.returncode != 0:
-            detail = parent_check.stderr.strip() or parent_check.stdout.strip() or "missing or inaccessible"
-            raise RuntimeError(
-                "Remote restore requires the existing application lock directory beside the backup; "
-                f"it will not create a missing remote backup target: {lock_parent}: {detail}"
-            )
-        print(f"Acquiring remote backup lock: {config.lock_file}")
-        with RemoteFileLock(config.lock_file, backup_runner):
-            return _with_logging(config, "restore", _run)
-
     if not config.lock_file.parent.is_dir():
         raise RuntimeError(
-            "Restore requires the existing application lock directory beside the backup; "
-            f"it will not create a missing backup target: {config.lock_file.parent}"
+            "Restore requires the configured local lock directory to already exist on the machine "
+            f"running the command: {config.lock_file.parent}"
         )
-    print(f"Acquiring lock: {config.lock_file}")
+    print(f"Acquiring local restore lock: {config.lock_file}")
     with FileLock(config.lock_file):
         return _with_logging(config, "restore", _run)
 
@@ -665,7 +644,8 @@ def build_parser() -> argparse.ArgumentParser:
             "Use --snapshot for one full restore, or --all to find the newest UUID- and info.json-confirmed common snapshot and restore every newer backup.\n"
             "A chain reuses an exact read-only source send parent for an incremental first restore when available; otherwise it uses one full hidden seed followed by incrementals. No-common-parent restoration requires an extra danger override.\n"
             "Every real restore warns that original H/D/W/M tags remain subject to Timeshift retention and requires an exact typed risk acknowledgement.\n"
-            "--create-pre-restore-snapshot creates one on-demand safety snapshot only on the Timeshift restore target before any receive; it never snapshots the backup repository."
+            "--create-pre-restore-snapshot creates one on-demand safety snapshot only on the Timeshift restore target before any receive; it never snapshots the backup repository.\n"
+            "The configured lock_file is always opened locally on the machine running restore; SSH restore never creates or locks a remote backup file."
         ),
         cmd_restore,
     )

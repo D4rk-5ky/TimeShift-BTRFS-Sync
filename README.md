@@ -253,7 +253,7 @@ ts-btrfs init-config \
 
 The generated file includes every supported top-level, restore, SSH, source, destination, stream, retention, manual-snapshot, MQTT, and mail setting with comments. Its `[ssh]` section includes both key authentication and optional `sshpass` password/password-file authentication, plus port, cipher, compression, ControlMaster, strict host-key checking, timeouts, keepalives, and jump-host examples.
 
-The generated pull profile sets `[restore] mode = "ssh"`, so `destination.target_root`, `state_file`, and `lock_file` are interpreted on the SSH backup host. `source.snapshot_root` **and** `source.cache_root` are interpreted together on the local Timeshift machine; neither path is probed on the backup host. `source.mode` is not used to choose restore direction. Use a separate restore config so later normal `sync`, `prune`, and `destroy-leftovers` runs do not accidentally interpret remote restore paths as local backup paths.
+The generated pull profile sets `[restore] mode = "ssh"`, so `destination.target_root` and `state_file` are interpreted on the SSH backup host. `lock_file`, `source.snapshot_root`, and `source.cache_root` remain local to the machine running the restore; neither Timeshift path nor the restore lock is probed on the backup host. `source.mode` is not used to choose restore direction. Use a separate restore config so later normal `sync`, `prune`, and `destroy-leftovers` runs do not accidentally interpret remote restore paths as local backup paths.
 
 Dry-run and real examples:
 
@@ -272,7 +272,7 @@ ts-btrfs restore --config ./config-restore-pull.toml \
 
 If a local Timeshift repository is accidentally selected as the backup, the app now explains that Timeshift date folders are correctly ordinary directories and points to this transport setting instead of presenting the layout as corrupt.
 
-The remote SSH account needs ordinary traversal/read permission for the backup timestamp directories, `info.json`, and `state.json`; write access to the existing `lock_file`; access to `flock` and `base64`; and narrow passwordless sudo permission for the configured Btrfs command used by `subvolume list/show` and `send`. The local side needs the normal restore permissions for `btrfs receive`, Timeshift, ordinary date directories, and `info.json`. The real restore holds the lock on the remote backup host until all streams and verification complete.
+The remote SSH account needs ordinary traversal/read permission for the backup timestamp directories, `info.json`, and `state.json`; access to `base64`; and narrow passwordless sudo permission for the configured Btrfs command used by `subvolume list/show` and `send`. It does not need remote lock-file write permission or `flock`. The local side needs the normal restore permissions for `btrfs receive`, Timeshift, ordinary date directories, `info.json`, and the configured local `lock_file`. The local restore lock is held until all streams and verification complete.
 
 ### Same-OS identity from `info.json`
 
@@ -634,7 +634,7 @@ ts-btrfs init-config --profile restore-pull --path ./config-restore-pull.toml
 nano config-restore-pull.toml
 ```
 
-Both packaged profiles contain every current configuration key with comments. The pull-restore profile is preconfigured with `[restore] mode = "ssh"`, `[ssh]` describing the backup host, and remote meanings for `destination.target_root`, `state_file`, and `lock_file`. `source.mode` remains available only for sync/source commands. Its SSH section documents key authentication, `password`, `password_file`, `sshpass`, port, cipher, compression, ControlMaster, host-key checking, timeouts, keepalives, and jump-host arguments.
+Both packaged profiles contain every current configuration key with comments. The pull-restore profile is preconfigured with `[restore] mode = "ssh"`, `[ssh]` describing the backup host, remote meanings for `destination.target_root` and `state_file`, and a local `lock_file`. `source.mode` remains available only for sync/source commands. Its SSH section documents key authentication, `password`, `password_file`, `sshpass`, port, cipher, compression, ControlMaster, host-key checking, timeouts, keepalives, and jump-host arguments.
 
 The packaged `timeshift_btrfs_sync/data/config.example.toml` file contains all options with safe defaults. Keep `default_dry_run = true` and `retention.cleanup_ondemand = false` unless you intentionally want less conservative behavior. Incremental sends require a proven matching parent; there is no unsafe override to continue when source and destination parent metadata does not match. Manual snapshot creation follows the same safety model: existing destinations require a UUID-confirmed source/destination anchor and a proven next-parent path before Timeshift is asked to create a new source snapshot, while a destination that was empty at run start may start with a full seed.
 

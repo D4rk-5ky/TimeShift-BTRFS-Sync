@@ -104,81 +104,81 @@ No runtime classes or functions are defined in this file.
 
 **Why this module exists:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `new_subparser` (function/method, line 36): Handle the new subparser step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `new_subparser` (function/method, line 35): Handle the new subparser step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `add_config_arg` (function/method, line 42): Handle the add config arg step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `add_config_arg` (function/method, line 41): Handle the add config arg step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `add_run_mode_args` (function/method, line 44): Handle the add run mode args step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `add_run_mode_args` (function/method, line 43): Handle the add run mode args step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `add_yes_delete_arg` (function/method, line 50): Handle the add yes delete arg step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `add_yes_delete_arg` (function/method, line 49): Handle the add yes delete arg step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `_load_config_state` (function/method, line 54): Load state and resolve all root-relative paths against this config. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `_load_config_state` (function/method, line 53): Load state and resolve all root-relative paths against this config. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `_failure_exit_code` (function/method, line 60): Return a stable CLI exit code for failure notifications. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `_failure_exit_code` (function/method, line 59): Return a stable CLI exit code for failure notifications. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `_stderr_tail_for_exception` (function/method, line 76): Return the best available recent stderr text for failure notifications. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `_stderr_tail_for_exception` (function/method, line 75): Return the best available recent stderr text for failure notifications. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `_send_notifications` (function/method, line 86): Send optional MQTT/email status without changing the command exit code. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `_send_notifications` (function/method, line 85): Send optional MQTT/email status without changing the command exit code. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `_mail_attachment_paths` (function/method, line 126): Return current run log paths for optional email attachment. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `_mail_attachment_paths` (function/method, line 125): Return current run log paths for optional email attachment. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `_safe_destroy_log_dir` (function/method, line 136): Return a log directory that will survive a destructive cleanup. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `_safe_destroy_log_dir` (function/method, line 135): Return a log directory that will survive a destructive cleanup. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `_with_logging` (function/method, line 177): Run a command with optional logging and MQTT notification. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `_with_logging` (function/method, line 176): Run a command with optional logging and MQTT notification. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `_resolve_dry_run` (function/method, line 226): Handle the resolve dry run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `_resolve_dry_run` (function/method, line 225): Handle the resolve dry run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_init_config` (function/method, line 234): Handle the cmd init config step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_init_config` (function/method, line 233): Handle the cmd init config step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_test_source` (function/method, line 253): Handle the cmd test source step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_test_source` (function/method, line 252): Handle the cmd test source step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_test_source._run` (function/method, line 256): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_test_source._run` (function/method, line 255): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `_refresh_state_metadata_from_timeshift` (function/method, line 274): Refresh mutable state metadata from one fast Timeshift list read. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `_refresh_state_metadata_from_timeshift` (function/method, line 273): Refresh mutable state metadata from one fast Timeshift list read. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_list_source` (function/method, line 282): List snapshots on the source machine. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_list_source` (function/method, line 281): List snapshots on the source machine. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_list_source._run` (function/method, line 292): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_list_source._run` (function/method, line 291): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_sync` (function/method, line 305): Handle the cmd sync step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_sync` (function/method, line 304): Handle the cmd sync step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_sync._run_dry` (function/method, line 309): Handle the run dry step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_sync._run_dry` (function/method, line 308): Handle the run dry step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_sync._run_locked` (function/method, line 318): Handle the run locked step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_sync._run_locked` (function/method, line 317): Handle the run locked step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_prune` (function/method, line 335): Handle the cmd prune step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_prune` (function/method, line 334): Handle the cmd prune step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_prune._run_dry` (function/method, line 339): Handle the run dry step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_prune._run_dry` (function/method, line 338): Handle the run dry step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_prune._run_locked` (function/method, line 347): Handle the run locked step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_prune._run_locked` (function/method, line 346): Handle the run locked step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_restore` (function/method, line 364): Restore one snapshot or the complete post-common backup chain into Timeshift. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_restore` (function/method, line 363): Restore one snapshot or the complete post-common backup chain into Timeshift. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_restore._run` (function/method, line 370): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_restore._run` (function/method, line 369): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_create_manual` (function/method, line 420): Handle the cmd create manual step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_create_manual` (function/method, line 399): Handle the cmd create manual step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_create_manual._run` (function/method, line 423): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_create_manual._run` (function/method, line 402): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_clear_state` (function/method, line 449): Guardedly remove the configured state_file with normal run logging. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_clear_state` (function/method, line 428): Guardedly remove the configured state_file with normal run logging. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_clear_state._run` (function/method, line 455): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_clear_state._run` (function/method, line 434): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_delete_lock` (function/method, line 477): Guardedly remove the configured lock_file if it is stale, with logging. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_delete_lock` (function/method, line 456): Guardedly remove the configured lock_file if it is stale, with logging. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_delete_lock._run` (function/method, line 483): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_delete_lock._run` (function/method, line 462): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_destroy_leftovers` (function/method, line 494): Destroy configured leftovers with normal run logging enabled. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_destroy_leftovers` (function/method, line 473): Destroy configured leftovers with normal run logging enabled. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_destroy_leftovers._run` (function/method, line 508): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_destroy_leftovers._run` (function/method, line 487): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_show_state` (function/method, line 520): Handle the cmd show state step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_show_state` (function/method, line 499): Handle the cmd show state step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_show_state._run` (function/method, line 523): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_show_state._run` (function/method, line 502): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `build_parser` (function/method, line 566): Create the argparse parser and command-specific flag help. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `build_parser` (function/method, line 545): Create the argparse parser and command-specific flag help. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `main` (function/method, line 805): Handle the main step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `main` (function/method, line 785): Handle the main step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
 ## `timeshift_btrfs_sync/commands.py`
 
@@ -220,51 +220,51 @@ No runtime classes or functions are defined in this file.
 
 - `ManualSnapshotConfig` (class, line 43): Optional source-side Timeshift on-demand snapshot creation and cleanup. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `SourceConfig` (class, line 77): Timeshift source and restore-target settings. **Why:** Loads and validates the one current configuration schema used by every command.
+- `SourceConfig` (class, line 77): Timeshift source/restore-target paths that always share one endpoint. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `DestinationConfig` (class, line 118): Backup repository and normal local receive settings. **Why:** Loads and validates the one current configuration schema used by every command.
+- `DestinationConfig` (class, line 120): Backup repository and normal local receive settings. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `StreamConfig` (class, line 132): Optional pipeline display/buffering settings. **Why:** Loads and validates the one current configuration schema used by every command.
+- `StreamConfig` (class, line 134): Optional pipeline display/buffering settings. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `StreamConfig.command` (function/method, line 152): Return mbuffer command argv or None when disabled. **Why:** Loads and validates the one current configuration schema used by every command.
+- `StreamConfig.command` (function/method, line 154): Return mbuffer command argv or None when disabled. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `RetentionConfig` (class, line 166): Destination retention counts by Timeshift tag. **Why:** Loads and validates the one current configuration schema used by every command.
+- `RetentionConfig` (class, line 168): Destination retention counts by Timeshift tag. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `RetentionConfig.counts_by_tag` (function/method, line 185): Return retention counts keyed by Timeshift tag letters. **Why:** Loads and validates the one current configuration schema used by every command.
+- `RetentionConfig.counts_by_tag` (function/method, line 187): Return retention counts keyed by Timeshift tag letters. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `RestoreConfig` (class, line 193): Restore-only transport direction. **Why:** Separates restore direction from normal sync source transport.
+- `RestoreConfig` (class, line 193): Restore-only transport direction. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `RestoreConfig.backup_uses_ssh` (property, line 203): Return whether restore reads the backup repository through SSH. **Why:** Keeps backup endpoint selection in one restore-specific setting.
+- `RestoreConfig.backup_uses_ssh` (property, line 203): Return True when restore reads the backup repository over SSH. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `RestoreConfig.timeshift_uses_ssh` (property, line 209): Return whether snapshot_root and cache_root are on the SSH Timeshift host. **Why:** Keeps target endpoint selection in one restore-specific setting.
+- `RestoreConfig.timeshift_uses_ssh` (property, line 209): Return True when snapshot_root and cache_root are on the SSH Timeshift host. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `AppConfig` (class, line 214): Complete validated app configuration. **Why:** Loads and validates the one current configuration schema used by every command.
+- `AppConfig` (class, line 216): Complete validated app configuration. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `ConfigError` (class, line 233): Raised when the TOML config is invalid. **Why:** Loads and validates the one current configuration schema used by every command.
+- `ConfigError` (class, line 235): Raised when the TOML config is invalid. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_table` (function/method, line 236): Handle the table step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_table` (function/method, line 238): Handle the table step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_optional_str` (function/method, line 242): Handle the optional str step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_optional_str` (function/method, line 244): Handle the optional str step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_positive_int` (function/method, line 245): Handle the positive int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_positive_int` (function/method, line 247): Handle the positive int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_stripped` (function/method, line 252): Handle the stripped step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_stripped` (function/method, line 254): Handle the stripped step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_bool` (function/method, line 255): Handle the bool step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_bool` (function/method, line 257): Handle the bool step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_int` (function/method, line 258): Handle the int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_int` (function/method, line 260): Handle the int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_as_str` (function/method, line 261): Handle the as str step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_as_str` (function/method, line 263): Handle the as str step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_as_path` (function/method, line 266): Handle the as path step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_as_path` (function/method, line 268): Handle the as path step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_as_bool` (function/method, line 269): Handle the as bool step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_as_bool` (function/method, line 271): Handle the as bool step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_as_int` (function/method, line 276): Handle the as int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_as_int` (function/method, line 278): Handle the as int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_string_list` (function/method, line 283): Handle the string list step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_string_list` (function/method, line 285): Handle the string list step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `load_config` (function/method, line 291): Read and validate TOML config. **Why:** Loads and validates the one current configuration schema used by every command.
+- `load_config` (function/method, line 293): Read and validate the current TOML configuration. **Why:** Loads and validates the one current configuration schema used by every command.
 
 ## `timeshift_btrfs_sync/destroy.py`
 
@@ -394,27 +394,17 @@ No runtime classes or functions are defined in this file.
 
 ## `timeshift_btrfs_sync/lock.py`
 
-**Module role:** Local and SSH-held file locks for backup operations.
+**Module role:** Local advisory file locking for coordinated operations.
 
-**Why this module exists:** Prevents concurrent local or remote operations from changing the same backup repository.
+**Why this module exists:** Prevents concurrent restore, sync, prune, or maintenance operations from overlapping on the machine running the command.
 
-- `FileLock` (class, line 14): flock() based non-blocking exclusive lock on the local machine. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
+- `FileLock` (class, line 10): flock() based non-blocking exclusive lock on the local machine. **Why:** Prevents concurrent restore, sync, prune, or maintenance operations from overlapping on the machine running the command.
 
-- `FileLock.__init__` (function/method, line 17): Handle the init step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
+- `FileLock.__init__` (function/method, line 13): Handle the init step used by this module. **Why:** Prevents concurrent restore, sync, prune, or maintenance operations from overlapping on the machine running the command.
 
-- `FileLock.__enter__` (function/method, line 21): Handle the enter step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
+- `FileLock.__enter__` (function/method, line 17): Handle the enter step used by this module. **Why:** Prevents concurrent restore, sync, prune, or maintenance operations from overlapping on the machine running the command.
 
-- `FileLock.__exit__` (function/method, line 33): Handle the exit step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
-
-- `RemoteFileLock` (class, line 39): Hold the configured backup lock through one persistent SSH command. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
-
-- `RemoteFileLock.__init__` (function/method, line 51): Handle the init step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
-
-- `RemoteFileLock.__enter__` (function/method, line 59): Handle the enter step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
-
-- `RemoteFileLock._terminate` (function/method, line 98): Handle the terminate step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
-
-- `RemoteFileLock.__exit__` (function/method, line 118): Handle the exit step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
+- `FileLock.__exit__` (function/method, line 29): Handle the exit step used by this module. **Why:** Prevents concurrent restore, sync, prune, or maintenance operations from overlapping on the machine running the command.
 
 ## `timeshift_btrfs_sync/log.py`
 
@@ -716,7 +706,7 @@ No runtime classes or functions are defined in this file.
 
 - `BackupRepository` (class, line 83): Access one local or SSH backup repository through one transport layer. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupRepository.from_config` (function/method, line 92): Handle the from config step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `BackupRepository.from_config` (function/method, line 92): Create the backup endpoint selected by restore.mode. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
 - `BackupRepository.root` (property, line 106): Handle the root step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
@@ -742,7 +732,7 @@ No runtime classes or functions are defined in this file.
 
 - `_consistent_backup_identity` (function/method, line 317): Require one non-conflicting OS identity across the selected backup set. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_timeshift_info_identities` (function/method, line 344): Parse stable OS identities from the coherent Timeshift-target info.json inventory. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_timeshift_info_identities` (function/method, line 344): Parse stable OS identities from the coherent source info.json inventory. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
 - `_compare_repository_os_identity` (function/method, line 357): Compare one backup identity with all current Timeshift control files. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 

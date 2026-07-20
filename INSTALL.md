@@ -127,7 +127,7 @@ When the exact recorded read-only source send parent still exists with the expec
 
 ### Pull restore from an SSH backup host
 
-Use a separate restore config with `[restore] mode = "ssh"`, `[ssh]` pointing to the backup host, and `[destination].target_root`, `state_file`, and `lock_file` set to their paths on that host. `source.snapshot_root` and `source.cache_root` must both be paths on the local Timeshift machine; restore probes them through the same local endpoint. `source.mode` remains sync-only. Preview with:
+Use a separate restore config with `[restore] mode = "ssh"`, `[ssh]` pointing to the backup host, and `[destination].target_root` plus `state_file` set to their paths on that host. `lock_file`, `source.snapshot_root`, and `source.cache_root` must be local paths on the machine running the restore. `source.mode` remains sync-only. Preview with:
 
 ```bash
 ts-btrfs restore --config ./config-restore-pull.toml \
@@ -135,9 +135,9 @@ ts-btrfs restore --config ./config-restore-pull.toml \
   --dry-run
 ```
 
-The remote backup account needs ordinary traversal/read access to the backup date directories, `info.json`, and `state.json`; ordinary write access to the existing lock file; `flock` and `base64`; and narrow passwordless sudo for Btrfs list/show/send. The local machine needs the restore-target permissions described above. The remote lock directory must already exist; restore does not create a missing remote backup target.
+The remote backup account needs ordinary traversal/read access to the backup date directories, `info.json`, and `state.json`; `base64`; and narrow passwordless sudo for Btrfs list/show/send. It does not need write access to a remote lock file or `flock`. The local machine needs the restore-target permissions described above and write access to the configured local `lock_file`.
 
-Do not use the same path interpretation blindly for scheduled sync. In the pull profile, `[restore] mode = "ssh"` makes `destination.target_root`, `state_file`, and `lock_file` remote only for restore; normal sync/prune semantics remain local.
+Do not use the same path interpretation blindly for scheduled sync. In the pull profile, `[restore] mode = "ssh"` makes `destination.target_root` and `state_file` remote only for restore; `lock_file` remains local and normal sync/prune semantics remain unchanged.
 
 ## PyInstaller builds
 

@@ -746,3 +746,14 @@ This build is version `0.1.17`.
 - Expanded the restore plan output to print the Timeshift endpoint beside both `snapshot_root` and `cache_root`, plus an explicit path-ownership statement before transfer.
 - Added regression coverage proving local pull-restore cache indexing, local exact cache-parent probes, remote backup scripts excluding Timeshift paths, and SSH-target snapshot/cache pairing on one remote runner.
 - Updated current README, installation guidance, configuration comments, interface audit, code map, tests, and package metadata.
+
+## 0.1.66
+
+- Fixed `[restore] mode = "ssh"` treating the configured `lock_file` as a remote backup-host path and refusing valid pull restores when that path did not exist remotely.
+- Restore now always acquires one local `FileLock` on the machine running the command, for `local`, `ssh`, and `ssh-target` modes. `state_file` continues to follow the backup repository endpoint.
+- Removed the unused `RemoteFileLock` implementation and its dedicated tests so restore has one lock mechanism instead of parallel local/SSH lock code.
+- Updated the generated pull-restore profile so `destination.target_root` and `state_file` are remote, while `lock_file`, `snapshot_root`, `cache_root`, and `log_dir` are local.
+- Removed the remote backup requirements for lock-file write access and `flock`; the SSH backup account remains read-only apart from Btrfs send/show/list privilege.
+- Added regression coverage proving SSH pull restore never probes or opens the lock through SSH, uses the configured local lock, and refuses a missing local lock directory with a local-path diagnostic.
+- Updated current CLI help, README, installation guidance, configuration comments, interface audit, code map, tests, and package metadata.
+

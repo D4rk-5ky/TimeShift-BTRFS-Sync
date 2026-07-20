@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.1.65 config
+# timeshift-btrfs-sync v0.1.66 config
 # Run this config on the BACKUP/DESTINATION machine for normal sync.
 # source.mode controls only normal source-side sync/list/prune/manual commands.
 # Restore uses [restore] mode independently:
@@ -36,13 +36,15 @@ log_dir = "/Backups/Kubuntu/timeshift-btrfs/.ts-btrfs-sync/logs"
 #   <target_root>/.ts-btrfs-sync/state.json
 #   <target_root>/.ts-btrfs-sync/lock
 # state_file records successfully received snapshots and incremental parent data.
-# With restore pull mode, state_file and lock_file are paths on the SSH
-# backup host. log_dir remains local to the machine running this command.
+# With restore mode = "ssh", state_file follows the SSH backup repository.
+# lock_file is always local to the machine running the restore command.
+# log_dir is local as well.
 # Do not manually delete state_file while a job is running. Use:
 #   ts-btrfs clear-state --config ./config.toml --dry-run
 #   ts-btrfs clear-state --config ./config.toml --run --i-understand-this-clears-state
 # The next sync can rebuild state only from exact Btrfs UUID matches.
-# lock_file prevents two sync/prune jobs from running against the same target.
+# lock_file prevents concurrent local operations. Sync/prune use it beside the
+# local destination; restore uses it only on the machine running the command.
 # Do not manually remove a lock for a running job. Use delete-lock only for stale locks:
 #   ts-btrfs delete-lock --config ./config.toml --dry-run
 #   ts-btrfs delete-lock --config ./config.toml --run --i-understand-this-deletes-lock
@@ -142,7 +144,8 @@ notify_on_failure = true
 [ssh]
 # Used when source.mode = "ssh", restore.mode = "ssh", or restore.mode = "ssh-target".
 # source.mode = "ssh": host containing source Timeshift snapshots for backup.
-# restore.mode = "ssh": host containing destination.target_root/state_file/lock_file.
+# restore.mode = "ssh": host containing destination.target_root and state_file.
+# Restore locking always remains local.
 # restore.mode = "ssh-target": host containing the Timeshift repository being restored.
 host = "source-machine.example.lan"
 

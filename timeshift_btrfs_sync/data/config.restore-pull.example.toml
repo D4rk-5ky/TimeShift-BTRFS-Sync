@@ -1,10 +1,10 @@
-# timeshift-btrfs-sync v0.1.65 remote-backup pull-restore config
+# timeshift-btrfs-sync v0.1.66 remote-backup pull-restore config
 # Run this config on the LOCAL Timeshift machine that will receive the restore.
 # This profile is for: SSH BACKUP HOST -> LOCAL TIMESHIFT RESTORE.
 # [restore] mode = "ssh" selects the remote backup transport directly.
 # source.mode remains sync-only and does not decide restore direction.
-# [ssh] identifies the backup host; destination.target_root, state_file, and
-# lock_file are read there. source.snapshot_root and log_dir remain local.
+# [ssh] identifies the backup host; destination.target_root and state_file are
+# read there. lock_file, source.snapshot_root, source.cache_root, and log_dir remain local.
 # Use a separate restore config so sync/prune path meanings remain unambiguous.
 # Restore can import one snapshot or a UUID-validated full/incremental chain.
 # It creates Timeshift's ordinary date directories plus Btrfs @/@home payloads.
@@ -38,13 +38,15 @@ log_dir = "/var/log/timeshift-btrfs-sync"
 #   <target_root>/.ts-btrfs-sync/state.json
 #   <target_root>/.ts-btrfs-sync/lock
 # state_file records successfully received snapshots and incremental parent data.
-# With restore pull mode, state_file and lock_file are paths on the SSH
-# backup host. log_dir remains local to the machine running this command.
+# With restore mode = "ssh", state_file is read on the SSH backup host.
+# lock_file is always local to the machine running this command, for every restore mode.
+# log_dir is also local.
 # Do not manually delete state_file while a job is running. Use:
 #   ts-btrfs clear-state --config ./config.toml --dry-run
 #   ts-btrfs clear-state --config ./config.toml --run --i-understand-this-clears-state
 # The next sync can rebuild state only from exact Btrfs UUID matches.
-# lock_file prevents two sync/prune jobs from running against the same target.
+# lock_file prevents two restore processes using this config from running locally at once.
+# Pull restore does not create or lock any file on the remote backup host.
 # Do not manually remove a lock for a running job. Use delete-lock only for stale locks:
 #   ts-btrfs delete-lock --config ./config.toml --dry-run
 #   ts-btrfs delete-lock --config ./config.toml --run --i-understand-this-deletes-lock
@@ -52,7 +54,7 @@ log_dir = "/var/log/timeshift-btrfs-sync"
 # paths are checked. Missing lock/helper folders try Btrfs subvolume creation
 # first, then mkdir fallback if Btrfs creation is not possible.
 state_file = "/Backups/Kubuntu/timeshift-btrfs/.ts-btrfs-sync/state.json"
-lock_file = "/Backups/Kubuntu/timeshift-btrfs/.ts-btrfs-sync/lock"
+lock_file = "/media/darkyere/OS-Root/timeshift-btrfs/.ts-btrfs-sync/restore.lock"
 
 [restore]
 # Restore transport is independent from source.mode.
@@ -144,7 +146,8 @@ notify_on_failure = true
 [ssh]
 # Used when source.mode = "ssh", restore.mode = "ssh", or restore.mode = "ssh-target".
 # source.mode = "ssh": host containing source Timeshift snapshots for backup.
-# restore.mode = "ssh": host containing destination.target_root/state_file/lock_file.
+# restore.mode = "ssh": host containing destination.target_root and state_file.
+# The restore lock remains local and is never opened through SSH.
 # restore.mode = "ssh-target": host containing the Timeshift repository being restored.
 host = "backup-machine.example.lan"
 
@@ -298,7 +301,8 @@ retention_count = 10
 #   "local" = normal source commands run on this machine.
 # In this pull profile, restore.mode = "ssh" still keeps both snapshot_root and
 # cache_root LOCAL because they belong to the local Timeshift repository. Only
-# destination.target_root/state_file/lock_file and backup btrfs send use SSH.
+# destination.target_root, state_file, and backup btrfs send use SSH.
+# lock_file remains local to the machine running the restore command.
 mode = "local"
 
 # Source-side command prefix. sudo -n means sudo must not prompt for a password.
