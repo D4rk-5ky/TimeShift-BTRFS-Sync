@@ -14,7 +14,7 @@ from .mail import MailConfig
 
 TOP_LEVEL_KEYS = {
     "name", "default_dry_run", "prune_after_sync", "log_dir", "state_file", "lock_file",
-    "source", "destination", "stream", "retention", "manual_snapshot", "mqtt", "mail", "ssh",
+    "source", "destination", "stream", "retention", "manual_snapshot", "mqtt", "mail", "ssh", "restore",
 }
 SOURCE_KEYS = {
     "snapshot_root", "mode", "subvolumes", "sudo", "btrfs_command", "timeshift_command",
@@ -26,6 +26,7 @@ DESTINATION_KEYS = {"target_root", "sudo", "btrfs_command", "create_target_root"
 STREAM_KEYS = {"use_mbuffer", "mbuffer_command", "mbuffer_size", "mbuffer_rate", "mbuffer_extra_args", "btrfs_verbose"}
 RETENTION_KEYS = {"hourly", "daily", "weekly", "monthly", "boot", "ondemand", "cleanup_ondemand", "keep_latest", "keep_latest_common_parent", "protected_snapshots"}
 MANUAL_SNAPSHOT_KEYS = {"enabled", "cleanup_enabled", "comment", "marker", "retention_count"}
+RESTORE_KEYS = {"backup_over_ssh"}
 SSH_KEYS = {"host", "user", "port", "identity_file", "password", "password_file", "compression", "cipher", "control_master", "control_persist", "control_path", "extra_args"}
 MQTT_KEYS = {"enabled", "host", "port", "topic", "username", "password", "password_file", "client_id", "qos", "retain", "timeout", "notify_on_success", "notify_on_failure"}
 MAIL_KEYS = {"enabled", "smtp_host", "smtp_port", "smtp_ssl", "starttls", "username", "password", "password_file", "from_addr", "to_addrs", "subject_prefix", "timeout", "notify_on_success", "notify_on_failure", "include_json", "attach_logs", "max_attachment_bytes"}
@@ -187,6 +188,17 @@ class RetentionConfig:
         return {"H": self.hourly, "D": self.daily, "W": self.weekly, "M": self.monthly, "B": self.boot, "O": self.ondemand}
 
 @dataclass(slots=True)
+class RestoreConfig:
+    """Restore-only transport defaults."""
+
+    # When true, restore reads destination.target_root, state_file, and lock_file
+    # from the configured SSH host and imports them into a local Timeshift
+    # repository. The CLI --backup-over-ssh flag can enable the same mode for
+    # one invocation. Normal sync/prune semantics are unchanged.
+    backup_over_ssh: bool = False
+
+
+@dataclass(slots=True)
 class AppConfig:
     """Complete validated app configuration."""
 
@@ -199,6 +211,7 @@ class AppConfig:
     mqtt: MQTTConfig
     mail: MailConfig
     manual_snapshot: ManualSnapshotConfig
+    restore: RestoreConfig
     state_file: Path
     lock_file: Path
     log_dir: Path | None
@@ -266,9 +279,9 @@ def _string_list(value: Any, field_name: str) -> list[str]:
 def load_config(path: str | Path, *, require_ssh: bool = False) -> AppConfig:
     """Read and validate TOML config.
 
-    ``require_ssh`` is used by restore when the backup repository is read over
-    SSH while the Timeshift restore target itself is local. Normal commands
-    leave it false, preserving the current source-mode configuration rules.
+    ``require_ssh`` lets one CLI invocation enable SSH-backup pull mode. The
+    current ``[restore].backup_over_ssh`` setting also requires and validates
+    the SSH profile while the Timeshift restore target itself remains local.
     """
 
     path = Path(path).expanduser()
@@ -286,9 +299,15 @@ def load_config(path: str | Path, *, require_ssh: bool = False) -> AppConfig:
     if source_mode not in {"ssh", "local"}:
         raise ConfigError("source.mode must be either 'ssh' or 'local'")
 
+    restore_raw = _table(raw, "restore")
+    _reject_unknown_keys(restore_raw, "[restore]", RESTORE_KEYS)
+    restore = RestoreConfig(
+        backup_over_ssh=_bool(restore_raw, "restore", "backup_over_ssh", False),
+    )
+
     ssh_raw = _table(raw, "ssh")
     _reject_unknown_keys(ssh_raw, "[ssh]", SSH_KEYS)
-    if source_mode == "ssh" or require_ssh:
+    if source_mode == "ssh" or require_ssh or restore.backup_over_ssh:
         port = _positive_int(ssh_raw.get("port"), "ssh.port")
         password = _optional_str(ssh_raw, "password")
         password_file = _optional_str(ssh_raw, "password_file")
@@ -509,6 +528,7 @@ def load_config(path: str | Path, *, require_ssh: bool = False) -> AppConfig:
         mqtt=mqtt,
         mail=mail,
         manual_snapshot=manual_snapshot,
+        restore=restore,
         state_file=state_file,
         lock_file=lock_file,
         log_dir=log_dir,

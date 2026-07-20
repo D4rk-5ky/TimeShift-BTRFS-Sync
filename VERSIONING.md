@@ -708,3 +708,21 @@ This build is version `0.1.17`.
 - Expanded SSH configuration comments in both profiles for key authentication, optional `sshpass` password/password-file authentication, password-file permissions, port, cipher, compression, ControlMaster, strict host-key checking, known-hosts files, connection timeout, keepalives, jump hosts, and extra OpenSSH arguments.
 - Added regression coverage proving both `init-config` profiles exactly match their packaged resources, both resources are included in the package, the pull profile loads with local Timeshift plus remote backup SSH semantics, and no supported configuration key is absent from either profile.
 - Updated current README, installation guidance, CLI help, configuration audit, code map, package data, and version metadata.
+
+## 0.1.62
+
+- Added the restore-only `--create-pre-restore-snapshot` flag. When selected, one Timeshift on-demand/tag O safety snapshot is created on the Timeshift restore target after all plan validation and typed confirmations but before any restore staging directory or Btrfs stream.
+- Reused the existing shared local/SSH Timeshift creation command. Local restore creates the safety snapshot locally, local-backup-to-SSH restore creates it on the SSH Timeshift target, and SSH-backup-to-local pull restore creates it locally. The backup repository is never asked to create a Timeshift or Btrfs snapshot.
+- Added post-create verification through a fresh `timeshift --list` and exact Btrfs metadata checks for every configured payload. Ambiguous creation, a timestamp collision, missing payload, missing UUID, or Timeshift command failure aborts before backup transfer.
+- The safety snapshot uses the fixed comment `TimeShift-BTRFS-Sync pre-restore safety snapshot` and is intentionally retained if later restore work fails. The existing `[manual_snapshot]` configuration remains limited to `sync` and `create-manual`.
+- Updated the sync and pull-restore config comments, with the pull profile defaulting `manual_snapshot.enabled = false`, plus README, installation guidance, CLI help, configuration audit, tests, code map, and package metadata.
+
+
+## 0.1.63
+
+- Fixed SSH-backup-to-local restore configurations being silently interpreted as local-backup restore when `--backup-over-ssh` was omitted. The packaged pull profile now sets `[restore] backup_over_ssh = true`, and the CLI uses that validated transport default automatically.
+- Preserved Timeshift's native Btrfs layout: `<source.snapshot_root>/<date>` is an ordinary directory containing regular `info.json` plus Btrfs `@`/`@home` payload subvolumes. Only TimeShift-BTRFS-Sync backup date containers below `<destination.target_root>/snapshots` must themselves be Btrfs subvolumes.
+- Added a targeted diagnostic when a local Timeshift repository is accidentally scanned as the backup repository, explaining the ordinary date-folder layout and how to select SSH backup transport.
+- Kept `--backup-over-ssh` as a one-run override while making the generated pull profile self-contained. Normal sync/prune/destroy path meanings remain unchanged.
+- Added regression coverage for config-driven pull restore without the CLI flag, correct remote lock/transport selection, schema-complete restore settings, and misrouted native Timeshift layout detection.
+- Updated both generated profiles, README, installation guidance, interface audit, code map, tests, and package metadata.

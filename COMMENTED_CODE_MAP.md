@@ -42,31 +42,31 @@ No runtime classes or functions are defined in this file.
 
 - `_descendant_list_paths` (function/method, line 56): Return only numeric descendants of ``root_id`` from one full list. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
-- `clean_uuid` (function/method, line 73): Perform the clean uuid step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
+- `clean_uuid` (function/method, line 73): Handle the clean uuid step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
 - `parse_subvolume_show` (function/method, line 78): Parse UUID and read-only fields from ``btrfs subvolume show``. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
 - `BtrfsOps` (class, line 104): Btrfs command facade for one local or source endpoint. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
-- `BtrfsOps.prefix` (property, line 112): Perform the prefix step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
+- `BtrfsOps.prefix` (property, line 112): Handle the prefix step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
-- `BtrfsOps.argv` (function/method, line 115): Perform the argv step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
+- `BtrfsOps.argv` (function/method, line 115): Handle the argv step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
-- `BtrfsOps.run` (function/method, line 118): Perform the run step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
+- `BtrfsOps.run` (function/method, line 118): Handle the run step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
 - `BtrfsOps.meta` (function/method, line 133): Return exact-path subvolume metadata or ``None`` for an optional miss. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
 - `BtrfsOps.list_children` (function/method, line 152): Return all descendants selected from one Btrfs containment graph. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
-- `BtrfsOps.create` (function/method, line 171): Perform the create step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
+- `BtrfsOps.create` (function/method, line 171): Handle the create step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
 - `BtrfsOps.snapshot` (function/method, line 174): Create one exact writable or read-only Btrfs snapshot. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
-- `BtrfsOps.delete` (function/method, line 190): Perform the delete step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
+- `BtrfsOps.delete` (function/method, line 190): Handle the delete step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
-- `BtrfsOps.send_command` (function/method, line 205): Perform the send command step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
+- `BtrfsOps.send_command` (function/method, line 205): Handle the send command step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
-- `BtrfsOps.receive_command` (function/method, line 226): Perform the receive command step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
+- `BtrfsOps.receive_command` (function/method, line 226): Handle the receive command step used by this module. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
 - `BtrfsOps.set_readonly` (function/method, line 233): Set the Btrfs subvolume read-only property explicitly. **Why:** Centralizes Btrfs command construction and parsing so every workflow applies the same metadata and deletion rules.
 
@@ -78,23 +78,23 @@ No runtime classes or functions are defined in this file.
 
 **Why this module exists:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
-- `_safe_name` (function/method, line 16): Perform the safe name step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
+- `_safe_name` (function/method, line 16): Handle the safe name step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
-- `cache_parent_path` (function/method, line 22): Perform the cache parent path step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
+- `cache_parent_path` (function/method, line 22): Handle the cache parent path step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
-- `cache_child_path` (function/method, line 26): Perform the cache child path step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
+- `cache_child_path` (function/method, line 26): Handle the cache child path step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
 - `validate_cache_snapshot` (function/method, line 30): Prove an exact cache child is a safe read-only snapshot of ``original``. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
 - `CacheManager` (class, line 50): Ensure exact reusable send snapshots without nested cache creation. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
-- `CacheManager.__init__` (function/method, line 53): Perform the init step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
+- `CacheManager.__init__` (function/method, line 53): Handle the init step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
-- `CacheManager._ensure_subvolume` (function/method, line 58): Perform the ensure subvolume step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
+- `CacheManager._ensure_subvolume` (function/method, line 58): Handle the ensure subvolume step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
 - `CacheManager._probe_create_verify` (function/method, line 85): Probe, create if absent, and verify exact cache path in one command. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
-- `CacheManager._probe_create_verify.meta` (function/method, line 165): Perform the meta step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
+- `CacheManager._probe_create_verify.meta` (function/method, line 165): Handle the meta step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
 - `CacheManager.ensure_send_snapshot` (function/method, line 192): Return original read-only source or create/reuse one exact cache child. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
@@ -128,7 +128,7 @@ No runtime classes or functions are defined in this file.
 
 - `_resolve_dry_run` (function/method, line 226): Handle the resolve dry run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_init_config` (function/method, line 234): Write the selected complete packaged config profile. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_init_config` (function/method, line 234): Handle the cmd init config step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
 - `cmd_test_source` (function/method, line 253): Handle the cmd test source step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
@@ -156,29 +156,29 @@ No runtime classes or functions are defined in this file.
 
 - `cmd_restore._run` (function/method, line 370): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_create_manual` (function/method, line 421): Handle the cmd create manual step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_create_manual` (function/method, line 422): Handle the cmd create manual step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_create_manual._run` (function/method, line 424): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_create_manual._run` (function/method, line 425): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_clear_state` (function/method, line 450): Guardedly remove the configured state_file with normal run logging. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_clear_state` (function/method, line 451): Guardedly remove the configured state_file with normal run logging. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_clear_state._run` (function/method, line 456): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_clear_state._run` (function/method, line 457): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_delete_lock` (function/method, line 478): Guardedly remove the configured lock_file if it is stale, with logging. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_delete_lock` (function/method, line 479): Guardedly remove the configured lock_file if it is stale, with logging. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_delete_lock._run` (function/method, line 484): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_delete_lock._run` (function/method, line 485): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_destroy_leftovers` (function/method, line 495): Destroy configured leftovers with normal run logging enabled. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_destroy_leftovers` (function/method, line 496): Destroy configured leftovers with normal run logging enabled. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_destroy_leftovers._run` (function/method, line 509): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_destroy_leftovers._run` (function/method, line 510): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_show_state` (function/method, line 521): Handle the cmd show state step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_show_state` (function/method, line 522): Handle the cmd show state step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_show_state._run` (function/method, line 524): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_show_state._run` (function/method, line 525): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `build_parser` (function/method, line 567): Create the argparse parser and command-specific flag help. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `build_parser` (function/method, line 568): Create the argparse parser and command-specific flag help. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `main` (function/method, line 805): Handle the main step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `main` (function/method, line 812): Handle the main step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
 ## `timeshift_btrfs_sync/commands.py`
 
@@ -188,7 +188,7 @@ No runtime classes or functions are defined in this file.
 
 - `CommandError` (class, line 21): Raised when an external command exits with a non-zero status. **Why:** Runs commands and streaming pipelines with consistent logging, error capture, and optional buffering.
 
-- `CommandError.__init__` (function/method, line 24): Perform the init step used by this module. **Why:** Runs commands and streaming pipelines with consistent logging, error capture, and optional buffering.
+- `CommandError.__init__` (function/method, line 24): Handle the init step used by this module. **Why:** Runs commands and streaming pipelines with consistent logging, error capture, and optional buffering.
 
 - `Completed` (class, line 39): Captured exit status and text streams for one command. **Why:** Runs commands and streaming pipelines with consistent logging, error capture, and optional buffering.
 
@@ -232,31 +232,33 @@ No runtime classes or functions are defined in this file.
 
 - `RetentionConfig.counts_by_tag` (function/method, line 184): Return retention counts keyed by Timeshift tag letters. **Why:** Loads and validates the one current configuration schema used by every command.
 
+- `RestoreConfig` (class, line 191): Restore-only transport defaults. **Why:** Keeps SSH-backup pull selection explicit in config without changing normal sync/prune path semantics.
+
 - `AppConfig` (class, line 190): Complete validated app configuration. **Why:** Loads and validates the one current configuration schema used by every command.
 
 - `ConfigError` (class, line 208): Raised when the TOML config is invalid. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_table` (function/method, line 211): Perform the table step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_table` (function/method, line 211): Handle the table step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_optional_str` (function/method, line 217): Perform the optional str step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_optional_str` (function/method, line 217): Handle the optional str step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_positive_int` (function/method, line 220): Perform the positive int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_positive_int` (function/method, line 220): Handle the positive int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_stripped` (function/method, line 227): Perform the stripped step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_stripped` (function/method, line 227): Handle the stripped step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_bool` (function/method, line 230): Perform the bool step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_bool` (function/method, line 230): Handle the bool step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_int` (function/method, line 233): Perform the int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_int` (function/method, line 233): Handle the int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_as_str` (function/method, line 236): Perform the as str step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_as_str` (function/method, line 236): Handle the as str step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_as_path` (function/method, line 241): Perform the as path step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_as_path` (function/method, line 241): Handle the as path step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_as_bool` (function/method, line 244): Perform the as bool step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_as_bool` (function/method, line 244): Handle the as bool step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_as_int` (function/method, line 251): Perform the as int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_as_int` (function/method, line 251): Handle the as int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_string_list` (function/method, line 258): Perform the string list step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_string_list` (function/method, line 258): Handle the string list step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
 - `load_config` (function/method, line 266): Read and validate TOML config. **Why:** Loads and validates the one current configuration schema used by every command.
 
@@ -268,23 +270,23 @@ No runtime classes or functions are defined in this file.
 
 - `DestroyResult` (class, line 26): Named wrapper around the shared tree-deletion result. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
 
-- `_safe_cleanup_path` (function/method, line 33): Perform the safe cleanup path step used by this module. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
+- `_safe_cleanup_path` (function/method, line 33): Handle the safe cleanup path step used by this module. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
 
-- `_confirm_or_raise` (function/method, line 46): Perform the confirm or raise step used by this module. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
+- `_confirm_or_raise` (function/method, line 46): Handle the confirm or raise step used by this module. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
 
-- `_mode_text` (function/method, line 51): Perform the mode text step used by this module. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
+- `_mode_text` (function/method, line 51): Handle the mode text step used by this module. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
 
-- `_load_payload_state` (function/method, line 57): Perform the load payload state step used by this module. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
+- `_load_payload_state` (function/method, line 57): Handle the load payload state step used by this module. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
 
-- `_result_by_label` (function/method, line 64): Perform the result by label step used by this module. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
+- `_result_by_label` (function/method, line 64): Handle the result by label step used by this module. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
 
-- `_print_payload_match` (function/method, line 68): Perform the print payload match step used by this module. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
+- `_print_payload_match` (function/method, line 68): Handle the print payload match step used by this module. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
 
-- `_print_result` (function/method, line 87): Perform the print result step used by this module. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
+- `_print_result` (function/method, line 87): Handle the print result step used by this module. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
 
 - `destroy_leftovers` (function/method, line 118): Plan and execute selected source/destination tree retirement. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
 
-- `destroy_leftovers.handle` (function/method, line 172): Perform the handle step used by this module. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
+- `destroy_leftovers.handle` (function/method, line 172): Handle the handle step used by this module. **Why:** Implements guarded deletion of selected app-owned source-cache and destination trees.
 
 ## `timeshift_btrfs_sync/endpoint.py`
 
@@ -294,11 +296,11 @@ No runtime classes or functions are defined in this file.
 
 - `CommandEndpoint` (class, line 19): Execute commands on one local or transported endpoint. **Why:** Provides one local/SSH command transport used by Timeshift, backup, and destination operations.
 
-- `CommandEndpoint.for_source` (function/method, line 30): Perform the for source step used by this module. **Why:** Provides one local/SSH command transport used by Timeshift, backup, and destination operations.
+- `CommandEndpoint.for_source` (function/method, line 30): Handle the for source step used by this module. **Why:** Provides one local/SSH command transport used by Timeshift, backup, and destination operations.
 
-- `CommandEndpoint.local` (function/method, line 34): Perform the local step used by this module. **Why:** Provides one local/SSH command transport used by Timeshift, backup, and destination operations.
+- `CommandEndpoint.local` (function/method, line 34): Handle the local step used by this module. **Why:** Provides one local/SSH command transport used by Timeshift, backup, and destination operations.
 
-- `CommandEndpoint.location` (property, line 38): Perform the location step used by this module. **Why:** Provides one local/SSH command transport used by Timeshift, backup, and destination operations.
+- `CommandEndpoint.location` (property, line 38): Handle the location step used by this module. **Why:** Provides one local/SSH command transport used by Timeshift, backup, and destination operations.
 
 - `CommandEndpoint.shell_command` (function/method, line 41): Return a safely quoted shell command for this endpoint. **Why:** Provides one local/SSH command transport used by Timeshift, backup, and destination operations.
 
@@ -316,7 +318,7 @@ No runtime classes or functions are defined in this file.
 
 - `WorkflowExecutor` (class, line 14): Execute or preview a plan using one handler per action kind. **Why:** Executes ordered workflow actions through the shared operation layers.
 
-- `WorkflowExecutor.execute` (function/method, line 22): Perform the execute step used by this module. **Why:** Executes ordered workflow actions through the shared operation layers.
+- `WorkflowExecutor.execute` (function/method, line 22): Handle the execute step used by this module. **Why:** Executes ordered workflow actions through the shared operation layers.
 
 ## `timeshift_btrfs_sync/inventory.py`
 
@@ -360,15 +362,15 @@ No runtime classes or functions are defined in this file.
 
 - `_parse_remote_btrfs_index_result` (function/method, line 345): Parse one remote bulk-index section into a :class:`BtrfsIndex`. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
 
-- `_parse_remote_btrfs_index_result.flush_list` (function/method, line 377): Perform the flush list step used by this module. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
+- `_parse_remote_btrfs_index_result.flush_list` (function/method, line 377): Handle the flush list step used by this module. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
 
-- `_parse_remote_btrfs_index_result.flush_readonly` (function/method, line 385): Perform the flush readonly step used by this module. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
+- `_parse_remote_btrfs_index_result.flush_readonly` (function/method, line 385): Handle the flush readonly step used by this module. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
 
 - `_remote_source_inventory_script` (function/method, line 445): Return one remote script for Timeshift, info.json, and both Btrfs roots. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
 
 - `_extract_snapshot_info_json_frames` (function/method, line 527): Remove and parse the ``cat`` payloads from combined SSH output. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
 
-- `_extract_snapshot_info_json_frames.replace` (function/method, line 544): Perform the replace step used by this module. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
+- `_extract_snapshot_info_json_frames.replace` (function/method, line 544): Handle the replace step used by this module. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
 
 - `_split_remote_source_inventory_output` (function/method, line 561): Split combined output into identity, Timeshift, info.json, and Btrfs sections. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
 
@@ -382,7 +384,7 @@ No runtime classes or functions are defined in this file.
 
 - `describe_source_inventory_changes` (function/method, line 809): Return concise human-readable differences between two inventories. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
 
-- `describe_source_inventory_changes.compare_index` (function/method, line 822): Perform the compare index step used by this module. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
+- `describe_source_inventory_changes.compare_index` (function/method, line 822): Handle the compare index step used by this module. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
 
 - `refresh_path` (function/method, line 861): Refresh one exact path through the shared Btrfs operation layer. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
 
@@ -394,21 +396,21 @@ No runtime classes or functions are defined in this file.
 
 - `FileLock` (class, line 14): flock() based non-blocking exclusive lock on the local machine. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
 
-- `FileLock.__init__` (function/method, line 17): Perform the init step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
+- `FileLock.__init__` (function/method, line 17): Handle the init step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
 
-- `FileLock.__enter__` (function/method, line 21): Perform the enter step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
+- `FileLock.__enter__` (function/method, line 21): Handle the enter step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
 
-- `FileLock.__exit__` (function/method, line 33): Perform the exit step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
+- `FileLock.__exit__` (function/method, line 33): Handle the exit step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
 
 - `RemoteFileLock` (class, line 39): Hold the configured backup lock through one persistent SSH command. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
 
-- `RemoteFileLock.__init__` (function/method, line 51): Perform the init step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
+- `RemoteFileLock.__init__` (function/method, line 51): Handle the init step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
 
-- `RemoteFileLock.__enter__` (function/method, line 59): Perform the enter step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
+- `RemoteFileLock.__enter__` (function/method, line 59): Handle the enter step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
 
-- `RemoteFileLock._terminate` (function/method, line 98): Perform the terminate step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
+- `RemoteFileLock._terminate` (function/method, line 98): Handle the terminate step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
 
-- `RemoteFileLock.__exit__` (function/method, line 118): Perform the exit step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
+- `RemoteFileLock.__exit__` (function/method, line 118): Handle the exit step used by this module. **Why:** Prevents concurrent local or remote operations from changing the same backup repository.
 
 ## `timeshift_btrfs_sync/log.py`
 
@@ -458,19 +460,19 @@ No runtime classes or functions are defined in this file.
 
 - `TeeTextIO` (class, line 270): Terminal stream wrapper that also writes normal app output to run logs. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
 
-- `TeeTextIO.__init__` (function/method, line 283): Perform the init step used by this module. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
+- `TeeTextIO.__init__` (function/method, line 283): Handle the init step used by this module. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
 
-- `TeeTextIO.write` (function/method, line 290): Perform the write step used by this module. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
+- `TeeTextIO.write` (function/method, line 290): Handle the write step used by this module. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
 
-- `TeeTextIO.flush` (function/method, line 303): Perform the flush step used by this module. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
+- `TeeTextIO.flush` (function/method, line 303): Handle the flush step used by this module. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
 
-- `TeeTextIO.isatty` (function/method, line 306): Perform the isatty step used by this module. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
+- `TeeTextIO.isatty` (function/method, line 306): Handle the isatty step used by this module. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
 
-- `TeeTextIO.fileno` (function/method, line 309): Perform the fileno step used by this module. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
+- `TeeTextIO.fileno` (function/method, line 309): Handle the fileno step used by this module. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
 
-- `TeeTextIO.writable` (function/method, line 312): Perform the writable step used by this module. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
+- `TeeTextIO.writable` (function/method, line 312): Handle the writable step used by this module. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
 
-- `TeeTextIO.__getattr__` (function/method, line 315): Perform the getattr step used by this module. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
+- `TeeTextIO.__getattr__` (function/method, line 315): Handle the getattr step used by this module. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
 
 - `terminal_stdout` (function/method, line 323): Return the real terminal stdout, bypassing the run-log tee wrapper. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
 
@@ -484,7 +486,7 @@ No runtime classes or functions are defined in this file.
 
 - `tee_pipe_to_log` (function/method, line 402): Start a thread that reads bytes from a process pipe and logs them live. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
 
-- `tee_pipe_to_log._reader` (function/method, line 421): Perform the reader step used by this module. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
+- `tee_pipe_to_log._reader` (function/method, line 421): Handle the reader step used by this module. **Why:** Writes the current split command, error, Btrfs, mbuffer, and success logs.
 
 ## `timeshift_btrfs_sync/mail.py`
 
@@ -634,19 +636,19 @@ No runtime classes or functions are defined in this file.
 
 **Why this module exists:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
 
-- `ActionKind` (class, line 17): Define the ActionKind data or behavior used by this module. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
+- `ActionKind` (class, line 17): Handle the ActionKind step used by this module. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
 
-- `WorkflowAction` (class, line 28): Define the WorkflowAction data or behavior used by this module. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
+- `WorkflowAction` (class, line 28): Handle the WorkflowAction step used by this module. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
 
-- `WorkflowPlan` (class, line 36): Define the WorkflowPlan data or behavior used by this module. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
+- `WorkflowPlan` (class, line 36): Handle the WorkflowPlan step used by this module. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
 
-- `WorkflowPlan.add` (function/method, line 40): Perform the add step used by this module. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
+- `WorkflowPlan.add` (function/method, line 40): Handle the add step used by this module. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
 
 - `plan_sync_queue` (function/method, line 52): Plan the oldest-to-newest sync queue without executing operations. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
 
 - `plan_snapshot_recovery` (function/method, line 79): Plan one whole-date recovery in cache, destination, then state order. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
 
-- `plan_prune_snapshot` (function/method, line 89): Perform the plan prune snapshot step used by this module. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
+- `plan_prune_snapshot` (function/method, line 89): Handle the plan prune snapshot step used by this module. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
 
 - `plan_destroy_targets` (function/method, line 102): Plan named endpoint/root destruction in the caller-provided order. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
 
@@ -698,79 +700,81 @@ No runtime classes or functions are defined in this file.
 
 **Module role:** Restore backed-up snapshots into Timeshift's native Btrfs layout.
 
-**Why this module exists:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+**Why this module exists:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `RestoreError` (class, line 40): Raised when backups cannot be imported safely into Timeshift. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `RestoreError` (class, line 47): Raised when backups cannot be imported safely into Timeshift. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `TimeshiftOsIdentity` (class, line 45): Stable Timeshift metadata used to identify one OS installation. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `TimeshiftOsIdentity` (class, line 52): Stable Timeshift metadata used to identify one OS installation. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupSnapshot` (class, line 54): One validated local or SSH backup snapshot available for restore. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `BackupSnapshot` (class, line 61): One validated local or SSH backup snapshot available for restore. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupDirectoryRecord` (class, line 65): Ordinary filesystem facts for one backup timestamp directory. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `BackupDirectoryRecord` (class, line 72): Ordinary filesystem facts for one backup timestamp directory. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupRepository` (class, line 76): Access one local or SSH backup repository through one transport layer. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `BackupRepository` (class, line 83): Access one local or SSH backup repository through one transport layer. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupRepository.from_config` (function/method, line 85): Perform the from config step used by this module. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `BackupRepository.from_config` (function/method, line 92): Handle the from config step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupRepository.root` (property, line 97): Perform the root step used by this module. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `BackupRepository.root` (property, line 104): Handle the root step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupRepository.snapshots_root` (property, line 101): Perform the snapshots root step used by this module. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `BackupRepository.snapshots_root` (property, line 108): Handle the snapshots root step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupRepository.environment` (property, line 105): Perform the environment step used by this module. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `BackupRepository.environment` (property, line 112): Handle the environment step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupRepository.location_label` (property, line 109): Perform the location label step used by this module. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `BackupRepository.location_label` (property, line 116): Handle the location label step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupRepository.load_state` (function/method, line 112): Read and validate state.json from the same endpoint as the backup. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `BackupRepository.load_state` (function/method, line 119): Read and validate state.json from the same endpoint as the backup. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupRepository.scan_directories` (function/method, line 164): Read direct date entries and all info.json files in one endpoint call. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `BackupRepository.scan_directories` (function/method, line 171): Read direct date entries and all info.json files in one endpoint call. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupRepository.btrfs_index` (function/method, line 233): Build one local or SSH Btrfs index for the complete backup tree. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `BackupRepository.btrfs_index` (function/method, line 240): Build one local or SSH Btrfs index for the complete backup tree. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_effective_send_uuid` (function/method, line 251): Return the UUID identity carried by a Btrfs send stream. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_effective_send_uuid` (function/method, line 258): Return the UUID identity carried by a Btrfs send stream. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_info_os_identity` (function/method, line 265): Return stable Timeshift OS identity while ignoring per-snapshot fields. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_info_os_identity` (function/method, line 272): Return stable Timeshift OS identity while ignoring per-snapshot fields. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_parse_info_json` (function/method, line 285): Parse one Timeshift control file and extract its stable OS identity. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_parse_info_json` (function/method, line 292): Parse one Timeshift control file and extract its stable OS identity. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_same_os_identity` (function/method, line 297): Return whether two Timeshift identities prove the same OS installation. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_same_os_identity` (function/method, line 304): Return whether two Timeshift identities prove the same OS installation. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_consistent_backup_identity` (function/method, line 308): Require one non-conflicting OS identity across the selected backup set. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_consistent_backup_identity` (function/method, line 315): Require one non-conflicting OS identity across the selected backup set. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_source_info_identities` (function/method, line 335): Parse stable OS identities from the coherent source info.json inventory. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_source_info_identities` (function/method, line 342): Parse stable OS identities from the coherent source info.json inventory. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_compare_repository_os_identity` (function/method, line 348): Compare one backup identity with all current Timeshift control files. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_compare_repository_os_identity` (function/method, line 355): Compare one backup identity with all current Timeshift control files. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `RestorePlan` (class, line 376): A side-effect-free single or chain restore plan. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `RestorePlan` (class, line 383): A side-effect-free single or chain restore plan. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `RestorePlan.seed_name` (property, line 393): Perform the seed name step used by this module. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `RestorePlan.seed_name` (property, line 400): Handle the seed name step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_source_path_exists` (function/method, line 397): Perform the source path exists step used by this module. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_source_path_exists` (function/method, line 404): Handle the source path exists step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_privileged_argv` (function/method, line 411): Perform the privileged argv step used by this module. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_privileged_argv` (function/method, line 418): Handle the privileged argv step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_write_source_info_json` (function/method, line 415): Write exact captured metadata through the configured source privilege prefix. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_write_source_info_json` (function/method, line 422): Write exact captured metadata through the configured source privilege prefix. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_validate_backup_snapshot` (function/method, line 456): Validate one backup date, payload set, metadata file, and Btrfs identity. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_validate_backup_snapshot` (function/method, line 463): Validate one backup date, payload set, metadata file, and Btrfs identity. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_discover_backups` (function/method, line 518): Return selected or all valid backups ordered by Timeshift timestamp. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_discover_backups` (function/method, line 525): Return selected or all valid backups ordered by Timeshift timestamp. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_source_snapshots` (function/method, line 543): Read one coherent source Timeshift/Btrfs/info.json inventory. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_source_snapshots` (function/method, line 550): Read one coherent source Timeshift/Btrfs/info.json inventory. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_find_latest_common_parent` (function/method, line 572): Find the newest date proven common by UUID state and info.json identity. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_find_latest_common_parent` (function/method, line 579): Find the newest date proven common by UUID state and info.json identity. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_find_reusable_receive_parent` (function/method, line 639): Find the exact read-only source subvolumes required for first incremental receive. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_find_reusable_receive_parent` (function/method, line 646): Find the exact read-only source subvolumes required for first incremental receive. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_build_restore_plan` (function/method, line 705): Build a single or complete-chain restore plan without changing either side. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_build_restore_plan` (function/method, line 712): Build a single or complete-chain restore plan without changing either side. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_remove_restore_directory` (function/method, line 802): Remove one exact app-created ordinary restore directory and its payloads. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_remove_restore_directory` (function/method, line 809): Remove one exact app-created ordinary restore directory and its payloads. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_cleanup_restore_attempt` (function/method, line 856): Roll back only directories created by the current restore attempt. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_cleanup_restore_attempt` (function/method, line 863): Roll back only directories created by the current restore attempt. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_print_restored_snapshot_retention_warning` (function/method, line 916): Explain that restored Timeshift tags remain subject to normal retention. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_create_pre_restore_snapshot` (function/method, line 923): Create and verify one safety snapshot on the Timeshift restore target. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_print_restore_plan` (function/method, line 933): Perform the print restore plan step used by this module. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_print_restored_snapshot_retention_warning` (function/method, line 1020): Explain that restored Timeshift tags remain subject to normal retention. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `restore_backups` (function/method, line 999): Restore one snapshot or a complete backup chain into Timeshift. **Why:** Restores local or SSH backup repositories into local or SSH Timeshift layouts through one shared planner and execution loop.
+- `_print_restore_plan` (function/method, line 1037): Handle the print restore plan step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+
+- `restore_backups` (function/method, line 1109): Restore one snapshot or a complete backup chain into Timeshift. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
 ## `timeshift_btrfs_sync/retention.py`
 
@@ -808,11 +812,11 @@ No runtime classes or functions are defined in this file.
 
 - `_delete_prune_item` (function/method, line 391): Execute one pure prune plan and remove state after both trees are gone. **Why:** Selects retained snapshots and applies guarded destination/cache/state pruning.
 
-- `_delete_prune_item.delete_destination` (function/method, line 417): Perform the delete destination step used by this module. **Why:** Selects retained snapshots and applies guarded destination/cache/state pruning.
+- `_delete_prune_item.delete_destination` (function/method, line 417): Handle the delete destination step used by this module. **Why:** Selects retained snapshots and applies guarded destination/cache/state pruning.
 
-- `_delete_prune_item.delete_cache` (function/method, line 422): Perform the delete cache step used by this module. **Why:** Selects retained snapshots and applies guarded destination/cache/state pruning.
+- `_delete_prune_item.delete_cache` (function/method, line 422): Handle the delete cache step used by this module. **Why:** Selects retained snapshots and applies guarded destination/cache/state pruning.
 
-- `_delete_prune_item.remove_state` (function/method, line 434): Perform the remove state step used by this module. **Why:** Selects retained snapshots and applies guarded destination/cache/state pruning.
+- `_delete_prune_item.remove_state` (function/method, line 434): Handle the remove state step used by this module. **Why:** Selects retained snapshots and applies guarded destination/cache/state pruning.
 
 - `print_prune_plan` (function/method, line 451): Write an easy-to-read retention summary to terminal and .succes. **Why:** Selects retained snapshots and applies guarded destination/cache/state pruning.
 
@@ -866,7 +870,7 @@ No runtime classes or functions are defined in this file.
 
 - `SSHRunner` (class, line 165): Run remote commands through SSH. **Why:** Builds and validates SSH commands, authentication, and optional connection reuse.
 
-- `SSHRunner.__init__` (function/method, line 168): Perform the init step used by this module. **Why:** Builds and validates SSH commands, authentication, and optional connection reuse.
+- `SSHRunner.__init__` (function/method, line 168): Handle the init step used by this module. **Why:** Builds and validates SSH commands, authentication, and optional connection reuse.
 
 - `SSHRunner.command` (function/method, line 171): Return argv for one SSH remote command. **Why:** Builds and validates SSH commands, authentication, and optional connection reuse.
 
@@ -908,7 +912,7 @@ No runtime classes or functions are defined in this file.
 
 - `resolve_state_send_path` (function/method, line 180): Resolve stored ``send_path`` under its current configured source root. **Why:** Validates, resolves, reads, and writes the current state schema.
 
-- `_reject_unknown_state_keys` (function/method, line 213): Perform the reject unknown state keys step used by this module. **Why:** Validates, resolves, reads, and writes the current state schema.
+- `_reject_unknown_state_keys` (function/method, line 213): Handle the reject unknown state keys step used by this module. **Why:** Validates, resolves, reads, and writes the current state schema.
 
 - `validate_state_document` (function/method, line 219): Validate the complete current state schema before any workflow uses it. **Why:** Validates, resolves, reads, and writes the current state schema.
 
@@ -942,7 +946,7 @@ No runtime classes or functions are defined in this file.
 
 - `SyncError` (class, line 47): Raised for sync safety errors. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
 
-- `_local_meta` (function/method, line 51): Perform the local meta step used by this module. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
+- `_local_meta` (function/method, line 51): Handle the local meta step used by this module. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
 
 - `_source_meta` (function/method, line 57): Return source metadata, preferring bulk indexes over one-off probes. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
 
@@ -958,7 +962,7 @@ No runtime classes or functions are defined in this file.
 
 - `list_source_snapshots` (function/method, line 191): Discover source Timeshift snapshots. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
 
-- `source_snapshot_index` (function/method, line 214): Perform the source snapshot index step used by this module. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
+- `source_snapshot_index` (function/method, line 214): Handle the source snapshot index step used by this module. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
 
 - `_snapshots_from_source_inventory` (function/method, line 218): Build Timeshift snapshot objects from one coherent source inventory. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
 
@@ -1018,7 +1022,7 @@ No runtime classes or functions are defined in this file.
 
 - `_recover_snapshot_version` (function/method, line 949): Remove stale current-version traces from cache, destination, and state. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
 
-- `_recover_snapshot_version.handle` (function/method, line 982): Perform the handle step used by this module. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
+- `_recover_snapshot_version.handle` (function/method, line 982): Handle the handle step used by this module. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
 
 - `_prepare_snapshot_for_transfer_or_recover` (function/method, line 1004): Return True when a snapshot can be transferred, False when skipped. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
 
@@ -1030,7 +1034,7 @@ No runtime classes or functions are defined in this file.
 
 - `_select_verified_parent_send_path` (function/method, line 1186): Select a safe source parent path for incremental send without recreating it. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
 
-- `_select_verified_parent_send_path.add_candidate` (function/method, line 1216): Perform the add candidate step used by this module. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
+- `_select_verified_parent_send_path.add_candidate` (function/method, line 1216): Handle the add candidate step used by this module. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
 
 - `_state_uuid_values_for_path` (function/method, line 1294): Return the current state UUID that identifies one source candidate. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
 
@@ -1052,7 +1056,7 @@ No runtime classes or functions are defined in this file.
 
 - `_verify_sync_viability_before_manual_snapshot` (function/method, line 1836): Prove sync can start before asking Timeshift to create a snapshot. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
 
-- `_verify_sync_viability_before_manual_snapshot.verify_parent_for` (function/method, line 1893): Perform the verify parent for step used by this module. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
+- `_verify_sync_viability_before_manual_snapshot.verify_parent_for` (function/method, line 1893): Handle the verify parent for step used by this module. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
 
 - `sync_once` (function/method, line 1964): Run one sync pass. **Why:** Coordinates complete source discovery, full/incremental transfer, recovery, metadata, and optional prune.
 
@@ -1086,19 +1090,19 @@ No runtime classes or functions are defined in this file.
 
 **Why this module exists:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
 
-- `TreeDeleteResult` (class, line 15): Define the TreeDeleteResult data or behavior used by this module. **Why:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
+- `TreeDeleteResult` (class, line 15): Handle the TreeDeleteResult step used by this module. **Why:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
 
-- `TreeDeleteResult.success` (property, line 26): Perform the success step used by this module. **Why:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
+- `TreeDeleteResult.success` (property, line 26): Handle the success step used by this module. **Why:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
 
-- `_path_exists` (function/method, line 31): Perform the path exists step used by this module. **Why:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
+- `_path_exists` (function/method, line 31): Handle the path exists step used by this module. **Why:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
 
 - `discover_subvolume_tree` (function/method, line 42): Discover a complete nested Btrfs tree in one endpoint list command. **Why:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
 
 - `list_direct_entries` (function/method, line 68): List exact direct children with shell built-ins on either endpoint. **Why:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
 
-- `_validate_confirmations` (function/method, line 84): Perform the validate confirmations step used by this module. **Why:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
+- `_validate_confirmations` (function/method, line 84): Handle the validate confirmations step used by this module. **Why:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
 
-- `_verify_absent` (function/method, line 101): Perform the verify absent step used by this module. **Why:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
+- `_verify_absent` (function/method, line 101): Handle the verify absent step used by this module. **Why:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
 
 - `delete_subvolume_tree` (function/method, line 118): Delete one managed tree deepest-first and prove the root is absent. **Why:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
 

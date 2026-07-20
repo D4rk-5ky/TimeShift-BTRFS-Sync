@@ -1,6 +1,6 @@
 # Installation
 
-Normal sync runs on the backup/destination machine. The Timeshift source is reached over SSH or selected locally. Restore may also run on the Timeshift machine and pull a backup repository over SSH with `--backup-over-ssh`. The selected endpoints need the commands and minimal permissions described in the README. `cat` and `id` are not run through sudo during normal discovery. The configured source account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
+Normal sync runs on the backup/destination machine. The Timeshift source is reached over SSH or selected locally. Restore may also run on the Timeshift machine and pull a backup repository over SSH when `[restore] backup_over_ssh = true` or `--backup-over-ssh` is supplied. The selected endpoints need the commands and minimal permissions described in the README. `cat` and `id` are not run through sudo during normal discovery. The configured source account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
 
 
 The executable or Python install does **not** include system tools such as `btrfs`, `timeshift`, `ssh`, `sudo`, `mbuffer`, or `sshpass`. Those must be installed on the relevant machines.
@@ -113,6 +113,8 @@ For SSH restore, those permissions must be configured for the remote SSH account
 
 `--all` uses `state.json`, live Btrfs UUID metadata, and stable `info.json` identity (`sys-uuid` plus Btrfs `type`) to identify the latest common source/backup snapshot. Snapshot-specific fields such as H/D/W/M tags, comments, creation time, file count, app version, and live status are ignored. If no common parent can be proven, a real full-chain restore additionally requires `--allow-no-common-parent`, the phrase `RESTORE ALL WITHOUT COMMON PARENT`, and the configured job name. If no current `info.json` identity matches the backup, real restore also requires `--allow-os-identity-mismatch` and `I UNDERSTAND THIS BACKUP MAY BELONG TO ANOTHER OS`.
 
+Optionally add `--create-pre-restore-snapshot`. After all restore confirmations and before any receive, the app creates one Timeshift on-demand safety snapshot on the Timeshift target, verifies the new timestamp and every configured Btrfs payload, and leaves it in place even if restore later fails. Local restore creates it locally; SSH-target restore creates it on that SSH Timeshift host; SSH-backup pull restore creates it locally and never runs Timeshift creation on the remote backup host. This flag is independent of `[manual_snapshot]`, which applies to `sync`.
+
 Every real restore also explains that the exact original `info.json` preserves H/D/W/M tags, so normal retention can later prune a restored snapshot or an existing tagged snapshot older than the restored snapshot. Before any receive begins, local and SSH modes both require this exact sentence:
 
 ```text
@@ -130,13 +132,12 @@ Use a separate restore config with `source.mode = "local"`, `[ssh]` pointing to 
 ```bash
 ts-btrfs restore --config ./config-restore-pull.toml \
   --all \
-  --backup-over-ssh \
   --dry-run
 ```
 
 The remote backup account needs ordinary traversal/read access to the backup date directories, `info.json`, and `state.json`; ordinary write access to the existing lock file; `flock` and `base64`; and narrow passwordless sudo for Btrfs list/show/send. The local machine needs the restore-target permissions described above. The remote lock directory must already exist; restore does not create a missing remote backup target.
 
-Do not use the same path interpretation blindly for scheduled sync. Without `--backup-over-ssh`, `destination.target_root`, `state_file`, and `lock_file` are local paths.
+Do not use the same path interpretation blindly for scheduled sync. In the pull profile, `[restore] backup_over_ssh = true` makes `destination.target_root`, `state_file`, and `lock_file` remote only for restore; normal sync/prune semantics remain local.
 
 ## PyInstaller builds
 

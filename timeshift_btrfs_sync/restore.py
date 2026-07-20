@@ -30,11 +30,18 @@ from .inventory import BtrfsIndex, SourceInventory, build_source_btrfs_index, bu
 from .models import SnapshotMeta, SubvolumeMeta
 from .source import SourceRunner
 from .state import empty_state, resolve_state_send_path, validate_state_document
-from .timeshift import SNAPSHOT_RE, list_source_snapshots, parse_timeshift_list, timeshift_cmd
+from .timeshift import (
+    SNAPSHOT_RE,
+    create_source_manual_snapshot,
+    list_source_snapshots,
+    parse_timeshift_list,
+    timeshift_cmd,
+)
 
 
 RESTORE_RETENTION_CONFIRMATION = "I UNDERSTAND TIMESHIFT MAY DELETE RESTORED SNAPSHOTS OR OLDER THAN RESTORED SNAPSHOTS"
 RESTORE_OS_IDENTITY_CONFIRMATION = "I UNDERSTAND THIS BACKUP MAY BELONG TO ANOTHER OS"
+PRE_RESTORE_SNAPSHOT_COMMENT = "TimeShift-BTRFS-Sync pre-restore safety snapshot"
 
 
 class RestoreError(RuntimeError):
@@ -474,6 +481,21 @@ def _validate_backup_snapshot(
     if date_meta is None:
         date_meta = repository.ops.meta(backup_date, name=snapshot_name, required=False)
     if date_meta is None:
+        mistaken_timeshift_root = False
+        if not repository.runner.uses_ssh:
+            try:
+                PurePosixPath(backup_date).relative_to(PurePosixPath(config.source.snapshot_root))
+                mistaken_timeshift_root = True
+            except ValueError:
+                pass
+        if mistaken_timeshift_root:
+            raise RestoreError(
+                "The local Timeshift repository is being scanned as the backup repository. "
+                "Timeshift date folders below source.snapshot_root are correctly ordinary directories; "
+                "only TimeShift-BTRFS-Sync backup date containers are Btrfs subvolumes. "
+                "For SSH-backup-to-local restore, set [restore] backup_over_ssh = true "
+                "or pass --backup-over-ssh. Misrouted path: " + backup_date
+            )
         raise RestoreError(f"Backup snapshot date is missing or is not a Btrfs subvolume: {backup_date}")
 
     info_path = str(PurePosixPath(backup_date) / "info.json")
@@ -913,6 +935,103 @@ def _cleanup_restore_attempt(
     return errors
 
 
+def _create_pre_restore_snapshot(
+    config: AppConfig,
+    source: SourceRunner,
+    source_ops: BtrfsOps,
+    *,
+    existing_names: set[str],
+    restore_names: list[str],
+) -> str:
+    """Create and verify one safety snapshot on the Timeshift restore target.
+
+    The configured ``source`` endpoint is always the Timeshift side. In pull
+    restore mode that endpoint is local while the backup repository is remote,
+    so this helper can never create a snapshot on the backup host.
+    """
+
+    location = "SSH Timeshift target" if source.uses_ssh else "local Timeshift target"
+    print()
+    print("PRE-RESTORE SAFETY SNAPSHOT")
+    print("===========================")
+    print(f"  location: {location}")
+    print("  tag:      O (Timeshift on-demand default)")
+    print(f"  comment:  {PRE_RESTORE_SNAPSHOT_COMMENT}")
+    print("  timing:   before any restore directory, Btrfs receive, or visible restored snapshot")
+    print("  backup:   no snapshot or other backup-tree change is made")
+
+    try:
+        create_source_manual_snapshot(
+            source,
+            sudo=config.source.sudo,
+            timeshift_command=config.source.timeshift_command,
+            comment=PRE_RESTORE_SNAPSHOT_COMMENT,
+        )
+    except CommandError as exc:
+        raise RestoreError(
+            "Could not create the requested pre-restore Timeshift safety snapshot on the restore target. "
+            "No backup stream has started. Verify source-side Timeshift privilege and configuration. "
+            f"Details: {exc}"
+        ) from exc
+
+    try:
+        listed = source.run(timeshift_cmd(config.source.sudo, config.source.timeshift_command, ["--list"]))
+    except CommandError as exc:
+        raise RestoreError(
+            "The pre-restore Timeshift command completed, but a fresh timeshift --list could not verify it. "
+            "The safety snapshot may exist; no backup stream has started. Inspect Timeshift before retrying. "
+            f"Details: {exc}"
+        ) from exc
+    current = parse_timeshift_list(listed.stdout, config.source.snapshot_root.rstrip("/"))
+    newly_listed = [snapshot for snapshot in current if snapshot.name not in existing_names]
+    comment_matches = [
+        snapshot
+        for snapshot in newly_listed
+        if (snapshot.comment or "").strip() == PRE_RESTORE_SNAPSHOT_COMMENT
+    ]
+    if len(comment_matches) == 1:
+        created = comment_matches[0]
+    elif len(newly_listed) == 1:
+        # Some Timeshift versions or list formats do not expose the complete
+        # comment. One newly listed timestamp still proves the scripted create
+        # produced exactly one snapshot during this guarded operation.
+        created = newly_listed[0]
+    else:
+        names = ", ".join(snapshot.name for snapshot in newly_listed) or "none"
+        raise RestoreError(
+            "Timeshift create returned successfully, but the pre-restore snapshot could not be identified "
+            f"uniquely in a fresh timeshift --list. New timestamp(s): {names}. "
+            "No backup stream has started; inspect Timeshift before retrying."
+        )
+
+    if created.name in restore_names:
+        raise RestoreError(
+            "The new pre-restore safety snapshot timestamp collides with a backup selected for restore: "
+            f"{created.name}. The safety snapshot was left in place and no backup stream was started."
+        )
+
+    snapshot_root = config.source.snapshot_root.rstrip("/")
+    for subvolume_name in config.source.subvolumes:
+        payload_path = f"{snapshot_root}/{created.name}/{subvolume_name}"
+        try:
+            meta = source_ops.meta(payload_path, name=subvolume_name, required=True)
+        except RuntimeError as exc:
+            raise RestoreError(
+                "The pre-restore Timeshift snapshot is listed, but a configured Btrfs payload could not be verified: "
+                f"{payload_path}. The snapshot was left in place and no backup stream was started. Details: {exc}"
+            ) from exc
+        if not meta.uuid:
+            raise RestoreError(
+                "The pre-restore Timeshift snapshot is listed but its Btrfs payload has no UUID: "
+                f"{payload_path}. The snapshot was left in place and no backup stream was started."
+            )
+
+    print(f"  created:  {created.name}")
+    print("  verified: Timeshift lists it and every configured Btrfs payload has a UUID")
+    print("  retention: this safety snapshot is intentionally left in place even if restore later fails")
+    return created.name
+
+
 def _print_restored_snapshot_retention_warning() -> None:
     """Explain that restored Timeshift tags remain subject to normal retention."""
 
@@ -936,6 +1055,7 @@ def _print_restore_plan(
     plan: RestorePlan,
     *,
     dry_run: bool,
+    create_pre_restore_snapshot: bool = False,
     repository: BackupRepository | None = None,
 ) -> None:
     print("TIMESHIFT SNAPSHOT RESTORE")
@@ -949,6 +1069,11 @@ def _print_restore_plan(
         print(f"  backup side:    {'SSH remote' if repository.runner.uses_ssh else 'local'}")
         print(f"  backup root:    {repository.root}")
     print(f"  run mode:       {'dry-run' if dry_run else 'REAL RESTORE'}")
+    if create_pre_restore_snapshot:
+        print("  safety snapshot: create one Timeshift on-demand snapshot on the restore target before receive")
+        print("  backup changes:  none; the safety snapshot is never created on the backup repository")
+    else:
+        print("  safety snapshot: disabled (enable with --create-pre-restore-snapshot)")
     if plan.backup_identity:
         print(f"  backup OS UUID: {plan.backup_identity.sys_uuid}")
         print(f"  backup type:    {plan.backup_identity.snapshot_type}")
@@ -1006,6 +1131,7 @@ def restore_backups(
     allow_no_common_parent: bool,
     allow_os_identity_mismatch: bool = False,
     backup_over_ssh: bool = False,
+    create_pre_restore_snapshot: bool = False,
 ) -> None:
     """Restore one snapshot or a complete backup chain into Timeshift."""
 
@@ -1025,7 +1151,14 @@ def restore_backups(
         snapshot_name=snapshot_name,
         restore_all=restore_all,
     )
-    _print_restore_plan(config, source, plan, dry_run=dry_run, repository=repository)
+    _print_restore_plan(
+        config,
+        source,
+        plan,
+        dry_run=dry_run,
+        create_pre_restore_snapshot=create_pre_restore_snapshot,
+        repository=repository,
+    )
 
     if not plan.restore_names:
         return
@@ -1084,6 +1217,12 @@ def restore_backups(
         )
 
     if dry_run:
+        if create_pre_restore_snapshot:
+            location = "SSH Timeshift target" if source.uses_ssh else "local Timeshift target"
+            print(
+                f"  would create one pre-restore Timeshift on-demand safety snapshot on the {location}; "
+                "the backup repository would remain unchanged"
+            )
         previous_name = plan.initial_send_parent
         for name in plan.chain_names:
             mode = "full" if previous_name is None else f"incremental from {previous_name}"
@@ -1121,6 +1260,16 @@ def restore_backups(
             raise RestoreError("Restore confirmation did not match")
         if input(f"Type the snapshot name ({selected}) to continue: ").strip() != selected:
             raise RestoreError("Snapshot-name confirmation did not match")
+
+    pre_restore_snapshot_name: str | None = None
+    if create_pre_restore_snapshot:
+        pre_restore_snapshot_name = _create_pre_restore_snapshot(
+            config,
+            source,
+            source_ops,
+            existing_names=set(source_by_name),
+            restore_names=plan.restore_names,
+        )
 
     chain_created: list[str] = []
     staging_created: list[str] = []
@@ -1253,6 +1402,8 @@ def restore_backups(
         print(f"Restore complete: Timeshift accepts {len(plan.restore_names)} snapshot(s)")
         print(f"First restored: {plan.restore_names[0]}")
         print(f"Last restored:  {plan.restore_names[-1]}")
+        if pre_restore_snapshot_name:
+            print(f"Pre-restore safety snapshot retained: {pre_restore_snapshot_name}")
     except Exception as exc:
         if committed and set(committed) == set(plan.restore_names):
             # All requested visible snapshots were already committed. A later

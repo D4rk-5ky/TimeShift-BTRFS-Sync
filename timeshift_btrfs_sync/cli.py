@@ -365,6 +365,7 @@ def cmd_restore(args) -> int:
     """Restore one snapshot or the complete post-common backup chain into Timeshift."""
 
     config = load_config(args.config, require_ssh=args.backup_over_ssh)
+    backup_over_ssh = bool(args.backup_over_ssh or config.restore.backup_over_ssh)
     dry_run = _resolve_dry_run(args, config)
 
     def _run() -> int:
@@ -376,7 +377,8 @@ def cmd_restore(args) -> int:
             danger_confirmed=args.i_understand_this_modifies_timeshift,
             allow_no_common_parent=args.allow_no_common_parent,
             allow_os_identity_mismatch=args.allow_os_identity_mismatch,
-            backup_over_ssh=args.backup_over_ssh,
+            backup_over_ssh=backup_over_ssh,
+            create_pre_restore_snapshot=args.create_pre_restore_snapshot,
         )
         return 0
 
@@ -384,7 +386,7 @@ def cmd_restore(args) -> int:
         return _with_logging(config, "restore", _run)
 
     print("Run mode: real restore")
-    if args.backup_over_ssh:
+    if backup_over_ssh:
         if config.source.mode != "local":
             raise ConfigError(
                 "restore --backup-over-ssh requires source.mode = \"local\"; the SSH profile identifies the remote backup host"
@@ -665,7 +667,8 @@ def build_parser() -> argparse.ArgumentParser:
             "By default the backup is local. --backup-over-ssh pulls destination.target_root from the configured SSH host into a local Timeshift repository.\n"
             "Use --snapshot for one full restore, or --all to find the newest UUID- and info.json-confirmed common snapshot and restore every newer backup.\n"
             "A chain reuses an exact read-only source send parent for an incremental first restore when available; otherwise it uses one full hidden seed followed by incrementals. No-common-parent restoration requires an extra danger override.\n"
-            "Every real restore warns that original H/D/W/M tags remain subject to Timeshift retention and requires an exact typed risk acknowledgement."
+            "Every real restore warns that original H/D/W/M tags remain subject to Timeshift retention and requires an exact typed risk acknowledgement.\n"
+            "--create-pre-restore-snapshot creates one on-demand safety snapshot only on the Timeshift restore target before any receive; it never snapshots the backup repository."
         ),
         cmd_restore,
     )
@@ -689,7 +692,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--backup-over-ssh",
         action="store_true",
-        help="pull the backup repository, state_file, and lock_file from the configured SSH host and restore into local source.snapshot_root; requires source.mode=local",
+        help="pull the backup repository, state_file, and lock_file from the configured SSH host and restore into local source.snapshot_root; also enabled by restore.backup_over_ssh=true; requires source.mode=local",
+    )
+    p.add_argument(
+        "--create-pre-restore-snapshot",
+        action="store_true",
+        help="before any receive, create and verify one Timeshift on-demand safety snapshot on the restore target only; never modifies the backup repository",
     )
     p.add_argument(
         "--allow-no-common-parent",

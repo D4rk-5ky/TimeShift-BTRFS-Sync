@@ -1,8 +1,8 @@
-# timeshift-btrfs-sync v0.1.61 config
+# timeshift-btrfs-sync v0.1.63 config
 # Run this config on the BACKUP/DESTINATION machine.
 # source.mode = "ssh" pulls Timeshift snapshots from another machine over SSH.
 # source.mode = "local" copies from Timeshift snapshots on this same machine and skips SSH.
-# Restore normally reads the backup locally. Restore with --backup-over-ssh instead
+# Restore normally reads the backup locally. Restore pull mode instead
 # uses [ssh] as the BACKUP host and pulls destination.target_root into the local
 # Timeshift repository selected by source.mode = "local". Use a separate restore
 # config so normal sync/prune path meanings remain unambiguous.
@@ -40,7 +40,7 @@ log_dir = "/Backups/Kubuntu/timeshift-btrfs/.ts-btrfs-sync/logs"
 #   <target_root>/.ts-btrfs-sync/state.json
 #   <target_root>/.ts-btrfs-sync/lock
 # state_file records successfully received snapshots and incremental parent data.
-# With restore --backup-over-ssh, state_file and lock_file are paths on the SSH
+# With restore pull mode, state_file and lock_file are paths on the SSH
 # backup host. log_dir remains local to the machine running this command.
 # Do not manually delete state_file while a job is running. Use:
 #   ts-btrfs clear-state --config ./config.toml --dry-run
@@ -55,6 +55,15 @@ log_dir = "/Backups/Kubuntu/timeshift-btrfs/.ts-btrfs-sync/logs"
 # first, then mkdir fallback if Btrfs creation is not possible.
 # state_file = "/Backups/Kubuntu/timeshift-btrfs/.ts-btrfs-sync/state.json"
 # lock_file = "/Backups/Kubuntu/timeshift-btrfs/.ts-btrfs-sync/lock"
+
+[restore]
+# Restore-only backup transport default.
+# false: destination.target_root/state_file/lock_file are read locally.
+# true: those backup paths are read from [ssh] and restored into the
+# local Timeshift repository selected by source.mode = "local".
+# The CLI --backup-over-ssh flag can enable the same mode for one run.
+# This setting changes restore transport only; sync/prune meanings are unchanged.
+backup_over_ssh = false
 
 [mqtt]
 # Optional MQTT notifications for Home Assistant or another MQTT consumer.
@@ -135,10 +144,10 @@ notify_on_failure = true
 
 
 [ssh]
-# Used when source.mode = "ssh", or by restore --backup-over-ssh.
+# Used when source.mode = "ssh", or by restore pull mode.
 # Normal SSH source mode: host containing the Timeshift snapshots.
 # Pull-restore mode: host containing destination.target_root, state_file, and lock_file.
-# In local source mode this section may be omitted unless --backup-over-ssh is used.
+# In local source mode this section may be omitted unless restore pull mode is enabled.
 host = "source-machine.example.lan"
 
 # Dedicated source SSH user.
@@ -219,6 +228,11 @@ extra_args = ["-o", "BatchMode=yes"]
 
 
 [manual_snapshot]
+# This section is used only by `sync` and `create-manual`. It is ignored by
+# `restore`. To create a safety snapshot on the Timeshift restore target, use
+# the explicit restore flag --create-pre-restore-snapshot. That flag never
+# creates a snapshot on the backup repository and uses a separate fixed comment.
+#
 # Optional source-side Timeshift on-demand snapshot creation before a normal sync.
 # When enabled = true, `sync` may create a source-side on-demand snapshot before
 # normal syncing. This is a source-side change, so the app first checks that the
@@ -283,7 +297,7 @@ retention_count = 10
 # Timeshift source/restore-target command mode.
 #   "ssh"   = run Timeshift source/restore-target commands through [ssh].
 #   "local" = run Timeshift source/restore-target commands on this machine.
-# restore --backup-over-ssh requires "local" because [ssh] then identifies the
+# Restore pull mode requires "local" because [ssh] then identifies the
 # remote backup host instead of the Timeshift host.
 # Local mode keeps the same sync, parent-UUID, read-only cache, manual snapshot,
 # and retention safety rules; only the command transport changes.
@@ -411,7 +425,7 @@ send_compressed_data = true
 
 [destination]
 # Btrfs backup root. Normal sync/prune/destroy interpret this path locally on the
-# backup/destination machine. restore --backup-over-ssh interprets the same path
+# backup/destination machine. Restore pull mode interprets the same path
 # on the configured SSH backup host and streams it into local source.snapshot_root.
 # Use a separate restore config when the remote backup path differs from the normal
 # local sync destination.
