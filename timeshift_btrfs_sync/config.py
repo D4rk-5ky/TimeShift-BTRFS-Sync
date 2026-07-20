@@ -26,7 +26,7 @@ DESTINATION_KEYS = {"target_root", "sudo", "btrfs_command", "create_target_root"
 STREAM_KEYS = {"use_mbuffer", "mbuffer_command", "mbuffer_size", "mbuffer_rate", "mbuffer_extra_args", "btrfs_verbose"}
 RETENTION_KEYS = {"hourly", "daily", "weekly", "monthly", "boot", "ondemand", "cleanup_ondemand", "keep_latest", "keep_latest_common_parent", "protected_snapshots"}
 MANUAL_SNAPSHOT_KEYS = {"enabled", "cleanup_enabled", "comment", "marker", "retention_count"}
-RESTORE_KEYS = {"backup_over_ssh"}
+RESTORE_KEYS = {"mode"}
 SSH_KEYS = {"host", "user", "port", "identity_file", "password", "password_file", "compression", "cipher", "control_master", "control_persist", "control_path", "extra_args"}
 MQTT_KEYS = {"enabled", "host", "port", "topic", "username", "password", "password_file", "client_id", "qos", "retain", "timeout", "notify_on_success", "notify_on_failure"}
 MAIL_KEYS = {"enabled", "smtp_host", "smtp_port", "smtp_ssl", "starttls", "username", "password", "password_file", "from_addr", "to_addrs", "subject_prefix", "timeout", "notify_on_success", "notify_on_failure", "include_json", "attach_logs", "max_attachment_bytes"}
@@ -75,9 +75,11 @@ class ManualSnapshotConfig:
 
 @dataclass(slots=True)
 class SourceConfig:
-    """Timeshift source and restore-target settings."""
+    """Timeshift source/restore-target paths that always share one endpoint."""
 
-    # Timeshift-owned snapshot directory. It may be an ordinary directory on a
+    # Timeshift-owned snapshot directory. During restore this path and cache_root
+    # are always interpreted on the same Timeshift endpoint selected by restore.mode.
+    # It may be an ordinary directory on a
     # Btrfs filesystem, but the app must never create, prune, delete, destroy,
     # or clean this path or anything below it.
     snapshot_root: str
@@ -189,13 +191,25 @@ class RetentionConfig:
 
 @dataclass(slots=True)
 class RestoreConfig:
-    """Restore-only transport defaults."""
+    """Restore-only transport direction."""
 
-    # When true, restore reads destination.target_root, state_file, and lock_file
-    # from the configured SSH host and imports them into a local Timeshift
-    # repository. The CLI --backup-over-ssh flag can enable the same mode for
-    # one invocation. Normal sync/prune semantics are unchanged.
-    backup_over_ssh: bool = False
+    # local: local backup -> local Timeshift
+    # ssh: SSH backup -> local Timeshift
+    # ssh-target: local backup -> SSH Timeshift
+    # Normal sync/prune transport continues to use source.mode independently.
+    mode: str = "local"
+
+    @property
+    def backup_uses_ssh(self) -> bool:
+        """Return True when restore reads the backup repository over SSH."""
+
+        return self.mode == "ssh"
+
+    @property
+    def timeshift_uses_ssh(self) -> bool:
+        """Return True when snapshot_root and cache_root are on the SSH Timeshift host."""
+
+        return self.mode == "ssh-target"
 
 
 @dataclass(slots=True)
@@ -276,13 +290,8 @@ def _string_list(value: Any, field_name: str) -> list[str]:
     return value
 
 
-def load_config(path: str | Path, *, require_ssh: bool = False) -> AppConfig:
-    """Read and validate TOML config.
-
-    ``require_ssh`` lets one CLI invocation enable SSH-backup pull mode. The
-    current ``[restore].backup_over_ssh`` setting also requires and validates
-    the SSH profile while the Timeshift restore target itself remains local.
-    """
+def load_config(path: str | Path) -> AppConfig:
+    """Read and validate the current TOML configuration."""
 
     path = Path(path).expanduser()
     with path.open("rb") as fh:
@@ -301,13 +310,14 @@ def load_config(path: str | Path, *, require_ssh: bool = False) -> AppConfig:
 
     restore_raw = _table(raw, "restore")
     _reject_unknown_keys(restore_raw, "[restore]", RESTORE_KEYS)
-    restore = RestoreConfig(
-        backup_over_ssh=_bool(restore_raw, "restore", "backup_over_ssh", False),
-    )
+    restore_mode = _stripped(restore_raw, "mode", "local").lower()
+    if restore_mode not in {"local", "ssh", "ssh-target"}:
+        raise ConfigError("restore.mode must be 'local', 'ssh', or 'ssh-target'")
+    restore = RestoreConfig(mode=restore_mode)
 
     ssh_raw = _table(raw, "ssh")
     _reject_unknown_keys(ssh_raw, "[ssh]", SSH_KEYS)
-    if source_mode == "ssh" or require_ssh or restore.backup_over_ssh:
+    if source_mode == "ssh" or restore.mode in {"ssh", "ssh-target"}:
         port = _positive_int(ssh_raw.get("port"), "ssh.port")
         password = _optional_str(ssh_raw, "password")
         password_file = _optional_str(ssh_raw, "password_file")

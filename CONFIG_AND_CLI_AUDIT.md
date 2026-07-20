@@ -55,7 +55,7 @@ The default profile is `sync`. Both generated profiles contain every current con
 
 ## `[restore]`
 
-- `backup_over_ssh`
+- `mode`
 
 ## `[source]`
 
@@ -181,14 +181,13 @@ The default profile is `sync`. Both generated profiles contain every current con
 - Restore can import one timestamp or every backup newer than the latest UUID- and stable-`info.json`-confirmed common parent. It refuses overwrite, reuses an exact recorded read-only source send parent for an incremental first restore when available, otherwise explains and uses one hidden full seed, writes the exact saved `info.json`, exposes writable CoW payload snapshots, and requires Timeshift to list every committed date.
 - Restore prints that original H/D/W/M tags remain subject to Timeshift retention, including the risk that restored snapshots or existing tagged snapshots older than the restored snapshots may be pruned, and every real local or SSH restore requires the exact sentence `I UNDERSTAND TIMESHIFT MAY DELETE RESTORED SNAPSHOTS OR OLDER THAN RESTORED SNAPSHOTS` before transfer.
 - Local backup restore, local-backup-to-SSH restore, and SSH-backup-to-local restore use the same planner and execution loop; only the backup and Timeshift endpoint transports change.
-- SSH-backup pull restore requires `source.mode = "local"`, reads `destination.target_root`, `state_file`, and `lock_file` on the configured SSH backup host, holds that remote lock, and streams remote `btrfs send` into local `btrfs receive`. It is enabled by `[restore] backup_over_ssh = true` or the one-run `--backup-over-ssh` flag.
+- Restore transport is selected only by `[restore] mode`: `local` reads a local backup and restores locally, `ssh` pulls an SSH backup into local Timeshift, and `ssh-target` restores a local backup into an SSH Timeshift target. `source.mode` remains sync-only. `source.snapshot_root` and `source.cache_root` always share the Timeshift endpoint selected by restore mode: local for `local`/`ssh`, SSH remote for `ssh-target`. Backup inventory/state/lock/send never use `source.cache_root`.
 - Restore requires source-side ordinary filesystem privilege for `mkdir`, `tee`, `chmod`, `mv`, exact `rm`, and `rmdir` in addition to Btrfs and Timeshift privilege.
 
 ## `restore` flags
 
 - `--config`, `-c`
 - exactly one of `--snapshot` or `--all`
-- `--backup-over-ssh`
 - `--create-pre-restore-snapshot`
 - `--allow-no-common-parent`
 - `--allow-os-identity-mismatch`
@@ -196,7 +195,7 @@ The default profile is `sync`. Both generated profiles contain every current con
 - `--run`
 - `--i-understand-this-modifies-timeshift`
 
-By default the backup is read from local `destination.target_root` and the restored payload is received into the configured local or SSH source endpoint. When `[restore] backup_over_ssh = true` or `--backup-over-ssh` is supplied, `[ssh]` identifies the backup host, `destination.target_root` plus state/lock paths are remote, and the Timeshift target must be local. The packaged pull profile enables this in config, so omitting the CLI flag cannot silently reinterpret the local Timeshift repository as the backup. Both network directions use the same restore planner, identity checks, chain rules, and staging logic.
+Restore uses `[restore] mode` independently from `source.mode`. `local` uses local backup and local Timeshift endpoints; `ssh` uses the configured SSH endpoint as the backup host and restores locally; `ssh-target` reads the backup locally and uses SSH for the Timeshift target. All directions use the same restore planner, identity checks, chain rules, and staging logic.
 
 `--create-pre-restore-snapshot` is a restore-only action. After all plan checks and typed confirmations, but before any receive or staging directory, it calls Timeshift on the configured restore-target `source` endpoint, re-reads `timeshift --list`, identifies one new on-demand snapshot, and exact-checks every configured Btrfs payload. The remote/local backup repository is never used for this command. The safety snapshot remains if later restore work fails. `[manual_snapshot]` remains sync-only.
 

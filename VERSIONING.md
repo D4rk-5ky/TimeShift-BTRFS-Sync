@@ -726,3 +726,23 @@ This build is version `0.1.17`.
 - Kept `--backup-over-ssh` as a one-run override while making the generated pull profile self-contained. Normal sync/prune/destroy path meanings remain unchanged.
 - Added regression coverage for config-driven pull restore without the CLI flag, correct remote lock/transport selection, schema-complete restore settings, and misrouted native Timeshift layout detection.
 - Updated both generated profiles, README, installation guidance, interface audit, code map, tests, and package metadata.
+
+## 0.1.64
+
+- Replaced the confusing restore-only `backup_over_ssh` boolean and `--backup-over-ssh` flag with one explicit `[restore] mode` setting.
+- Added three current restore directions: `local` for local backup to local Timeshift, `ssh` for SSH backup pulled into local Timeshift, and `ssh-target` for local backup restored into an SSH Timeshift target.
+- Made restore transport independent from `source.mode`; `source.mode` now describes only normal sync, prune, source-listing, and manual-snapshot command transport.
+- Updated real and dry-run terminal output to print the selected restore mode before planning or locking.
+- Kept one shared restore planner, Btrfs stream implementation, common-parent logic, OS identity checks, retention warnings, pre-restore safety snapshot, and failure cleanup for all three directions.
+- Updated both generated configuration profiles, current README, installation guidance, CLI help, interface audit, tests, code map, and package metadata.
+
+
+## 0.1.65
+
+- Made restore-side endpoint ownership explicit: `source.snapshot_root` and `source.cache_root` are one Timeshift-side path pair and are always inspected through the same restore-target runner.
+- For `[restore] mode = "ssh"`, backup inventory, backup `state.json`, the repository lock, and `btrfs send` run on the SSH backup host, while Timeshift listing, `snapshot_root`, `cache_root`, exact incremental receive-parent probes, receive, staging, and final verification remain local.
+- For `[restore] mode = "ssh-target"`, both Timeshift paths and all receive-side operations run on the SSH Timeshift host; the local backup side never supplies or probes `source.cache_root`.
+- Renamed restore-internal source inventory/operation variables to Timeshift-specific names and renamed the restore config property to `timeshift_uses_ssh`, removing the ambiguous suggestion that the backup destination controls the cache endpoint.
+- Expanded the restore plan output to print the Timeshift endpoint beside both `snapshot_root` and `cache_root`, plus an explicit path-ownership statement before transfer.
+- Added regression coverage proving local pull-restore cache indexing, local exact cache-parent probes, remote backup scripts excluding Timeshift paths, and SSH-target snapshot/cache pairing on one remote runner.
+- Updated current README, installation guidance, configuration comments, interface audit, code map, tests, and package metadata.

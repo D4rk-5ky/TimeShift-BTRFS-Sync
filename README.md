@@ -1,6 +1,6 @@
 # timeshift-btrfs-sync
 
-`timeshift-btrfs-sync` backs up Timeshift Btrfs snapshots and can restore either one backup or a complete UUID-validated backup chain into the configured Timeshift repository. It can pull from or restore to another machine over SSH, or operate locally on the same machine. Both modes use the same Btrfs, metadata, validation, and safety logic; only the source command transport changes.
+`timeshift-btrfs-sync` backs up Timeshift Btrfs snapshots and can restore either one backup or a complete UUID-validated backup chain into the configured Timeshift repository. It can pull from or restore to another machine over SSH, or operate locally on the same machine. All restore directions use the same Btrfs, metadata, validation, and safety logic; only the selected backup and Timeshift endpoints change.
 
 > ⚠️ AI-assisted / vibe-coded experimental software. Use at your own risk.
 
@@ -20,7 +20,7 @@ MIT License. See [`LICENSE`](LICENSE).
 
 ## What it does
 
-`source.mode = "ssh"` is the SSH destination-pull mode. `source.mode = "local"` skips SSH and treats the local machine as both source-command endpoint and destination receiver, while still using separate `source.*` and `destination.*` command/sudo settings.
+`source.mode` is used only by normal sync/source commands: `ssh` reads Timeshift snapshots through SSH and `local` reads them on the current machine. Restore direction is selected separately by `[restore] mode`: `local`, `ssh`, or `ssh-target`.
 
 `timeshift-btrfs-sync` is a destination-pull backup tool for Timeshift Btrfs snapshots. It runs on the backup/destination machine, connects to the source over SSH by default, or uses local source mode on the same machine, and transfers Timeshift snapshots with `btrfs send` / `btrfs receive`.
 
@@ -227,7 +227,7 @@ The safety snapshot always runs through the configured Timeshift `source` endpoi
 
 - local backup → local Timeshift: created locally;
 - local backup → SSH Timeshift: created on the remote Timeshift machine;
-- SSH backup → local Timeshift with `[restore] backup_over_ssh = true` or `--backup-over-ssh`: created locally.
+- SSH backup → local Timeshift with `[restore] mode = "ssh"`: created locally.
 
 It is never created on `destination.target_root` or on the SSH backup host. The fixed comment is `TimeShift-BTRFS-Sync pre-restore safety snapshot`. It is intentionally left in Timeshift if the later restore fails, providing a rollback point for the pre-restore system state. The `[manual_snapshot]` section controls automatic snapshots before `sync`; it does not control this restore-only flag.
 
@@ -253,7 +253,7 @@ ts-btrfs init-config \
 
 The generated file includes every supported top-level, restore, SSH, source, destination, stream, retention, manual-snapshot, MQTT, and mail setting with comments. Its `[ssh]` section includes both key authentication and optional `sshpass` password/password-file authentication, plus port, cipher, compression, ControlMaster, strict host-key checking, timeouts, keepalives, and jump-host examples.
 
-The generated pull profile sets `[restore] backup_over_ssh = true`, so `destination.target_root`, `state_file`, and `lock_file` are interpreted on the SSH backup host even when the CLI flag is omitted. `source.snapshot_root` and `log_dir` remain local. Use a separate restore config so later normal `sync`, `prune`, and `destroy-leftovers` runs do not accidentally interpret remote restore paths as local backup paths.
+The generated pull profile sets `[restore] mode = "ssh"`, so `destination.target_root`, `state_file`, and `lock_file` are interpreted on the SSH backup host. `source.snapshot_root` **and** `source.cache_root` are interpreted together on the local Timeshift machine; neither path is probed on the backup host. `source.mode` is not used to choose restore direction. Use a separate restore config so later normal `sync`, `prune`, and `destroy-leftovers` runs do not accidentally interpret remote restore paths as local backup paths.
 
 Dry-run and real examples:
 
@@ -270,7 +270,7 @@ ts-btrfs restore --config ./config-restore-pull.toml \
   --i-understand-this-modifies-timeshift
 ```
 
-The pull profile therefore works with the command even when `--backup-over-ssh` is omitted. The flag remains useful when enabling pull mode temporarily from another config. If a local Timeshift repository is accidentally selected as the backup, the app now explains that Timeshift date folders are correctly ordinary directories and points to this transport setting instead of presenting the layout as corrupt.
+If a local Timeshift repository is accidentally selected as the backup, the app now explains that Timeshift date folders are correctly ordinary directories and points to this transport setting instead of presenting the layout as corrupt.
 
 The remote SSH account needs ordinary traversal/read permission for the backup timestamp directories, `info.json`, and `state.json`; write access to the existing `lock_file`; access to `flock` and `base64`; and narrow passwordless sudo permission for the configured Btrfs command used by `subvolume list/show` and `send`. The local side needs the normal restore permissions for `btrfs receive`, Timeshift, ordinary date directories, and `info.json`. The real restore holds the lock on the remote backup host until all streams and verification complete.
 
@@ -634,7 +634,7 @@ ts-btrfs init-config --profile restore-pull --path ./config-restore-pull.toml
 nano config-restore-pull.toml
 ```
 
-Both packaged profiles contain every current configuration key with comments. The pull-restore profile is preconfigured with `source.mode = "local"`, `[restore] backup_over_ssh = true`, `[ssh]` describing the backup host, and remote meanings for `destination.target_root`, `state_file`, and `lock_file`. Its SSH section documents key authentication, `password`, `password_file`, `sshpass`, port, cipher, compression, ControlMaster, host-key checking, timeouts, keepalives, and jump-host arguments.
+Both packaged profiles contain every current configuration key with comments. The pull-restore profile is preconfigured with `[restore] mode = "ssh"`, `[ssh]` describing the backup host, and remote meanings for `destination.target_root`, `state_file`, and `lock_file`. `source.mode` remains available only for sync/source commands. Its SSH section documents key authentication, `password`, `password_file`, `sshpass`, port, cipher, compression, ControlMaster, host-key checking, timeouts, keepalives, and jump-host arguments.
 
 The packaged `timeshift_btrfs_sync/data/config.example.toml` file contains all options with safe defaults. Keep `default_dry_run = true` and `retention.cleanup_ondemand = false` unless you intentionally want less conservative behavior. Incremental sends require a proven matching parent; there is no unsafe override to continue when source and destination parent metadata does not match. Manual snapshot creation follows the same safety model: existing destinations require a UUID-confirmed source/destination anchor and a proven next-parent path before Timeshift is asked to create a new source snapshot, while a destination that was empty at run start may start with a full seed.
 
@@ -657,7 +657,7 @@ Writes one complete commented config profile.
 |---|---|---|
 | `--path PATH` | Writes the selected profile to `PATH`; default is `./ts-btrfs.toml`. | Lets you create a config in the folder or name you prefer. |
 | `--profile sync` | Writes the normal sync/local-restore profile; this is the default. | Use for SSH-source backup, local backup, and restore from a locally mounted backup repository. |
-| `--profile restore-pull` | Writes the complete SSH-backup-to-local-Timeshift profile. | Sets `[restore] backup_over_ssh = true`, so the profile works without repeating the CLI transport flag; includes every supported SSH authentication and transport option with comments. |
+| `--profile restore-pull` | Writes the complete SSH-backup-to-local-Timeshift profile. | Sets `[restore] mode = "ssh"`; includes every supported SSH authentication and transport option with comments. |
 | `--force` | Overwrites the target file if it already exists. | Needed when refreshing an existing generated template. Review changes before replacing a real config. |
 
 ### `test-source`
@@ -716,7 +716,6 @@ Restores either one backup or a complete backup chain to `source.snapshot_root` 
 | `--allow-os-identity-mismatch` | Allows restore when current Timeshift `info.json` files do not match the backup `sys-uuid` and Btrfs type. | Dangerous escape hatch when the backup may belong to another OS. It requires `I UNDERSTAND THIS BACKUP MAY BELONG TO ANOTHER OS`. |
 | `--dry-run` | Validates backup/source/state UUIDs, `info.json` OS identity, and exact receive-parent availability without changing Timeshift. | Always use first; it shows whether the first transfer will be incremental or why a full seed is required. |
 | `--run` | Performs the restore. | Required to modify the Timeshift repository. |
-| `--backup-over-ssh` | Enables SSH-backup pull mode for this invocation. | Reads `destination.target_root`, `state_file`, and `lock_file` from `[ssh]` and restores into local `source.snapshot_root`; `[restore] backup_over_ssh = true` enables the same mode from config. |
 | `--create-pre-restore-snapshot` | Creates and verifies one Timeshift on-demand safety snapshot before any receive. | The snapshot is created only on the Timeshift restore target, never on the backup repository, and is retained if restore later fails. |
 | `--i-understand-this-modifies-timeshift` | Required with `--run`. | Confirms direct Timeshift changes; the command then also requires `I UNDERSTAND TIMESHIFT MAY DELETE RESTORED SNAPSHOTS OR OLDER THAN RESTORED SNAPSHOTS` before receiving data. |
 
@@ -841,7 +840,7 @@ Every option below is present in both packaged profiles. Commented entries are o
 
 ### `[ssh]`
 
-Used when `source.mode = "ssh"` or when restore pull mode is enabled by `[restore] backup_over_ssh = true` or `--backup-over-ssh`. In local source mode the section may be omitted unless that restore flag is used.
+Used when `source.mode = "ssh"` for normal sync/source commands, or when `[restore] mode` is `"ssh"` or `"ssh-target"`. In restore mode `"ssh"`, the SSH endpoint is the backup host; in `"ssh-target"`, it is the Timeshift target.
 
 | Option | What it does | Why it may be needed |
 |---|---|---|
@@ -881,9 +880,9 @@ Leave `control_master = false` for maximum isolation, on shared machines, or any
 
 | Option | What it does | Why it may be needed |
 |---|---|---|
-| `backup_over_ssh` | When true, `restore` reads `destination.target_root`, `state_file`, and `lock_file` from `[ssh]` and restores into local `source.snapshot_root`. Default is false in the normal profile and true in the pull profile. | Prevents a pull-restore config from being accidentally interpreted as a local backup. The CLI `--backup-over-ssh` flag can enable the same transport for one invocation. |
+| `mode` | Selects restore direction: `local` = local backup → local Timeshift; `ssh` = SSH backup → local Timeshift; `ssh-target` = local backup → SSH Timeshift. | Makes the restore transport explicit and independent from `source.mode`, which remains sync-only. |
 
-Timeshift's native timestamp path remains an ordinary directory. This option changes only which endpoint supplies the **backup** repository; it does not change the local Timeshift layout.
+Timeshift's native timestamp path remains an ordinary directory. Restore mode changes only which endpoint supplies the backup and which endpoint receives Timeshift payloads; it does not change the native Timeshift layout. `source.snapshot_root` and `source.cache_root` are one inseparable Timeshift-side path pair: modes `local` and `ssh` use both locally, while `ssh-target` uses both on the SSH Timeshift host. The remote backup endpoint never reads or creates `source.cache_root`.
 
 ### `[manual_snapshot]`
 

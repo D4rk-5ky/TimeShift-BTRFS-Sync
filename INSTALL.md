@@ -1,6 +1,6 @@
 # Installation
 
-Normal sync runs on the backup/destination machine. The Timeshift source is reached over SSH or selected locally. Restore may also run on the Timeshift machine and pull a backup repository over SSH when `[restore] backup_over_ssh = true` or `--backup-over-ssh` is supplied. The selected endpoints need the commands and minimal permissions described in the README. `cat` and `id` are not run through sudo during normal discovery. The configured source account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
+Normal sync runs on the backup/destination machine. The Timeshift source is reached over SSH or selected locally. Restore may also run on the Timeshift machine and pull a backup repository over SSH when `[restore] mode = "ssh"` is selected. The selected endpoints need the commands and minimal permissions described in the README. `cat` and `id` are not run through sudo during normal discovery. The configured source account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
 
 
 The executable or Python install does **not** include system tools such as `btrfs`, `timeshift`, `ssh`, `sudo`, `mbuffer`, or `sshpass`. Those must be installed on the relevant machines.
@@ -127,7 +127,7 @@ When the exact recorded read-only source send parent still exists with the expec
 
 ### Pull restore from an SSH backup host
 
-Use a separate restore config with `source.mode = "local"`, `[ssh]` pointing to the backup host, and `[destination].target_root`, `state_file`, and `lock_file` set to their paths on that host. Preview with:
+Use a separate restore config with `[restore] mode = "ssh"`, `[ssh]` pointing to the backup host, and `[destination].target_root`, `state_file`, and `lock_file` set to their paths on that host. `source.snapshot_root` and `source.cache_root` must both be paths on the local Timeshift machine; restore probes them through the same local endpoint. `source.mode` remains sync-only. Preview with:
 
 ```bash
 ts-btrfs restore --config ./config-restore-pull.toml \
@@ -137,7 +137,7 @@ ts-btrfs restore --config ./config-restore-pull.toml \
 
 The remote backup account needs ordinary traversal/read access to the backup date directories, `info.json`, and `state.json`; ordinary write access to the existing lock file; `flock` and `base64`; and narrow passwordless sudo for Btrfs list/show/send. The local machine needs the restore-target permissions described above. The remote lock directory must already exist; restore does not create a missing remote backup target.
 
-Do not use the same path interpretation blindly for scheduled sync. In the pull profile, `[restore] backup_over_ssh = true` makes `destination.target_root`, `state_file`, and `lock_file` remote only for restore; normal sync/prune semantics remain local.
+Do not use the same path interpretation blindly for scheduled sync. In the pull profile, `[restore] mode = "ssh"` makes `destination.target_root`, `state_file`, and `lock_file` remote only for restore; normal sync/prune semantics remain local.
 
 ## PyInstaller builds
 

@@ -5,7 +5,7 @@ subvolume. Timeshift expects an ordinary timestamp directory containing
 writable ``@``/``@home`` Btrfs snapshots and the original ``info.json``.
 
 Single restore and chain restore use the same workflow. Chain restore reuses
-the exact recorded read-only source send parent when it is still present with
+the exact recorded read-only Timeshift-side send parent when it is still present with
 the expected UUID, allowing the first newer backup to arrive incrementally.
 Otherwise it creates one justified full hidden seed before applying later
 incrementals. Visible Timeshift payloads are writable Btrfs snapshots of the
@@ -89,10 +89,12 @@ class BackupRepository:
     ops: BtrfsOps
 
     @classmethod
-    def from_config(cls, config: AppConfig, *, over_ssh: bool) -> "BackupRepository":
-        mode = "ssh" if over_ssh else "local"
+    def from_config(cls, config: AppConfig) -> "BackupRepository":
+        """Create the backup endpoint selected by restore.mode."""
+
+        mode = "ssh" if config.restore.backup_uses_ssh else "local"
         runner = SourceRunner.from_mode(mode, config.ssh)
-        endpoint = CommandEndpoint.for_source(runner) if over_ssh else CommandEndpoint.local("backup destination")
+        endpoint = CommandEndpoint.for_source(runner) if runner.uses_ssh else CommandEndpoint.local("backup destination")
         return cls(
             config=config,
             runner=runner,
@@ -339,11 +341,11 @@ def _consistent_backup_identity(
     return first, f"all selected backups identify sys-uuid {first.sys_uuid} with type {first.snapshot_type}"
 
 
-def _source_info_identities(source_inventory: SourceInventory) -> dict[str, TimeshiftOsIdentity | None]:
+def _timeshift_info_identities(timeshift_inventory: SourceInventory) -> dict[str, TimeshiftOsIdentity | None]:
     """Parse stable OS identities from the coherent source info.json inventory."""
 
     identities: dict[str, TimeshiftOsIdentity | None] = {}
-    for name, content in source_inventory.snapshot_info_json.items():
+    for name, content in timeshift_inventory.snapshot_info_json.items():
         try:
             _doc, identity = _parse_info_json(content, label=f"Source Timeshift info.json for {name}")
         except RestoreError:
@@ -493,8 +495,9 @@ def _validate_backup_snapshot(
                 "The local Timeshift repository is being scanned as the backup repository. "
                 "Timeshift date folders below source.snapshot_root are correctly ordinary directories; "
                 "only TimeShift-BTRFS-Sync backup date containers are Btrfs subvolumes. "
-                "For SSH-backup-to-local restore, set [restore] backup_over_ssh = true "
-                "or pass --backup-over-ssh. Misrouted path: " + backup_date
+                "For SSH-backup-to-local restore, set [restore] mode = \"ssh\". "
+                "Timeshift date folders are ordinary directories; backup date containers are Btrfs subvolumes. "
+                "Misrouted path: " + backup_date
             )
         raise RestoreError(f"Backup snapshot date is missing or is not a Btrfs subvolume: {backup_date}")
 
@@ -562,14 +565,14 @@ def _discover_backups(
     }
 
 
-def _source_snapshots(
+def _timeshift_snapshots(
     config: AppConfig,
-    source: SourceRunner,
+    timeshift: SourceRunner,
 ) -> tuple[dict[str, SnapshotMeta], SourceInventory]:
-    """Read one coherent source Timeshift/Btrfs/info.json inventory."""
+    """Read one coherent Timeshift-target snapshot/cache/info.json inventory."""
 
     generation = build_source_inventory(
-        source,
+        timeshift,
         snapshot_root=config.source.snapshot_root,
         cache_root=config.source.cache_root,
         sudo=config.source.sudo,
@@ -578,7 +581,7 @@ def _source_snapshots(
         required=True,
     )
     snapshots = list_source_snapshots(
-        source,
+        timeshift,
         snapshot_root=config.source.snapshot_root,
         subvolumes=config.source.subvolumes,
         sudo=config.source.sudo,
@@ -660,17 +663,17 @@ def _find_latest_common_parent(
 
 def _find_reusable_receive_parent(
     config: AppConfig,
-    source_ops: BtrfsOps,
-    source_inventory: SourceInventory,
+    timeshift_ops: BtrfsOps,
+    timeshift_inventory: SourceInventory,
     state: dict[str, Any],
     common_parent: str,
 ) -> tuple[dict[str, str] | None, str]:
-    """Find the exact read-only source subvolumes required for first incremental receive.
+    """Find exact read-only Timeshift-side subvolumes for the first incremental receive.
 
     The visible Timeshift snapshot proves OS/source identity but often has a
     different UUID from the read-only cache snapshot that was actually sent.
     Btrfs incremental receive can skip the full common seed only when every
-    payload's original send path still exists with the recorded send UUID and
+    payload's original send path still exists on the Timeshift side with the recorded send UUID and
     remains read-only.
     """
 
@@ -700,9 +703,9 @@ def _find_reusable_receive_parent(
             reasons.append(f"{subvolume_name}: cannot resolve recorded send path: {exc}")
             continue
         expected_uuid = str(state_meta.get("send_source_uuid") or "")
-        meta = source_inventory.meta(path)
+        meta = timeshift_inventory.meta(path)
         if meta is None:
-            meta = source_ops.meta(path, name=subvolume_name, required=False)
+            meta = timeshift_ops.meta(path, name=subvolume_name, required=False)
         if meta is None:
             reasons.append(f"{subvolume_name}: recorded send parent is missing: {path}")
             continue
@@ -720,16 +723,16 @@ def _find_reusable_receive_parent(
     if reasons:
         return None, "; ".join(reasons)
     return paths, (
-        "every configured payload still has its exact recorded read-only send parent on the source filesystem"
+        "every configured payload still has its exact recorded read-only send parent on the Timeshift filesystem"
     )
 
 
 def _build_restore_plan(
     config: AppConfig,
     repository: BackupRepository,
-    source: SourceRunner,
+    timeshift: SourceRunner,
     *,
-    source_ops: BtrfsOps | None = None,
+    timeshift_ops: BtrfsOps | None = None,
     snapshot_name: str | None,
     restore_all: bool,
 ) -> tuple[RestorePlan, dict[str, SnapshotMeta], str]:
@@ -737,15 +740,15 @@ def _build_restore_plan(
 
     if bool(snapshot_name) == bool(restore_all):
         raise RestoreError("Choose exactly one restore selection: --snapshot <date> or --all")
-    if source_ops is None:
-        source_ops = BtrfsOps(
-            CommandEndpoint.for_source(source),
+    if timeshift_ops is None:
+        timeshift_ops = BtrfsOps(
+            CommandEndpoint.for_source(timeshift),
             config.source.sudo,
             config.source.btrfs_command,
         )
 
-    source_by_name, source_inventory = _source_snapshots(config, source)
-    source_identities = _source_info_identities(source_inventory)
+    source_by_name, timeshift_inventory = _timeshift_snapshots(config, timeshift)
+    source_identities = _timeshift_info_identities(timeshift_inventory)
 
     if snapshot_name:
         backup = _discover_backups(config, repository, selected_name=snapshot_name)[snapshot_name]
@@ -764,7 +767,7 @@ def _build_restore_plan(
                 os_identity_reason=f"{consistency_reason}; {os_reason}",
             ),
             source_by_name,
-            source_inventory.timeshift_output,
+            timeshift_inventory.timeshift_output,
         )
 
     backups = _discover_backups(config, repository)
@@ -787,7 +790,7 @@ def _build_restore_plan(
         restore_names = names[common_index + 1 :]
         if restore_names:
             receive_parent_paths, receive_parent_reason = _find_reusable_receive_parent(
-                config, source_ops, source_inventory, state, common_parent
+                config, timeshift_ops, timeshift_inventory, state, common_parent
             )
             if receive_parent_paths is not None:
                 initial_send_parent = common_parent
@@ -817,7 +820,7 @@ def _build_restore_plan(
             os_identity_reason=f"{consistency_reason}; {os_reason}",
         ),
         source_by_name,
-        source_inventory.timeshift_output,
+        timeshift_inventory.timeshift_output,
     )
 
 
@@ -937,8 +940,8 @@ def _cleanup_restore_attempt(
 
 def _create_pre_restore_snapshot(
     config: AppConfig,
-    source: SourceRunner,
-    source_ops: BtrfsOps,
+    timeshift: SourceRunner,
+    timeshift_ops: BtrfsOps,
     *,
     existing_names: set[str],
     restore_names: list[str],
@@ -950,7 +953,7 @@ def _create_pre_restore_snapshot(
     so this helper can never create a snapshot on the backup host.
     """
 
-    location = "SSH Timeshift target" if source.uses_ssh else "local Timeshift target"
+    location = "SSH Timeshift target" if timeshift.uses_ssh else "local Timeshift target"
     print()
     print("PRE-RESTORE SAFETY SNAPSHOT")
     print("===========================")
@@ -962,7 +965,7 @@ def _create_pre_restore_snapshot(
 
     try:
         create_source_manual_snapshot(
-            source,
+            timeshift,
             sudo=config.source.sudo,
             timeshift_command=config.source.timeshift_command,
             comment=PRE_RESTORE_SNAPSHOT_COMMENT,
@@ -975,7 +978,7 @@ def _create_pre_restore_snapshot(
         ) from exc
 
     try:
-        listed = source.run(timeshift_cmd(config.source.sudo, config.source.timeshift_command, ["--list"]))
+        listed = timeshift.run(timeshift_cmd(config.source.sudo, config.source.timeshift_command, ["--list"]))
     except CommandError as exc:
         raise RestoreError(
             "The pre-restore Timeshift command completed, but a fresh timeshift --list could not verify it. "
@@ -1014,7 +1017,7 @@ def _create_pre_restore_snapshot(
     for subvolume_name in config.source.subvolumes:
         payload_path = f"{snapshot_root}/{created.name}/{subvolume_name}"
         try:
-            meta = source_ops.meta(payload_path, name=subvolume_name, required=True)
+            meta = timeshift_ops.meta(payload_path, name=subvolume_name, required=True)
         except RuntimeError as exc:
             raise RestoreError(
                 "The pre-restore Timeshift snapshot is listed, but a configured Btrfs payload could not be verified: "
@@ -1051,7 +1054,7 @@ def _print_restored_snapshot_retention_warning() -> None:
 
 def _print_restore_plan(
     config: AppConfig,
-    source: SourceRunner,
+    timeshift: SourceRunner,
     plan: RestorePlan,
     *,
     dry_run: bool,
@@ -1061,10 +1064,14 @@ def _print_restore_plan(
     print("TIMESHIFT SNAPSHOT RESTORE")
     print("==========================")
     print(f"  selection:      {'all snapshots' if plan.common_parent or plan.no_common_parent else plan.restore_names[0]}")
-    print(f"  snapshot_root:  {config.source.snapshot_root.rstrip('/')}")
+    print(f"  restore mode:   {config.restore.mode}")
+    timeshift_location = "SSH remote" if timeshift.uses_ssh else "local"
+    print(f"  Timeshift side: {timeshift_location}")
+    print(f"  snapshot_root:  {config.source.snapshot_root.rstrip('/')} ({timeshift_location})")
+    print(f"  cache_root:     {config.source.cache_root or 'disabled'} ({timeshift_location})")
+    print("  path ownership: snapshot_root and cache_root always use the same Timeshift endpoint")
     print("  date path type: ordinary directory")
     print(f"  payloads:       {', '.join(config.source.subvolumes)}")
-    print(f"  Timeshift side: {'SSH remote' if source.uses_ssh else 'local'}")
     if repository is not None:
         print(f"  backup side:    {'SSH remote' if repository.runner.uses_ssh else 'local'}")
         print(f"  backup root:    {repository.root}")
@@ -1090,7 +1097,7 @@ def _print_restore_plan(
         print(f"  identity proof: {plan.common_reason}")
         if plan.initial_send_parent:
             print(f"  chain start:    incremental from common backup {plan.initial_send_parent}")
-            print("  receive parent: exact existing read-only source send parent(s)")
+            print("  receive parent: exact existing read-only Timeshift-side send parent(s)")
             if plan.receive_parent_paths:
                 for payload, path in sorted(plan.receive_parent_paths.items()):
                     print(f"    {payload}: {path}")
@@ -1130,30 +1137,26 @@ def restore_backups(
     danger_confirmed: bool,
     allow_no_common_parent: bool,
     allow_os_identity_mismatch: bool = False,
-    backup_over_ssh: bool = False,
     create_pre_restore_snapshot: bool = False,
 ) -> None:
     """Restore one snapshot or a complete backup chain into Timeshift."""
 
-    if backup_over_ssh and config.source.mode != "local":
-        raise RestoreError(
-            "--backup-over-ssh requires source.mode = \"local\" because this mode pulls a remote backup into the local Timeshift repository"
-        )
-    repository = BackupRepository.from_config(config, over_ssh=backup_over_ssh)
-    source = SourceRunner.from_config(config)
-    source_endpoint = CommandEndpoint.for_source(source)
-    source_ops = BtrfsOps(source_endpoint, config.source.sudo, config.source.btrfs_command)
+    repository = BackupRepository.from_config(config)
+    timeshift_mode = "ssh" if config.restore.timeshift_uses_ssh else "local"
+    timeshift = SourceRunner.from_mode(timeshift_mode, config.ssh)
+    timeshift_endpoint = CommandEndpoint.for_source(timeshift)
+    timeshift_ops = BtrfsOps(timeshift_endpoint, config.source.sudo, config.source.btrfs_command)
     plan, source_by_name, _timeshift_output = _build_restore_plan(
         config,
         repository,
-        source,
-        source_ops=source_ops,
+        timeshift,
+        timeshift_ops=timeshift_ops,
         snapshot_name=snapshot_name,
         restore_all=restore_all,
     )
     _print_restore_plan(
         config,
-        source,
+        timeshift,
         plan,
         dry_run=dry_run,
         create_pre_restore_snapshot=create_pre_restore_snapshot,
@@ -1182,7 +1185,7 @@ def restore_backups(
     last = plan.chain_names[-1]
     chain_root = f"{snapshot_root}/.ts-btrfs-sync-restore-chain-{seed}-to-{last}"
 
-    root_check = source_endpoint.run_shell(
+    root_check = timeshift_endpoint.run_shell(
         f"test -d {shlex.quote(snapshot_root)}",
         check=False,
         log_stderr=False,
@@ -1201,7 +1204,7 @@ def restore_backups(
             ]
         )
     for label, path in paths_to_require_absent:
-        exists, error = _source_path_exists(source_endpoint, path)
+        exists, error = _source_path_exists(timeshift_endpoint, path)
         if exists is None:
             raise RestoreError(f"Could not check {label} {path}: {error}")
         if exists:
@@ -1218,7 +1221,7 @@ def restore_backups(
 
     if dry_run:
         if create_pre_restore_snapshot:
-            location = "SSH Timeshift target" if source.uses_ssh else "local Timeshift target"
+            location = "SSH Timeshift target" if timeshift.uses_ssh else "local Timeshift target"
             print(
                 f"  would create one pre-restore Timeshift on-demand safety snapshot on the {location}; "
                 "the backup repository would remain unchanged"
@@ -1265,8 +1268,8 @@ def restore_backups(
     if create_pre_restore_snapshot:
         pre_restore_snapshot_name = _create_pre_restore_snapshot(
             config,
-            source,
-            source_ops,
+            timeshift,
+            timeshift_ops,
             existing_names=set(source_by_name),
             restore_names=plan.restore_names,
         )
@@ -1276,7 +1279,7 @@ def restore_backups(
     committed: list[str] = []
     try:
         try:
-            source_endpoint.run_argv(_privileged_argv(config, "mkdir", "-m", "0755", "--", chain_root))
+            timeshift_endpoint.run_argv(_privileged_argv(config, "mkdir", "-m", "0755", "--", chain_root))
         except CommandError as exc:
             raise RestoreError(
                 "Could not create the ordinary hidden restore-chain directory. Run local restore as root or grant "
@@ -1285,11 +1288,11 @@ def restore_backups(
                 f"Path: {chain_root}. Details: {exc}"
             ) from exc
 
-        right_label = "REMOTE TIMESHIFT RECEIVE" if source.uses_ssh else "LOCAL TIMESHIFT RECEIVE"
+        right_label = "REMOTE TIMESHIFT RECEIVE" if timeshift.uses_ssh else "LOCAL TIMESHIFT RECEIVE"
         previous_name: str | None = plan.initial_send_parent
         for name in plan.chain_names:
             receive_dir = f"{chain_root}/{name}"
-            source_endpoint.run_argv(_privileged_argv(config, "mkdir", "-m", "0755", "--", receive_dir))
+            timeshift_endpoint.run_argv(_privileged_argv(config, "mkdir", "-m", "0755", "--", receive_dir))
             chain_created.append(name)
             for subvolume_name in config.source.subvolumes:
                 backup = plan.backups[name]
@@ -1310,15 +1313,15 @@ def restore_backups(
                         proto=None,
                         verbose=config.stream.btrfs_verbose,
                     ),
-                    source_ops.receive_command(receive_dir, verbose=config.stream.btrfs_verbose),
+                    timeshift_ops.receive_command(receive_dir, verbose=config.stream.btrfs_verbose),
                     middle_cmd=config.stream.command(),
                     left_env=repository.environment,
                     middle_env=None,
-                    right_env=source.environment(),
+                    right_env=timeshift.environment(),
                     left_label="REMOTE BACKUP SEND" if repository.runner.uses_ssh else "LOCAL BACKUP SEND",
                     right_label=right_label,
                 )
-                received_meta = source_ops.meta(received_path, name=subvolume_name, required=True)
+                received_meta = timeshift_ops.meta(received_path, name=subvolume_name, required=True)
                 expected_uuid = _effective_send_uuid(backup.payloads[subvolume_name])
                 if received_meta.received_uuid != expected_uuid:
                     raise RestoreError(
@@ -1334,45 +1337,45 @@ def restore_backups(
         # received chain through Btrfs CoW.
         for name in plan.restore_names:
             staging_dir = f"{snapshot_root}/.ts-btrfs-sync-restore-{name}"
-            source_endpoint.run_argv(_privileged_argv(config, "mkdir", "-m", "0755", "--", staging_dir))
+            timeshift_endpoint.run_argv(_privileged_argv(config, "mkdir", "-m", "0755", "--", staging_dir))
             staging_created.append(name)
             for subvolume_name in config.source.subvolumes:
                 received_path = f"{chain_root}/{name}/{subvolume_name}"
                 visible_path = f"{staging_dir}/{subvolume_name}"
-                source_ops.snapshot(received_path, visible_path, readonly=False)
-                visible_meta = source_ops.meta(visible_path, name=subvolume_name, required=True)
+                timeshift_ops.snapshot(received_path, visible_path, readonly=False)
+                visible_meta = timeshift_ops.meta(visible_path, name=subvolume_name, required=True)
                 if visible_meta.readonly is not False:
                     raise RestoreError(f"Restored Timeshift payload is not writable: {visible_path}")
-                received_meta = source_ops.meta(received_path, name=subvolume_name, required=True)
+                received_meta = timeshift_ops.meta(received_path, name=subvolume_name, required=True)
                 if received_meta.uuid and visible_meta.parent_uuid and visible_meta.parent_uuid != received_meta.uuid:
                     raise RestoreError(
                         f"Restored Timeshift payload does not identify its hidden received CoW parent: {visible_path}"
                     )
             _write_source_info_json(
-                source_endpoint,
+                timeshift_endpoint,
                 config,
                 f"{staging_dir}/info.json",
                 plan.backups[name].info_content,
             )
-            info_result = source_endpoint.run_argv(["cat", "--", f"{staging_dir}/info.json"])
+            info_result = timeshift_endpoint.run_argv(["cat", "--", f"{staging_dir}/info.json"])
             if info_result.stdout != plan.backups[name].info_content:
                 raise RestoreError(f"Restored info.json content verification failed: {staging_dir}/info.json")
 
         for name in plan.restore_names:
             staging_dir = f"{snapshot_root}/.ts-btrfs-sync-restore-{name}"
             final_dir = f"{snapshot_root}/{name}"
-            source_endpoint.run_argv(_privileged_argv(config, "mv", "--", staging_dir, final_dir))
+            timeshift_endpoint.run_argv(_privileged_argv(config, "mv", "--", staging_dir, final_dir))
             committed.append(name)
             for subvolume_name in config.source.subvolumes:
                 final_payload = f"{final_dir}/{subvolume_name}"
-                meta = source_ops.meta(final_payload, name=subvolume_name, required=True)
+                meta = timeshift_ops.meta(final_payload, name=subvolume_name, required=True)
                 if meta.readonly is not False:
                     raise RestoreError(f"Final Timeshift payload is not writable: {final_payload}")
-            final_info = source_endpoint.run_argv(["cat", "--", f"{final_dir}/info.json"])
+            final_info = timeshift_endpoint.run_argv(["cat", "--", f"{final_dir}/info.json"])
             if final_info.stdout != plan.backups[name].info_content:
                 raise RestoreError(f"Final Timeshift info.json verification failed: {final_dir}/info.json")
 
-        listed = source.run(timeshift_cmd(config.source.sudo, config.source.timeshift_command, ["--list"]))
+        listed = timeshift.run(timeshift_cmd(config.source.sudo, config.source.timeshift_command, ["--list"]))
         listed_names = {item.name for item in parse_timeshift_list(listed.stdout, snapshot_root)}
         missing_listed = [name for name in plan.restore_names if name not in listed_names]
         if missing_listed:
@@ -1381,8 +1384,8 @@ def restore_backups(
             )
 
         cleanup_errors = _cleanup_restore_attempt(
-            source_endpoint,
-            source_ops,
+            timeshift_endpoint,
+            timeshift_ops,
             config,
             chain_root=chain_root,
             chain_names=chain_created,
@@ -1411,8 +1414,8 @@ def restore_backups(
             # inspection without deleting those potentially usable snapshots.
             raise
         cleanup_errors = _cleanup_restore_attempt(
-            source_endpoint,
-            source_ops,
+            timeshift_endpoint,
+            timeshift_ops,
             config,
             chain_root=chain_root,
             chain_names=chain_created,

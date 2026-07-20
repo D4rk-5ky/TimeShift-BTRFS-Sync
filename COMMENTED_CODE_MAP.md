@@ -156,29 +156,29 @@ No runtime classes or functions are defined in this file.
 
 - `cmd_restore._run` (function/method, line 370): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_create_manual` (function/method, line 422): Handle the cmd create manual step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_create_manual` (function/method, line 420): Handle the cmd create manual step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_create_manual._run` (function/method, line 425): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_create_manual._run` (function/method, line 423): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_clear_state` (function/method, line 451): Guardedly remove the configured state_file with normal run logging. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_clear_state` (function/method, line 449): Guardedly remove the configured state_file with normal run logging. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_clear_state._run` (function/method, line 457): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_clear_state._run` (function/method, line 455): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_delete_lock` (function/method, line 479): Guardedly remove the configured lock_file if it is stale, with logging. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_delete_lock` (function/method, line 477): Guardedly remove the configured lock_file if it is stale, with logging. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_delete_lock._run` (function/method, line 485): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_delete_lock._run` (function/method, line 483): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_destroy_leftovers` (function/method, line 496): Destroy configured leftovers with normal run logging enabled. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_destroy_leftovers` (function/method, line 494): Destroy configured leftovers with normal run logging enabled. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_destroy_leftovers._run` (function/method, line 510): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_destroy_leftovers._run` (function/method, line 508): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_show_state` (function/method, line 522): Handle the cmd show state step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_show_state` (function/method, line 520): Handle the cmd show state step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `cmd_show_state._run` (function/method, line 525): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `cmd_show_state._run` (function/method, line 523): Handle the run step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `build_parser` (function/method, line 568): Create the argparse parser and command-specific flag help. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `build_parser` (function/method, line 566): Create the argparse parser and command-specific flag help. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
-- `main` (function/method, line 812): Handle the main step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
+- `main` (function/method, line 805): Handle the main step used by this module. **Why:** Defines the current command-line interface and coordinates config, locks, logging, and workflow entry points.
 
 ## `timeshift_btrfs_sync/commands.py`
 
@@ -216,51 +216,55 @@ No runtime classes or functions are defined in this file.
 
 **Why this module exists:** Loads and validates the one current configuration schema used by every command.
 
-- `_reject_unknown_keys` (function/method, line 34): Reject configuration entries that are not part of the current schema. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_reject_unknown_keys` (function/method, line 35): Reject configuration entries that are not part of the current schema. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `ManualSnapshotConfig` (class, line 42): Optional source-side Timeshift on-demand snapshot creation and cleanup. **Why:** Loads and validates the one current configuration schema used by every command.
+- `ManualSnapshotConfig` (class, line 43): Optional source-side Timeshift on-demand snapshot creation and cleanup. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `SourceConfig` (class, line 76): Timeshift source and restore-target settings. **Why:** Loads and validates the one current configuration schema used by every command.
+- `SourceConfig` (class, line 77): Timeshift source and restore-target settings. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `DestinationConfig` (class, line 117): Backup repository and normal local receive settings. **Why:** Loads and validates the one current configuration schema used by every command.
+- `DestinationConfig` (class, line 118): Backup repository and normal local receive settings. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `StreamConfig` (class, line 131): Optional pipeline display/buffering settings. **Why:** Loads and validates the one current configuration schema used by every command.
+- `StreamConfig` (class, line 132): Optional pipeline display/buffering settings. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `StreamConfig.command` (function/method, line 151): Return mbuffer command argv or None when disabled. **Why:** Loads and validates the one current configuration schema used by every command.
+- `StreamConfig.command` (function/method, line 152): Return mbuffer command argv or None when disabled. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `RetentionConfig` (class, line 165): Destination retention counts by Timeshift tag. **Why:** Loads and validates the one current configuration schema used by every command.
+- `RetentionConfig` (class, line 166): Destination retention counts by Timeshift tag. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `RetentionConfig.counts_by_tag` (function/method, line 184): Return retention counts keyed by Timeshift tag letters. **Why:** Loads and validates the one current configuration schema used by every command.
+- `RetentionConfig.counts_by_tag` (function/method, line 185): Return retention counts keyed by Timeshift tag letters. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `RestoreConfig` (class, line 191): Restore-only transport defaults. **Why:** Keeps SSH-backup pull selection explicit in config without changing normal sync/prune path semantics.
+- `RestoreConfig` (class, line 193): Restore-only transport direction. **Why:** Separates restore direction from normal sync source transport.
 
-- `AppConfig` (class, line 190): Complete validated app configuration. **Why:** Loads and validates the one current configuration schema used by every command.
+- `RestoreConfig.backup_uses_ssh` (property, line 203): Return whether restore reads the backup repository through SSH. **Why:** Keeps backup endpoint selection in one restore-specific setting.
 
-- `ConfigError` (class, line 208): Raised when the TOML config is invalid. **Why:** Loads and validates the one current configuration schema used by every command.
+- `RestoreConfig.timeshift_uses_ssh` (property, line 209): Return whether snapshot_root and cache_root are on the SSH Timeshift host. **Why:** Keeps target endpoint selection in one restore-specific setting.
 
-- `_table` (function/method, line 211): Handle the table step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `AppConfig` (class, line 214): Complete validated app configuration. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_optional_str` (function/method, line 217): Handle the optional str step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `ConfigError` (class, line 233): Raised when the TOML config is invalid. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_positive_int` (function/method, line 220): Handle the positive int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_table` (function/method, line 236): Handle the table step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_stripped` (function/method, line 227): Handle the stripped step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_optional_str` (function/method, line 242): Handle the optional str step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_bool` (function/method, line 230): Handle the bool step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_positive_int` (function/method, line 245): Handle the positive int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_int` (function/method, line 233): Handle the int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_stripped` (function/method, line 252): Handle the stripped step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_as_str` (function/method, line 236): Handle the as str step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_bool` (function/method, line 255): Handle the bool step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_as_path` (function/method, line 241): Handle the as path step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_int` (function/method, line 258): Handle the int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_as_bool` (function/method, line 244): Handle the as bool step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_as_str` (function/method, line 261): Handle the as str step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_as_int` (function/method, line 251): Handle the as int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_as_path` (function/method, line 266): Handle the as path step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `_string_list` (function/method, line 258): Handle the string list step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_as_bool` (function/method, line 269): Handle the as bool step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
 
-- `load_config` (function/method, line 266): Read and validate TOML config. **Why:** Loads and validates the one current configuration schema used by every command.
+- `_as_int` (function/method, line 276): Handle the as int step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+
+- `_string_list` (function/method, line 283): Handle the string list step used by this module. **Why:** Loads and validates the one current configuration schema used by every command.
+
+- `load_config` (function/method, line 291): Read and validate TOML config. **Why:** Loads and validates the one current configuration schema used by every command.
 
 ## `timeshift_btrfs_sync/destroy.py`
 
@@ -714,67 +718,67 @@ No runtime classes or functions are defined in this file.
 
 - `BackupRepository.from_config` (function/method, line 92): Handle the from config step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupRepository.root` (property, line 104): Handle the root step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `BackupRepository.root` (property, line 106): Handle the root step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupRepository.snapshots_root` (property, line 108): Handle the snapshots root step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `BackupRepository.snapshots_root` (property, line 110): Handle the snapshots root step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupRepository.environment` (property, line 112): Handle the environment step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `BackupRepository.environment` (property, line 114): Handle the environment step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupRepository.location_label` (property, line 116): Handle the location label step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `BackupRepository.location_label` (property, line 118): Handle the location label step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupRepository.load_state` (function/method, line 119): Read and validate state.json from the same endpoint as the backup. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `BackupRepository.load_state` (function/method, line 121): Read and validate state.json from the same endpoint as the backup. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupRepository.scan_directories` (function/method, line 171): Read direct date entries and all info.json files in one endpoint call. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `BackupRepository.scan_directories` (function/method, line 173): Read direct date entries and all info.json files in one endpoint call. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `BackupRepository.btrfs_index` (function/method, line 240): Build one local or SSH Btrfs index for the complete backup tree. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `BackupRepository.btrfs_index` (function/method, line 242): Build one local or SSH Btrfs index for the complete backup tree. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_effective_send_uuid` (function/method, line 258): Return the UUID identity carried by a Btrfs send stream. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_effective_send_uuid` (function/method, line 260): Return the UUID identity carried by a Btrfs send stream. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_info_os_identity` (function/method, line 272): Return stable Timeshift OS identity while ignoring per-snapshot fields. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_info_os_identity` (function/method, line 274): Return stable Timeshift OS identity while ignoring per-snapshot fields. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_parse_info_json` (function/method, line 292): Parse one Timeshift control file and extract its stable OS identity. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_parse_info_json` (function/method, line 294): Parse one Timeshift control file and extract its stable OS identity. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_same_os_identity` (function/method, line 304): Return whether two Timeshift identities prove the same OS installation. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_same_os_identity` (function/method, line 306): Return whether two Timeshift identities prove the same OS installation. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_consistent_backup_identity` (function/method, line 315): Require one non-conflicting OS identity across the selected backup set. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_consistent_backup_identity` (function/method, line 317): Require one non-conflicting OS identity across the selected backup set. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_source_info_identities` (function/method, line 342): Parse stable OS identities from the coherent source info.json inventory. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_timeshift_info_identities` (function/method, line 344): Parse stable OS identities from the coherent Timeshift-target info.json inventory. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_compare_repository_os_identity` (function/method, line 355): Compare one backup identity with all current Timeshift control files. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_compare_repository_os_identity` (function/method, line 357): Compare one backup identity with all current Timeshift control files. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `RestorePlan` (class, line 383): A side-effect-free single or chain restore plan. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `RestorePlan` (class, line 385): A side-effect-free single or chain restore plan. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `RestorePlan.seed_name` (property, line 400): Handle the seed name step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `RestorePlan.seed_name` (property, line 402): Handle the seed name step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_source_path_exists` (function/method, line 404): Handle the source path exists step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_source_path_exists` (function/method, line 406): Handle the source path exists step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_privileged_argv` (function/method, line 418): Handle the privileged argv step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_privileged_argv` (function/method, line 420): Handle the privileged argv step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_write_source_info_json` (function/method, line 422): Write exact captured metadata through the configured source privilege prefix. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_write_source_info_json` (function/method, line 424): Write exact captured metadata through the configured source privilege prefix. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_validate_backup_snapshot` (function/method, line 463): Validate one backup date, payload set, metadata file, and Btrfs identity. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_validate_backup_snapshot` (function/method, line 465): Validate one backup date, payload set, metadata file, and Btrfs identity. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_discover_backups` (function/method, line 525): Return selected or all valid backups ordered by Timeshift timestamp. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_discover_backups` (function/method, line 543): Return selected or all valid backups ordered by Timeshift timestamp. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_source_snapshots` (function/method, line 550): Read one coherent source Timeshift/Btrfs/info.json inventory. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_timeshift_snapshots` (function/method, line 568): Read one coherent Timeshift-target snapshot/cache/info.json inventory. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_find_latest_common_parent` (function/method, line 579): Find the newest date proven common by UUID state and info.json identity. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_find_latest_common_parent` (function/method, line 597): Find the newest date proven common by UUID state and info.json identity. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_find_reusable_receive_parent` (function/method, line 646): Find the exact read-only source subvolumes required for first incremental receive. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_find_reusable_receive_parent` (function/method, line 664): Find exact read-only Timeshift-side subvolumes for the first incremental receive. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_build_restore_plan` (function/method, line 712): Build a single or complete-chain restore plan without changing either side. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_build_restore_plan` (function/method, line 730): Build a single or complete-chain restore plan without changing either side. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_remove_restore_directory` (function/method, line 809): Remove one exact app-created ordinary restore directory and its payloads. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_remove_restore_directory` (function/method, line 827): Remove one exact app-created ordinary restore directory and its payloads. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_cleanup_restore_attempt` (function/method, line 863): Roll back only directories created by the current restore attempt. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_cleanup_restore_attempt` (function/method, line 881): Roll back only directories created by the current restore attempt. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_create_pre_restore_snapshot` (function/method, line 923): Create and verify one safety snapshot on the Timeshift restore target. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_create_pre_restore_snapshot` (function/method, line 941): Create and verify one safety snapshot on the Timeshift restore target. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_print_restored_snapshot_retention_warning` (function/method, line 1020): Explain that restored Timeshift tags remain subject to normal retention. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_print_restored_snapshot_retention_warning` (function/method, line 1038): Explain that restored Timeshift tags remain subject to normal retention. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_print_restore_plan` (function/method, line 1037): Handle the print restore plan step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_print_restore_plan` (function/method, line 1055): Handle the print restore plan step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `restore_backups` (function/method, line 1109): Restore one snapshot or a complete backup chain into Timeshift. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `restore_backups` (function/method, line 1131): Restore one snapshot or a complete backup chain into Timeshift. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
 ## `timeshift_btrfs_sync/retention.py`
 

@@ -1,18 +1,14 @@
-# timeshift-btrfs-sync v0.1.63 config
-# Run this config on the BACKUP/DESTINATION machine.
-# source.mode = "ssh" pulls Timeshift snapshots from another machine over SSH.
-# source.mode = "local" copies from Timeshift snapshots on this same machine and skips SSH.
-# Restore normally reads the backup locally. Restore pull mode instead
-# uses [ssh] as the BACKUP host and pulls destination.target_root into the local
-# Timeshift repository selected by source.mode = "local". Use a separate restore
-# config so normal sync/prune path meanings remain unambiguous.
-# Normal backup/prune operations need passwordless source sudo only for btrfs and timeshift.
-# The restore command can import one snapshot or a UUID-validated full/incremental chain.
-# It creates/renames ordinary Timeshift date directories and writes info.json. Run local
-# restore as root, or grant narrow source-side sudo for mkdir, tee, chmod, mv, rm, and
-# rmdir. SSH restore needs those permissions on the remote source. Restored info.json
-# keeps H/D/W/M tags, so real restore requires a typed warning that Timeshift retention
-# may later delete a restored snapshot or an older existing tagged snapshot before rollback.
+# timeshift-btrfs-sync v0.1.65 config
+# Run this config on the BACKUP/DESTINATION machine for normal sync.
+# source.mode controls only normal source-side sync/list/prune/manual commands.
+# Restore uses [restore] mode independently:
+#   local      = local backup -> local Timeshift
+#   ssh        = SSH backup -> local Timeshift
+#   ssh-target = local backup -> SSH Timeshift
+# Restore can import one snapshot or a UUID-validated full/incremental chain.
+# Timeshift date directories are ordinary folders containing info.json and
+# Btrfs @/@home payload subvolumes. Restored H/D/W/M tags remain subject to
+# Timeshift retention and require the explicit typed retention warning.
 
 # Human-readable job name. This is only for identification.
 name = "kubuntu-timeshift"
@@ -57,13 +53,13 @@ log_dir = "/Backups/Kubuntu/timeshift-btrfs/.ts-btrfs-sync/logs"
 # lock_file = "/Backups/Kubuntu/timeshift-btrfs/.ts-btrfs-sync/lock"
 
 [restore]
-# Restore-only backup transport default.
-# false: destination.target_root/state_file/lock_file are read locally.
-# true: those backup paths are read from [ssh] and restored into the
-# local Timeshift repository selected by source.mode = "local".
-# The CLI --backup-over-ssh flag can enable the same mode for one run.
-# This setting changes restore transport only; sync/prune meanings are unchanged.
-backup_over_ssh = false
+# Restore transport is independent from source.mode.
+#   "local"      = local backup -> local Timeshift repository.
+#   "ssh"        = SSH backup -> local Timeshift repository.
+#   "ssh-target" = local backup -> SSH Timeshift repository.
+# The single [ssh] profile is used by whichever side restore.mode marks as SSH.
+# SSH backup -> different SSH Timeshift is not supported in one invocation.
+mode = "local"
 
 [mqtt]
 # Optional MQTT notifications for Home Assistant or another MQTT consumer.
@@ -144,10 +140,10 @@ notify_on_failure = true
 
 
 [ssh]
-# Used when source.mode = "ssh", or by restore pull mode.
-# Normal SSH source mode: host containing the Timeshift snapshots.
-# Pull-restore mode: host containing destination.target_root, state_file, and lock_file.
-# In local source mode this section may be omitted unless restore pull mode is enabled.
+# Used when source.mode = "ssh", restore.mode = "ssh", or restore.mode = "ssh-target".
+# source.mode = "ssh": host containing source Timeshift snapshots for backup.
+# restore.mode = "ssh": host containing destination.target_root/state_file/lock_file.
+# restore.mode = "ssh-target": host containing the Timeshift repository being restored.
 host = "source-machine.example.lan"
 
 # Dedicated source SSH user.
@@ -294,13 +290,15 @@ retention_count = 10
 # pass `btrfs subvolume show`; a plain directory inside Btrfs is refused.
 #
 [source]
-# Timeshift source/restore-target command mode.
-#   "ssh"   = run Timeshift source/restore-target commands through [ssh].
-#   "local" = run Timeshift source/restore-target commands on this machine.
-# Restore pull mode requires "local" because [ssh] then identifies the
-# remote backup host instead of the Timeshift host.
-# Local mode keeps the same sync, parent-UUID, read-only cache, manual snapshot,
-# and retention safety rules; only the command transport changes.
+# source.mode is used by sync, prune, source listing, and manual-snapshot commands.
+# Restore direction is selected only by [restore] mode above.
+#   "ssh"   = normal source commands run through [ssh].
+#   "local" = normal source commands run on this machine.
+# For restore, snapshot_root and cache_root always stay together on the Timeshift
+# endpoint selected by restore.mode: local for "local"/"ssh", remote for
+# "ssh-target". source.mode does not move either restore path.
+# Normal sync keeps the same parent-UUID, read-only cache, manual snapshot, and
+# retention safety rules; source.mode changes only the sync command transport.
 mode = "ssh"
 
 # Source-side command prefix. sudo -n means sudo must not prompt for a password.
@@ -319,8 +317,9 @@ timeshift_command = "timeshift"
 # normal directory on a Btrfs filesystem because Timeshift creates snapshot
 # subvolumes inside it. The app never creates source.snapshot_root and must
 # never prune, delete, destroy, or clean source.snapshot_root or anything below it.
-# In SSH mode this path is checked on the remote source through SSH/sshpass,
-# not on the local destination.
+# For normal sync, source.mode selects the endpoint. For restore, restore.mode
+# selects the Timeshift endpoint and this path always shares that endpoint with
+# source.cache_root.
 # The app parses snapshot names from Timeshift output, constructs Btrfs paths as:
 #   snapshot_root/<snapshot-name>/<subvolume>
 # and reads the one shared Timeshift control file for each date from:
