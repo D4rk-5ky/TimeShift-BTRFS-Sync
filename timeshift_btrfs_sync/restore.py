@@ -50,7 +50,7 @@ class RestoreError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class TimeshiftOsIdentity:
-    """Stable Timeshift metadata used to identify one OS installation."""
+    """Timeshift ``info.json`` provenance metadata for one snapshot."""
 
     sys_uuid: str
     snapshot_type: str
@@ -272,13 +272,15 @@ def _effective_send_uuid(meta: SubvolumeMeta) -> str:
 
 
 def _info_os_identity(info_doc: dict[str, Any]) -> TimeshiftOsIdentity | None:
-    """Return stable Timeshift OS identity while ignoring per-snapshot fields.
+    """Return Timeshift provenance identity while ignoring mutable fields.
 
     Timeshift changes tags, comments, creation time, file counts, app version,
-    live status, and Btrfs statistics between snapshots. ``sys-uuid`` identifies
-    the root filesystem/OS installation and ``type`` identifies the snapshot
-    backend. ``sys-distro`` is retained for diagnostics but is not a hard match
-    because an in-place distribution upgrade may change it.
+    live status, and Btrfs statistics between snapshots. ``sys-uuid`` records
+    the root filesystem from which that snapshot originated; it is preserved
+    when this app restores the original control file and is therefore provenance
+    rather than authoritative live-repository identity. ``type`` identifies the
+    snapshot backend. ``sys-distro`` is diagnostic only because an in-place
+    distribution upgrade may change it.
     """
 
     sys_uuid = str(info_doc.get("sys-uuid") or "").strip()
@@ -292,7 +294,7 @@ def _info_os_identity(info_doc: dict[str, Any]) -> TimeshiftOsIdentity | None:
 
 
 def _parse_info_json(content: str, *, label: str) -> tuple[dict[str, Any], TimeshiftOsIdentity | None]:
-    """Parse one Timeshift control file and extract its stable OS identity."""
+    """Parse one Timeshift control file and extract its provenance identity."""
 
     try:
         info_doc = json.loads(content)
@@ -304,7 +306,7 @@ def _parse_info_json(content: str, *, label: str) -> tuple[dict[str, Any], Times
 
 
 def _same_os_identity(left: TimeshiftOsIdentity | None, right: TimeshiftOsIdentity | None) -> bool:
-    """Return whether two Timeshift identities prove the same OS installation."""
+    """Return whether two Timeshift control files have matching provenance."""
 
     return bool(
         left
@@ -318,7 +320,7 @@ def _consistent_backup_identity(
     backups: dict[str, BackupSnapshot],
     names: list[str],
 ) -> tuple[TimeshiftOsIdentity | None, str]:
-    """Require one non-conflicting OS identity across the selected backup set."""
+    """Require one non-conflicting provenance identity across the backup set."""
 
     identified = [(name, backups[name].os_identity) for name in names if backups[name].os_identity is not None]
     if not identified:
@@ -342,7 +344,7 @@ def _consistent_backup_identity(
 
 
 def _timeshift_info_identities(timeshift_inventory: SourceInventory) -> dict[str, TimeshiftOsIdentity | None]:
-    """Parse stable OS identities from the coherent source info.json inventory."""
+    """Parse provenance identities from the coherent source info.json inventory."""
 
     identities: dict[str, TimeshiftOsIdentity | None] = {}
     for name, content in timeshift_inventory.snapshot_info_json.items():
@@ -358,7 +360,12 @@ def _compare_repository_os_identity(
     backup_identity: TimeshiftOsIdentity | None,
     source_identities: dict[str, TimeshiftOsIdentity | None],
 ) -> tuple[bool, str]:
-    """Compare one backup identity with all current Timeshift control files."""
+    """Compare backup provenance with currently readable Timeshift control files.
+
+    This is a useful cross-OS warning when no exact UUID common parent exists.
+    It must not overrule a common parent already proven through state and live
+    Btrfs identities.
+    """
 
     if backup_identity is None:
         return False, "backup info.json does not provide sys-uuid and type"
@@ -601,7 +608,24 @@ def _find_latest_common_parent(
     source_identities: dict[str, TimeshiftOsIdentity | None],
     state: dict[str, Any],
 ) -> tuple[str | None, str]:
-    """Find the newest date proven common by UUID state and info.json identity."""
+    """Find the newest date proven common by state and Btrfs UUID identity.
+
+    ``info.json`` is still parsed and reported as useful provenance metadata,
+    but it is not authoritative for a common-parent decision. Timeshift keeps
+    the original snapshot control file when a snapshot is restored, while the
+    currently listed repository may later contain snapshots created on a
+    different filesystem incarnation. Scheduled tag/retention activity can
+    therefore change which ``sys-uuid`` values are visible without changing
+    the Btrfs lineage of an exact snapshot.
+
+    The hard proof is the two independent links stored for every payload:
+
+    * current Timeshift payload UUID == ``state.json original_source_uuid``;
+    * backup Received UUID == ``state.json send_source_uuid``.
+
+    A forged or stale state file cannot satisfy those checks unless both live
+    Btrfs endpoints carry the recorded UUID identities.
+    """
 
     state_snapshots = state.get("snapshots", {})
     if not state_snapshots:
@@ -624,12 +648,6 @@ def _find_latest_common_parent(
         reasons: list[str] = []
         backup_identity = backups[name].os_identity
         source_identity = source_identities.get(name)
-        if not _same_os_identity(backup_identity, source_identity):
-            reasons.append(
-                "info.json OS identity does not match "
-                f"(backup sys-uuid {backup_identity.sys_uuid if backup_identity else '-'}, "
-                f"source sys-uuid {source_identity.sys_uuid if source_identity else '-'})"
-            )
         for subvolume_name in config.source.subvolumes:
             source_meta = source_snapshot.subvolumes.get(subvolume_name)
             backup_meta = backups[name].payloads.get(subvolume_name)
@@ -653,9 +671,19 @@ def _find_latest_common_parent(
                     f"recorded send UUID {expected_send_uuid or '-'}"
                 )
         if not reasons:
+            if _same_os_identity(backup_identity, source_identity):
+                info_note = "info.json provenance also matches"
+            else:
+                info_note = (
+                    "info.json provenance differs "
+                    f"(backup sys-uuid {backup_identity.sys_uuid if backup_identity else '-'}, "
+                    f"source sys-uuid {source_identity.sys_uuid if source_identity else '-'}), "
+                    "but this diagnostic-only provenance metadata is not used to override "
+                    "exact state/Btrfs UUID proof"
+                )
             return name, (
-                "all configured source/backup payload UUIDs and stable info.json OS identity "
-                "match the same state.json record"
+                "all configured Timeshift UUIDs and backup Received UUIDs match the same "
+                f"state.json record; {info_note}"
             )
         latest_failure = f"{name} is not common: " + "; ".join(reasons)
     return None, latest_failure
@@ -781,6 +809,21 @@ def _build_restore_plan(
     common_parent, reason = _find_latest_common_parent(
         config, backups, source_by_name, source_identities, state
     )
+
+    # An exact common parent proven through current Timeshift UUIDs, backup
+    # Received UUIDs, and the same state.json record is stronger evidence than
+    # comparing historical Timeshift control-file provenance. The latter may
+    # legitimately differ after a restored snapshot is retained, retagged, or
+    # later replaced in the visible Timeshift set. Keep info.json as a warning
+    # and no-common-parent safeguard, but never let it invalidate stronger
+    # Btrfs lineage proof.
+    if common_parent and not os_match:
+        os_match = True
+        os_reason = (
+            f"{os_reason}; exact common parent {common_parent} is independently proven by "
+            "current Timeshift UUIDs and backup Received UUIDs against the same state.json record, "
+            "so differing info.json sys-uuid provenance is diagnostic only"
+        )
 
     initial_send_parent: str | None = None
     receive_parent_paths: dict[str, str] | None = None
@@ -1167,7 +1210,7 @@ def restore_backups(
         return
     if restore_all and plan.no_common_parent and not dry_run and not allow_no_common_parent:
         raise RestoreError(
-            "No UUID- and info.json-confirmed common snapshot exists between the current Timeshift repository and this backup. "
+            "No state/Btrfs UUID-confirmed common snapshot exists between the current Timeshift repository and this backup. "
             "Restoring all snapshots could import another OS. Re-run only after verification with "
             "--allow-no-common-parent."
         )
@@ -1215,7 +1258,7 @@ def restore_backups(
     collisions = sorted(set(plan.restore_names) & set(source_by_name))
     if collisions:
         raise RestoreError(
-            "Restore target date(s) already exist in Timeshift but are not the newest UUID- and info.json-confirmed common parent: "
+            "Restore target date(s) already exist in Timeshift but are not the newest state/Btrfs UUID-confirmed common parent: "
             + ", ".join(collisions)
         )
 

@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.1.67 config
+# timeshift-btrfs-sync v0.1.68 config
 # Run this config on the BACKUP/DESTINATION machine for normal sync.
 # source.mode controls only normal source-side sync/list/prune/manual commands.
 # Restore uses [restore] mode independently:

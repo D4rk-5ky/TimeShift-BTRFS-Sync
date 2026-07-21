@@ -82,7 +82,7 @@ The same permissions are used for both restore selections:
 # One full snapshot.
 ts-btrfs restore --config ./config.toml --snapshot 2026-07-15_05-00-02 --dry-run
 
-# Latest UUID- and info.json-confirmed common parent, then every newer backup.
+# Latest state/Btrfs UUID-confirmed common parent, then every newer backup.
 ts-btrfs restore --config ./config.toml --all --dry-run
 ```
 
@@ -111,7 +111,7 @@ rmdir
 
 For SSH restore, those permissions must be configured for the remote SSH account on the source host. Running only the destination-side process as root does not provide remote permission. The command does not need passwordless `sh` or `bash`, and granting a general shell is not recommended.
 
-`--all` uses `state.json`, live Btrfs UUID metadata, and stable `info.json` identity (`sys-uuid` plus Btrfs `type`) to identify the latest common source/backup snapshot. Snapshot-specific fields such as H/D/W/M tags, comments, creation time, file count, app version, and live status are ignored. If no common parent can be proven, a real full-chain restore additionally requires `--allow-no-common-parent`, the phrase `RESTORE ALL WITHOUT COMMON PARENT`, and the configured job name. If no current `info.json` identity matches the backup, real restore also requires `--allow-os-identity-mismatch` and `I UNDERSTAND THIS BACKUP MAY BELONG TO ANOTHER OS`.
+`--all` uses `state.json` and live Btrfs UUID metadata to identify the latest common source/backup snapshot. The current Timeshift payload UUID must match `original_source_uuid`, and the backup Received UUID must match `send_source_uuid`, in the same completed state record. `info.json` `sys-uuid`/type is retained as provenance and a separate cross-OS warning; snapshot-specific fields such as H/D/W/M tags, comments, creation time, file count, app version, and live status are ignored. Differing provenance cannot invalidate an exact UUID-proven common parent. If no common parent can be proven, a real full-chain restore additionally requires `--allow-no-common-parent`, the phrase `RESTORE ALL WITHOUT COMMON PARENT`, and the configured job name. If no current `info.json` provenance matches the backup, real restore also requires `--allow-os-identity-mismatch` and `I UNDERSTAND THIS BACKUP MAY BELONG TO ANOTHER OS`.
 
 Optionally add `--create-pre-restore-snapshot`. After all restore confirmations and before any receive, the app creates one Timeshift on-demand safety snapshot on the Timeshift target, verifies the new timestamp and every configured Btrfs payload, and leaves it in place even if restore later fails. Local restore creates it locally; SSH-target restore creates it on that SSH Timeshift host; SSH-backup pull restore creates it locally and never runs Timeshift creation on the remote backup host. This flag is independent of `[manual_snapshot]`, which applies to `sync`.
 

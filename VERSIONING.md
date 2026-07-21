@@ -767,3 +767,13 @@ This build is version `0.1.17`.
 - Added regression coverage for cache-root-relative `<date>/@` output, date-parent-relative bare `@` output, exact read-only reuse, no nested snapshot command, and conservative unscoped path rejection.
 - Updated current README, installation guidance, generated configuration comments, interface audit, tests, code map, and package metadata.
 
+
+## 0.1.68
+
+- Fixed restore common-parent validation incorrectly treating Timeshift `info.json` `sys-uuid` provenance as an authoritative third identity link after `state.json` and live Btrfs UUIDs had already proven the exact source/backup relationship.
+- A common parent is now proven only by the two hard per-payload links: current Timeshift UUID equals `original_source_uuid`, and backup Received UUID equals `send_source_uuid`, in the same completed `state.json` record.
+- Source/backup `info.json` provenance is still parsed, validated, displayed, and used as a separate cross-OS warning when no exact UUID common parent exists. A provenance mismatch can no longer invalidate stronger state/Btrfs lineage proof.
+- Clarified that restored `info.json` is intentionally preserved unchanged, so its `sys-uuid` records the filesystem from which the snapshot originated rather than necessarily identifying the current live repository after cloning, filesystem recreation, or imported restore.
+- Improved restore and CLI wording to distinguish state/Btrfs common-parent proof from `info.json` provenance warnings.
+- Added regression tests proving that an hourly/retention-era `info.json` provenance difference does not reject a UUID-proven common parent, while incorrect source UUIDs or backup Received UUIDs still reject that candidate.
+- Updated current README, installation guidance, interface audit, CLI help, code map, tests, generated configuration version headers, and package metadata.

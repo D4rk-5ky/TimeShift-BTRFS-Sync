@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.1.67 remote-backup pull-restore config
+# timeshift-btrfs-sync v0.1.68 remote-backup pull-restore config
 # Run this config on the LOCAL Timeshift machine that will receive the restore.
 # This profile is for: SSH BACKUP HOST -> LOCAL TIMESHIFT RESTORE.
 # [restore] mode = "ssh" selects the remote backup transport directly.

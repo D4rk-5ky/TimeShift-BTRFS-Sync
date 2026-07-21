@@ -641,7 +641,7 @@ def build_parser() -> argparse.ArgumentParser:
         (
             "Restore destination backups to source.snapshot_root in Timeshift's native Btrfs layout.\n"
             "Restore transport is selected by [restore] mode: local, ssh, or ssh-target.\n"
-            "Use --snapshot for one full restore, or --all to find the newest UUID- and info.json-confirmed common snapshot and restore every newer backup.\n"
+            "Use --snapshot for one full restore, or --all to find the newest state/Btrfs UUID-confirmed common snapshot and restore every newer backup.\n"
             "A chain reuses an exact read-only source send parent for an incremental first restore when available; otherwise it uses one full hidden seed followed by incrementals. No-common-parent restoration requires an extra danger override.\n"
             "Every real restore warns that original H/D/W/M tags remain subject to Timeshift retention and requires an exact typed risk acknowledgement.\n"
             "--create-pre-restore-snapshot creates one on-demand safety snapshot only on the Timeshift restore target before any receive; it never snapshots the backup repository.\n"
@@ -652,7 +652,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_config_arg(p)
     add_run_mode_args(
         p,
-        dry_run_help="validate UUIDs, info.json OS identity, receive-parent availability, and the single/chain plan without changing Timeshift",
+        dry_run_help="validate state/Btrfs UUID lineage, info.json provenance warnings, receive-parent availability, and the single/chain plan without changing Timeshift",
         run_help="perform the real full-plus-incremental restore into source.snapshot_root",
     )
     restore_selection = p.add_mutually_exclusive_group(required=True)
@@ -664,7 +664,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--all",
         dest="restore_all",
         action="store_true",
-        help="restore every backup newer than the latest UUID- and info.json-confirmed common Timeshift snapshot",
+        help="restore every backup newer than the latest state/Btrfs UUID-confirmed common Timeshift snapshot",
     )
     p.add_argument(
         "--create-pre-restore-snapshot",
@@ -679,7 +679,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--allow-os-identity-mismatch",
         action="store_true",
-        help="allow restore when stable Timeshift info.json sys-uuid/type does not match the current repository; requires an exact typed danger acknowledgement",
+        help="allow restore without an exact UUID common parent when Timeshift info.json sys-uuid/type provenance also does not match the current repository; requires an exact typed danger acknowledgement",
     )
     p.add_argument(
         "--i-understand-this-modifies-timeshift",

@@ -700,7 +700,7 @@ No runtime classes or functions are defined in this file.
 
 - `RestoreError` (class, line 47): Raised when backups cannot be imported safely into Timeshift. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `TimeshiftOsIdentity` (class, line 52): Stable Timeshift metadata used to identify one OS installation. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `TimeshiftOsIdentity` (class, line 52): Timeshift ``info.json`` provenance metadata for one snapshot. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
 - `BackupSnapshot` (class, line 61): One validated local or SSH backup snapshot available for restore. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
@@ -726,51 +726,51 @@ No runtime classes or functions are defined in this file.
 
 - `_effective_send_uuid` (function/method, line 260): Return the UUID identity carried by a Btrfs send stream. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_info_os_identity` (function/method, line 274): Return stable Timeshift OS identity while ignoring per-snapshot fields. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_info_os_identity` (function/method, line 274): Return Timeshift provenance identity while ignoring mutable fields. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_parse_info_json` (function/method, line 294): Parse one Timeshift control file and extract its stable OS identity. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_parse_info_json` (function/method, line 296): Parse one Timeshift control file and extract its provenance identity. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_same_os_identity` (function/method, line 306): Return whether two Timeshift identities prove the same OS installation. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_same_os_identity` (function/method, line 308): Return whether two Timeshift control files have matching provenance. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_consistent_backup_identity` (function/method, line 317): Require one non-conflicting OS identity across the selected backup set. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_consistent_backup_identity` (function/method, line 319): Require one non-conflicting provenance identity across the backup set. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_timeshift_info_identities` (function/method, line 344): Parse stable OS identities from the coherent source info.json inventory. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_timeshift_info_identities` (function/method, line 346): Parse provenance identities from the coherent source info.json inventory. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_compare_repository_os_identity` (function/method, line 357): Compare one backup identity with all current Timeshift control files. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_compare_repository_os_identity` (function/method, line 359): Compare backup provenance with currently readable Timeshift control files. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `RestorePlan` (class, line 385): A side-effect-free single or chain restore plan. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `RestorePlan` (class, line 392): A side-effect-free single or chain restore plan. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `RestorePlan.seed_name` (property, line 402): Handle the seed name step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `RestorePlan.seed_name` (property, line 409): Handle the seed name step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_source_path_exists` (function/method, line 406): Handle the source path exists step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_source_path_exists` (function/method, line 413): Handle the source path exists step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_privileged_argv` (function/method, line 420): Handle the privileged argv step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_privileged_argv` (function/method, line 427): Handle the privileged argv step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_write_source_info_json` (function/method, line 424): Write exact captured metadata through the configured source privilege prefix. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_write_source_info_json` (function/method, line 431): Write exact captured metadata through the configured source privilege prefix. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_validate_backup_snapshot` (function/method, line 465): Validate one backup date, payload set, metadata file, and Btrfs identity. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_validate_backup_snapshot` (function/method, line 472): Validate one backup date, payload set, metadata file, and Btrfs identity. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_discover_backups` (function/method, line 543): Return selected or all valid backups ordered by Timeshift timestamp. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_discover_backups` (function/method, line 550): Return selected or all valid backups ordered by Timeshift timestamp. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_timeshift_snapshots` (function/method, line 568): Read one coherent Timeshift-target snapshot/cache/info.json inventory. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_timeshift_snapshots` (function/method, line 575): Read one coherent Timeshift-target snapshot/cache/info.json inventory. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_find_latest_common_parent` (function/method, line 597): Find the newest date proven common by UUID state and info.json identity. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_find_latest_common_parent` (function/method, line 604): Find the newest date proven common by state and Btrfs UUID identity. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_find_reusable_receive_parent` (function/method, line 664): Find exact read-only Timeshift-side subvolumes for the first incremental receive. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_find_reusable_receive_parent` (function/method, line 692): Find exact read-only Timeshift-side subvolumes for the first incremental receive. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_build_restore_plan` (function/method, line 730): Build a single or complete-chain restore plan without changing either side. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_build_restore_plan` (function/method, line 758): Build a single or complete-chain restore plan without changing either side. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_remove_restore_directory` (function/method, line 827): Remove one exact app-created ordinary restore directory and its payloads. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_remove_restore_directory` (function/method, line 870): Remove one exact app-created ordinary restore directory and its payloads. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_cleanup_restore_attempt` (function/method, line 881): Roll back only directories created by the current restore attempt. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_cleanup_restore_attempt` (function/method, line 924): Roll back only directories created by the current restore attempt. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_create_pre_restore_snapshot` (function/method, line 941): Create and verify one safety snapshot on the Timeshift restore target. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_create_pre_restore_snapshot` (function/method, line 984): Create and verify one safety snapshot on the Timeshift restore target. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_print_restored_snapshot_retention_warning` (function/method, line 1038): Explain that restored Timeshift tags remain subject to normal retention. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_print_restored_snapshot_retention_warning` (function/method, line 1081): Explain that restored Timeshift tags remain subject to normal retention. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `_print_restore_plan` (function/method, line 1055): Handle the print restore plan step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `_print_restore_plan` (function/method, line 1098): Handle the print restore plan step used by this module. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
-- `restore_backups` (function/method, line 1131): Restore one snapshot or a complete backup chain into Timeshift. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
+- `restore_backups` (function/method, line 1174): Restore one snapshot or a complete backup chain into Timeshift. **Why:** Plans and executes single or chained restore through one local/SSH workflow, including OS identity, incremental parent, pre-restore safety snapshot, staging, CoW, and cleanup checks.
 
 ## `timeshift_btrfs_sync/retention.py`
 
