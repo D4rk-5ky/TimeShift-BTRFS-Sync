@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 import shlex
 
 from .btrfs_ops import BtrfsOps, parse_subvolume_show
+from .inventory import BtrfsIndex, parse_subvolume_list, parse_subvolume_paths
 from .models import SubvolumeMeta
-
-if TYPE_CHECKING:
-    from .inventory import BtrfsIndex
+from .paths import normalize_source_path
 
 
 def _safe_name(value: str, label: str) -> str:
@@ -81,6 +79,102 @@ class CacheManager:
         if index:
             index.add(existing)
         return existing
+
+    def _probe_existing_from_parent(
+        self,
+        *,
+        original: SubvolumeMeta,
+        cache_path: str,
+    ) -> SubvolumeMeta | None:
+        """Find one exact cache child from an authoritative parent-scoped list.
+
+        ``btrfs subvolume list -o PARENT`` can return descendants relative to
+        ``PARENT`` itself. This targeted probe is used only when the per-run
+        bulk cache index missed the exact child. It prevents an existing cache
+        child from being passed back to ``btrfs subvolume snapshot`` as though
+        it were an empty destination directory, which would otherwise make
+        Btrfs attempt a nested ``@/@`` or ``@home/@home`` snapshot.
+        """
+
+        parent = str(Path(cache_path).parent)
+        list_command = self.ops.endpoint.shell_command(
+            self.ops.argv(["subvolume", "list", "-u", "-q", "-R", "-o", parent])
+        )
+        readonly_command = self.ops.endpoint.shell_command(
+            self.ops.argv(["subvolume", "list", "-r", "-o", parent])
+        )
+        script = f"""
+list_output=$({list_command} 2>&1)
+list_status=$?
+printf 'TSBTRFS_CACHE_PARENT_LIST_STATUS\t%s\n' "$list_status"
+printf 'TSBTRFS_CACHE_PARENT_LIST_BEGIN\n%s\nTSBTRFS_CACHE_PARENT_LIST_END\n' "$list_output"
+readonly_output=$({readonly_command} 2>&1)
+readonly_status=$?
+printf 'TSBTRFS_CACHE_PARENT_READONLY_STATUS\t%s\n' "$readonly_status"
+printf 'TSBTRFS_CACHE_PARENT_READONLY_BEGIN\n%s\nTSBTRFS_CACHE_PARENT_READONLY_END\n' "$readonly_output"
+exit 0
+""".strip()
+        result = self.ops.endpoint.run_shell(
+            script,
+            check=False,
+            log_stderr=False,
+            mirror_stderr=False,
+        )
+        if result.returncode != 0:
+            detail = result.stderr.strip() or result.stdout.strip() or f"return code {result.returncode}"
+            raise RuntimeError(
+                "Cannot safely inspect the exact source cache parent before snapshot creation:\n"
+                f"  {parent}\n{detail}"
+            )
+
+        statuses: dict[str, int | None] = {"list": None, "readonly": None}
+        outputs: dict[str, list[str]] = {"list": [], "readonly": []}
+        section: str | None = None
+        for line in result.stdout.splitlines():
+            if line.startswith("TSBTRFS_CACHE_PARENT_LIST_STATUS\t"):
+                try:
+                    statuses["list"] = int(line.split("\t", 1)[1])
+                except ValueError:
+                    statuses["list"] = None
+            elif line.startswith("TSBTRFS_CACHE_PARENT_READONLY_STATUS\t"):
+                try:
+                    statuses["readonly"] = int(line.split("\t", 1)[1])
+                except ValueError:
+                    statuses["readonly"] = None
+            elif line == "TSBTRFS_CACHE_PARENT_LIST_BEGIN":
+                section = "list"
+            elif line == "TSBTRFS_CACHE_PARENT_LIST_END":
+                section = None
+            elif line == "TSBTRFS_CACHE_PARENT_READONLY_BEGIN":
+                section = "readonly"
+            elif line == "TSBTRFS_CACHE_PARENT_READONLY_END":
+                section = None
+            elif section:
+                outputs[section].append(line)
+
+        if statuses["list"] != 0:
+            detail = "\n".join(outputs["list"]).strip() or f"return code {statuses['list']}"
+            raise RuntimeError(
+                "Cannot safely list the exact source cache parent before snapshot creation:\n"
+                f"  {parent}\n{detail}"
+            )
+
+        wanted = normalize_source_path(cache_path)
+        exact = next(
+            (meta for meta in parse_subvolume_list("\n".join(outputs["list"]), parent) if meta.path == wanted),
+            None,
+        )
+        if exact is None:
+            return None
+
+        if statuses["readonly"] != 0:
+            detail = "\n".join(outputs["readonly"]).strip() or f"return code {statuses['readonly']}"
+            raise RuntimeError(
+                "Found the exact source cache Btrfs child but could not verify its read-only state:\n"
+                f"  {cache_path}\n{detail}"
+            )
+        exact.readonly = wanted in parse_subvolume_paths("\n".join(outputs["readonly"]), parent)
+        return validate_cache_snapshot(exact, cache_path=cache_path, original=original)
 
     def _probe_create_verify(
         self,
@@ -186,6 +280,12 @@ exit 0
             return meta("show")
         if statuses["race"] == 0:
             return meta("race")
+        recovered = self._probe_existing_from_parent(
+            original=original,
+            cache_path=cache_path,
+        )
+        if recovered is not None:
+            return recovered
         detail = "\n".join(outputs["create"]).strip() or f"return code {statuses['create']}"
         raise RuntimeError("Failed to create read-only source cache snapshot.\n" + detail)
 
@@ -226,6 +326,14 @@ exit 0
 
         self._ensure_subvolume(self.cache_root, cache_index)
         self._ensure_subvolume(parent, cache_index)
+        exact = self._probe_existing_from_parent(
+            original=original,
+            cache_path=child,
+        )
+        if exact is not None:
+            if cache_index:
+                cache_index.add(exact)
+            return exact
         result = self._probe_create_verify(original=original, cache_path=child, subvolume_name=subvolume_name)
         if cache_index:
             cache_index.add(result)

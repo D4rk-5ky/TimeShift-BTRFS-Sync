@@ -169,6 +169,8 @@ The default profile is `sync`. Both generated profiles contain every current con
 - SSH source mode requires `[ssh].host` and uses one source endpoint abstraction.
 - The source snapshot root is Timeshift-owned and is never a delete target.
 - The source cache root and destination root are app-owned Btrfs trees.
+- Root-scoped cache inventory accepts Btrfs descendants reported with an on-disk prefix, as `<date>/@`, or as bare `@` below an exact date parent; unmatched paths remain rejected outside scoped `-o` listings.
+- A cache child missed by the bulk index is checked through an authoritative parent-scoped UUID/read-only list before any snapshot creation; an existing valid child is reused and an unavailable safety check aborts.
 - Incremental sends require source UUID to match destination Received UUID.
 - Full send begins a chain only when the destination is empty at run start.
 - Retention selects snapshots by Timeshift tags and processes transfers oldest-to-newest.

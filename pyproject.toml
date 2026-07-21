@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "timeshift-btrfs-sync"
-version = "0.1.66"
+version = "0.1.67"
 description = "Btrfs send/receive sync and restore for Timeshift snapshots, including SSH source sync and remote-backup pull restore"
 readme = "README.md"
 requires-python = ">=3.11"

@@ -136,7 +136,7 @@ def parse_subvolume_list(output: str, root_path: str | Path) -> list[SubvolumeMe
         before, sep, raw_path = line.strip().partition(" path ")
         if not sep:
             continue
-        abs_path = listed_path_to_absolute(root_path, raw_path)
+        abs_path = listed_path_to_absolute(root_path, raw_path, scoped_to_root=True)
         if not abs_path:
             continue
         tokens = before.split()
@@ -154,15 +154,15 @@ def parse_subvolume_list(output: str, root_path: str | Path) -> list[SubvolumeMe
     return metas
 
 
-def _paths_from_list_output(output: str, root_path: str | Path) -> set[str]:
-    """Return absolute subvolume paths parsed from any ``btrfs subvolume list`` output."""
+def parse_subvolume_paths(output: str, root_path: str | Path) -> set[str]:
+    """Return root-scoped absolute paths from ``btrfs subvolume list`` output."""
 
     paths: set[str] = set()
     for line in output.splitlines():
         _before, sep, raw_path = line.strip().partition(" path ")
         if not sep:
             continue
-        abs_path = listed_path_to_absolute(root_path, raw_path)
+        abs_path = listed_path_to_absolute(root_path, raw_path, scoped_to_root=True)
         if abs_path:
             paths.add(abs_path)
     return paths
@@ -171,7 +171,7 @@ def _paths_from_list_output(output: str, root_path: str | Path) -> set[str]:
 def _mark_readonly_from_list(index: BtrfsIndex, output: str, root_path: str | Path) -> None:
     """Mark indexed paths read-only using one ``btrfs subvolume list -r`` result."""
 
-    readonly_paths = _paths_from_list_output(output, root_path)
+    readonly_paths = parse_subvolume_paths(output, root_path)
     if not readonly_paths:
         # A successful empty readonly list means indexed descendants are writable.
         for meta in index.by_path.values():

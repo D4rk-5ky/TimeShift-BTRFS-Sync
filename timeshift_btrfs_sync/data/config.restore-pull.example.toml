@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.1.66 remote-backup pull-restore config
+# timeshift-btrfs-sync v0.1.67 remote-backup pull-restore config
 # Run this config on the LOCAL Timeshift machine that will receive the restore.
 # This profile is for: SSH BACKUP HOST -> LOCAL TIMESHIFT RESTORE.
 # [restore] mode = "ssh" selects the remote backup transport directly.
@@ -383,12 +383,13 @@ source_change_retry_count = 5
 # Read-only send snapshots are then created with:
 #   sudo -n btrfs subvolume snapshot -r <original> <cache_root>/<snapshot>/<subvolume>
 # Existing cache snapshots are bulk-indexed once and reused only when UUID,
-# read-only state, and available parent identity are safe. Before creating a
-# missing child, one source command probes the exact target, reuses it if safe,
-# or creates and confirms it when absent. This prevents an existing <date>/@
-# from being passed as a destination directory and becoming a nested <date>/@/@.
-# The same exact probe also recovers safely when a remounted Btrfs path was not
-# represented correctly by the earlier bulk list or another process created it.
+# read-only state, and parent identity are safe. Root-scoped Btrfs list paths may
+# appear with an on-disk prefix, as <date>/@ relative to cache_root, or as bare @
+# relative to one date parent. All three safe scoped forms are mapped exactly.
+# Before creating a child missed by the bulk index, one authoritative parent-
+# scoped UUID/read-only listing must prove the exact child absent or reusable.
+# If that safety listing fails, creation is refused. This prevents an existing
+# <date>/@ from being used as a destination directory and becoming <date>/@/@.
 # destroy-leftovers checks cache_root with configured sudo+Btrfs before relying
 # on source-shell `test -e`, so the source user does not need ordinary directory
 # traversal permission just to prove the app-owned cache subvolume exists.

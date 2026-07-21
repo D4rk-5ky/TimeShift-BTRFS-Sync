@@ -78,25 +78,27 @@ No runtime classes or functions are defined in this file.
 
 **Why this module exists:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
-- `_safe_name` (function/method, line 16): Handle the safe name step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
+- `_safe_name` (function/method, line 14): Handle the safe name step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
-- `cache_parent_path` (function/method, line 22): Handle the cache parent path step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
+- `cache_parent_path` (function/method, line 20): Handle the cache parent path step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
-- `cache_child_path` (function/method, line 26): Handle the cache child path step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
+- `cache_child_path` (function/method, line 24): Handle the cache child path step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
-- `validate_cache_snapshot` (function/method, line 30): Prove an exact cache child is a safe read-only snapshot of ``original``. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
+- `validate_cache_snapshot` (function/method, line 28): Prove an exact cache child is a safe read-only snapshot of ``original``. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
-- `CacheManager` (class, line 50): Ensure exact reusable send snapshots without nested cache creation. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
+- `CacheManager` (class, line 48): Ensure exact reusable send snapshots without nested cache creation. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
-- `CacheManager.__init__` (function/method, line 53): Handle the init step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
+- `CacheManager.__init__` (function/method, line 51): Handle the init step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
-- `CacheManager._ensure_subvolume` (function/method, line 58): Handle the ensure subvolume step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
+- `CacheManager._ensure_subvolume` (function/method, line 56): Handle the ensure subvolume step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
-- `CacheManager._probe_create_verify` (function/method, line 85): Probe, create if absent, and verify exact cache path in one command. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
+- `CacheManager._probe_existing_from_parent` (function/method, line 83): Find one exact cache child from an authoritative parent-scoped list. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
-- `CacheManager._probe_create_verify.meta` (function/method, line 165): Handle the meta step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
+- `CacheManager._probe_create_verify` (function/method, line 179): Probe, create if absent, and verify exact cache path in one command. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
-- `CacheManager.ensure_send_snapshot` (function/method, line 192): Return original read-only source or create/reuse one exact cache child. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
+- `CacheManager._probe_create_verify.meta` (function/method, line 259): Handle the meta step used by this module. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
+
+- `CacheManager.ensure_send_snapshot` (function/method, line 292): Return original read-only source or create/reuse one exact cache child. **Why:** Keeps exact send-cache creation and reuse in one place, preventing nested or identity-mismatched cache snapshots.
 
 ## `timeshift_btrfs_sync/cli.py`
 
@@ -352,7 +354,7 @@ No runtime classes or functions are defined in this file.
 
 - `parse_subvolume_list` (function/method, line 131): Parse ``btrfs subvolume list -u -q -R`` output for one root. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
 
-- `_paths_from_list_output` (function/method, line 157): Return absolute subvolume paths parsed from any ``btrfs subvolume list`` output. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
+- `parse_subvolume_paths` (function/method, line 157): Return root-scoped absolute paths from ``btrfs subvolume list`` output. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
 
 - `_mark_readonly_from_list` (function/method, line 171): Mark indexed paths read-only using one ``btrfs subvolume list -r`` result. **Why:** Builds authoritative Timeshift, source-cache, and destination inventories with bulk metadata reads.
 
@@ -576,9 +578,9 @@ No runtime classes or functions are defined in this file.
 
 - `is_under` (function/method, line 55): Return true only when ``path`` is strictly below ``root``. **Why:** Normalizes, maps, and validates managed local and remote paths safely.
 
-- `listed_path_to_absolute` (function/method, line 67): Resolve a Btrfs filesystem-relative list path below a mounted root. **Why:** Normalizes, maps, and validates managed local and remote paths safely.
+- `listed_path_to_absolute` (function/method, line 67): Resolve one Btrfs-list path below a mounted root. **Why:** Normalizes, maps, and validates managed local and remote paths safely.
 
-- `sort_deepest_first` (function/method, line 103): Deduplicate and order paths for child-before-parent deletion. **Why:** Normalizes, maps, and validates managed local and remote paths safely.
+- `sort_deepest_first` (function/method, line 115): Deduplicate and order paths for child-before-parent deletion. **Why:** Normalizes, maps, and validates managed local and remote paths safely.
 
 ## `timeshift_btrfs_sync/payload_stats.py`
 
@@ -630,11 +632,11 @@ No runtime classes or functions are defined in this file.
 
 **Why this module exists:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
 
-- `ActionKind` (class, line 17): Handle the ActionKind step used by this module. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
+- `ActionKind` (class, line 17): Represent the ActionKind data used by this module. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
 
-- `WorkflowAction` (class, line 28): Handle the WorkflowAction step used by this module. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
+- `WorkflowAction` (class, line 28): Represent the WorkflowAction data used by this module. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
 
-- `WorkflowPlan` (class, line 36): Handle the WorkflowPlan step used by this module. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
+- `WorkflowPlan` (class, line 36): Represent the WorkflowPlan data used by this module. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
 
 - `WorkflowPlan.add` (function/method, line 40): Handle the add step used by this module. **Why:** Builds side-effect-free ordered plans for sync, recovery, prune, and destructive cleanup.
 
@@ -1084,7 +1086,7 @@ No runtime classes or functions are defined in this file.
 
 **Why this module exists:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
 
-- `TreeDeleteResult` (class, line 15): Handle the TreeDeleteResult step used by this module. **Why:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
+- `TreeDeleteResult` (class, line 15): Represent the TreeDeleteResult data used by this module. **Why:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
 
 - `TreeDeleteResult.success` (property, line 26): Handle the success step used by this module. **Why:** Discovers and deletes complete Btrfs trees deepest-first with strict verification.
 

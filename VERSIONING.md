@@ -757,3 +757,13 @@ This build is version `0.1.17`.
 - Added regression coverage proving SSH pull restore never probes or opens the lock through SSH, uses the configured local lock, and refuses a missing local lock directory with a local-path diagnostic.
 - Updated current CLI help, README, installation guidance, configuration comments, interface audit, code map, tests, and package metadata.
 
+## 0.1.67
+
+- Fixed local send-cache reuse when root-scoped `btrfs subvolume list -o` output reports existing descendants as `<date>/@`, `<date>/@home`, or bare `@`/`@home` instead of including the configured cache-root mount path.
+- Root-scoped inventory parsing now joins unmatched safe relative descendants only for commands that were explicitly restricted to the requested root. Unscoped Btrfs path mapping remains conservative and continues to reject unrelated or absolute outside paths.
+- Added one authoritative parent-scoped cache-child probe using UUID and read-only Btrfs listings before any `btrfs subvolume snapshot -r` creation. A valid existing child is reused after read-only and Parent UUID validation; a failed safety listing aborts instead of guessing.
+- Added post-create-failure recovery through the same parent-scoped probe so a concurrently created valid cache snapshot is reused rather than treated as a failed cache version.
+- Prevented an existing `<cache_root>/<date>/@` or `@home` from being passed to Btrfs as a destination directory, which previously caused attempted nested paths such as `<date>/@/@` and could trigger deletion of a valid reusable cache child during recovery.
+- Added regression coverage for cache-root-relative `<date>/@` output, date-parent-relative bare `@` output, exact read-only reuse, no nested snapshot command, and conservative unscoped path rejection.
+- Updated current README, installation guidance, generated configuration comments, interface audit, tests, code map, and package metadata.
+

@@ -64,13 +64,21 @@ def is_under(path: str | Path | None, root: str | Path | None) -> bool:
     return path_text != root_text and path_text.startswith(root_text.rstrip("/") + "/")
 
 
-def listed_path_to_absolute(root: str | Path, listed_path: str) -> str | None:
-    """Resolve a Btrfs filesystem-relative list path below a mounted root.
+def listed_path_to_absolute(
+    root: str | Path,
+    listed_path: str,
+    *,
+    scoped_to_root: bool = False,
+) -> str | None:
+    """Resolve one Btrfs-list path below a mounted root.
 
     Btrfs can include an on-disk mount-subvolume prefix that is absent from the
     configured mount path. The longest matching suffix of the configured root
-    anchors the descendant. Unmatched or absolute paths outside the requested
-    root are rejected instead of being guessed below it.
+    anchors the descendant. Commands using ``btrfs subvolume list -o ROOT``
+    may instead return a path relative to ``ROOT`` itself, such as
+    ``2026-07-21_07-28-49/@``. Callers that actually used ``-o ROOT`` set
+    ``scoped_to_root=True`` so that safe relative form is joined below the exact
+    requested root. Unscoped callers continue to reject unmatched paths.
     """
 
     root_text = normalize_source_path(str(root))
@@ -97,6 +105,10 @@ def listed_path_to_absolute(root: str | Path, listed_path: str) -> str | None:
                 continue
             candidate = normalize_source_path(str(PurePosixPath(root_text, *listed_parts[index + suffix_length:])))
             return candidate if is_same_or_under(candidate, root_text) else None
+
+    if scoped_to_root and ".." not in listed_parts:
+        candidate = normalize_source_path(str(PurePosixPath(root_text, *listed_parts)))
+        return candidate if is_under(candidate, root_text) else None
     return None
 
 
