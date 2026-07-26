@@ -65,7 +65,7 @@ The safe defaults are intentionally conservative:
 - Destination pruning only deletes when `--run --yes-delete` is used.
 - Incremental parents are verified with Btrfs UUID metadata before use.
 - Automatic source-side manual snapshot creation requires source identity and sync-parent viability checks before Timeshift is changed.
-- Restore refuses to overwrite an existing Timeshift date, validates state/Btrfs UUID lineage, reports `info.json` provenance separately, starts incrementally when the exact read-only send parent still exists, otherwise uses a justified full seed, exposes writable CoW snapshots in Timeshift’s native layout, and commits only after every payload and metadata check succeeds.
+- Restore refuses to overwrite an existing Timeshift date, intersects the configured physical Timeshift and backup timestamp trees newest-first, requires real Btrfs payloads on both sides, prefers exact state/cache Btrfs lineage, securely falls back to matching same-date `info.json` `sys-uuid`/`type`, always creates an exact receiver-side full seed before later incrementals, exposes writable CoW snapshots in Timeshift’s native layout, and commits only after every payload and metadata check succeeds.
 - Normal/user-created Timeshift on-demand snapshots are not pruned unless explicitly enabled.
 - The app does not manage destination Btrfs compression; mount the receiving Btrfs filesystem/subvolume with compression enabled if you want compressed destination storage.
 
@@ -78,7 +78,7 @@ ts-btrfs-sync-user ALL=(root) NOPASSWD: /usr/bin/timeshift *
 
 This is enough because Timeshift listing/creation, Btrfs send, Btrfs metadata checks, read-only cache creation, and source send-cache cleanup use those two commands. Per-snapshot Timeshift `info.json` files are read with ordinary non-sudo `cat`; the SSH/source user therefore needs normal path traversal and file read permission.
 
-The `restore` command additionally creates and renames an ordinary Timeshift date directory and writes its regular `info.json`. With the restricted sudoers rules above, run a **local restore as root**, or grant narrow source-side passwordless sudo for `/usr/bin/mkdir`, `/usr/bin/tee`, `/usr/bin/chmod`, `/usr/bin/mv`, `/usr/bin/rm`, and `/usr/bin/rmdir`. For SSH restore, those permissions must exist on the remote source account; running the destination-side app as local root does not grant remote filesystem permission. `base64` and `cat` remain unprivileged. Do not grant a passwordless shell such as `sh` or `bash` merely for restore.
+The `restore` command additionally scans physical timestamp directories and control files, then creates and renames an ordinary Timeshift date directory and writes its regular `info.json`. The simplest supported setup is to run a local restore as root. For an unprivileged restore, grant narrow source-side passwordless sudo for `/usr/bin/test`, `/usr/bin/ls`, `/usr/bin/base64`, `/usr/bin/mkdir`, `/usr/bin/tee`, `/usr/bin/chmod`, `/usr/bin/mv`, `/usr/bin/rm`, and `/usr/bin/rmdir`, plus the configured Btrfs and Timeshift commands. The backup-side endpoint also needs `test`, `ls`, and `base64` through `destination.sudo` for its read-only physical scan. For SSH-target restore these source permissions must exist on the remote Timeshift account; for SSH pull the backup scan permissions must exist on the remote backup account. The app prefixes individual commands and does not require passwordless `sh` or `bash`; granting a general shell is not recommended.
 
 ## Remote `info.json` permissions and persistent source mount
 
@@ -272,7 +272,7 @@ ts-btrfs restore --config ./config-restore-pull.toml \
 
 If a local Timeshift repository is accidentally selected as the backup, the app now explains that Timeshift date folders are correctly ordinary directories and points to this transport setting instead of presenting the layout as corrupt.
 
-The remote SSH account needs ordinary traversal/read permission for the backup timestamp directories, `info.json`, and `state.json`; access to `base64`; and narrow passwordless sudo permission for the configured Btrfs command used by `subvolume list/show` and `send`. It does not need remote lock-file write permission or `flock`. The local side needs the normal restore permissions for `btrfs receive`, Timeshift, ordinary date directories, `info.json`, and the configured local `lock_file`. The local restore lock is held until all streams and verification complete.
+The remote SSH account needs narrow passwordless permission through `destination.sudo` for the configured Btrfs command plus read-only `test`, `ls`, and `base64` operations used to inventory backup timestamp directories, `info.json`, and `state.json`. The scanner prefixes those individual commands; it never runs a privileged shell. The account does not need remote lock-file write permission or `flock`. The local side needs the normal restore permissions for `btrfs receive`, Timeshift, ordinary date directories, `info.json`, and the configured local `lock_file`. The local restore lock is held until all streams and verification complete.
 
 ### `info.json` provenance and same-OS warnings
 
@@ -284,7 +284,7 @@ Restore parses Timeshift metadata before changing the source repository. It uses
 
 The comparison intentionally ignores snapshot-specific fields that legitimately change between snapshots, including H/D/W/M/O/B tags, comments, creation time, file counts, Timeshift app version, live status, and Btrfs statistics.
 
-The original `info.json` is restored unchanged. Its `sys-uuid` is therefore snapshot provenance, not guaranteed live-repository identity after an OS clone, filesystem recreation, or imported restore. The app uses that provenance as a separate cross-OS warning when no stronger common-parent proof exists. It never lets a differing `sys-uuid` invalidate an exact common parent already proven through `state.json` and live Btrfs UUIDs.
+The original `info.json` is restored unchanged. Its `sys-uuid` is the stable Timeshift filesystem/OS identity recorded for that snapshot. Restore compares `sys-uuid` and `type` for the **same timestamp** as a secure fallback when exact state/cache Btrfs lineage is unavailable. It never compares the whole JSON object: tags, comments, creation time, counters, and other mutable fields may differ. Exact Btrfs lineage remains the stronger proof when available.
 
 Every backup selected by `--all` must contain one consistent `sys-uuid` and snapshot type. A mixed backup set is refused. The backup provenance is compared with the readable `info.json` files in the current Timeshift repository. When no exact UUID common parent exists and no metadata match can be proven, dry-run prints a cross-OS warning and a real restore requires:
 
@@ -300,32 +300,30 @@ I UNDERSTAND THIS BACKUP MAY BELONG TO ANOTHER OS
 
 ### Common-parent safety
 
-A timestamp name alone is never considered common. For every configured payload such as `@` and `@home`, the newest common date must satisfy both authoritative checks:
+For `restore --all`, restore first intersects the timestamp directories physically present below the configured `source.snapshot_root` and `destination.target_root/snapshots`. It considers candidates newest-to-oldest. `timeshift --list` contributes tags, comments, and diagnostics, but it is not the authority for physical timestamp existence.
 
-1. The current Timeshift payload UUID equals `original_source_uuid` in `state.json`.
-2. The backup payload `Received UUID` equals `send_source_uuid` in the same state entry.
+A candidate is usable only when every configured payload such as `@` and `@home` is a real Btrfs subvolume on both sides. Restore then accepts the newest candidate proven by either of these methods:
 
-The source and backup `info.json` provenance is still shown in the plan. A difference is diagnostic only once both UUID links above prove the same state record. This prevents Timeshift tag/retention changes or restored historical metadata from invalidating stronger Btrfs lineage proof.
+1. **Exact Btrfs lineage proof:** a completed `state.json` record links the current Timeshift payload UUID to `original_source_uuid` and the backup payload `Received UUID` to `send_source_uuid`; or the retained read-only cache proves current Timeshift UUID → cache Parent UUID and cache send identity → backup Received UUID. A natively read-only Timeshift payload may match the backup Received UUID directly.
+2. **Same-date Timeshift identity proof:** when exact state/cache lineage is unavailable, the same physical timestamp exists on both sides, all configured payloads are Btrfs subvolumes, and that timestamp's source and backup `info.json` files have the same stable `sys-uuid` and `type`. Mutable tags, comments, creation time, statistics, and Timeshift version are deliberately ignored.
 
-If the common parent is already the newest backup, there is nothing to restore.
+The second method is safe for choosing an already-present timestamp because restore does not use the visible Timeshift payload as the receive parent. It full-receives the exact backup copy of the common timestamp into a hidden receiver-side chain before sending newer incrementals. A matching date alone, a repository-wide `info.json` match from another date, or names in `state.json` without live payloads are never accepted.
 
-If no common parent can be proven, `--all` prints a prominent warning. A real full-chain restore is refused unless `--allow-no-common-parent` is supplied, followed by the stronger no-common-parent confirmations. The `info.json` OS-identity check remains separate; either or both overrides may be required depending on the plan.
+`state.json` is therefore preferred evidence, not a mandatory dependency. Missing, unreadable, symlinked, malformed, or unsupported state is never trusted; restore records the validation warning, uses empty state for planning, and continues only if independent retained-cache or matching same-date `info.json` proof succeeds. `destroy-leftovers --delete-destination` may intentionally remove the destination and its state while keeping `source.cache_root`; a later fresh backup can be matched through exact retained-cache lineage. If cache/state evidence is unavailable, matching same-date `info.json` identity still permits the newest physically shared timestamp to be selected.
 
-### First transfer: incremental when the exact receive parent still exists
+The read-only repository scan uses the configured privilege prefixes to run only `test`, `ls`, and `base64` for directory/type/control-file inspection. It never grants or invokes a privileged shell. Local, SSH pull, and SSH-target restore use the same candidate and proof rules.
 
-A common Timeshift snapshot proves source identity, but it is not automatically the Btrfs receive parent. Backups are commonly sent from a read-only cache snapshot, so the incremental stream parent UUID can differ from the writable Timeshift snapshot UUID.
+If the common timestamp is already the newest backup, there is nothing to restore. If no candidate can be safely confirmed, `--all` prints the newest failed candidate diagnostics and refuses a real full-chain restore unless `--allow-no-common-parent` and the stronger typed confirmations are supplied. The repository-wide `info.json` OS-identity warning remains separate and may require `--allow-os-identity-mismatch` when no exact proof overrides it.
 
-For every payload of the common date, restore resolves the exact recorded `send_path` from `state.json` and verifies that it:
+### Receiver-side full seed and incremental chain
 
-- still exists on the source filesystem;
-- has the recorded `send_source_uuid`;
-- remains read-only.
+When a common parent exists and newer backups must be restored, restore always full-receives the exact common backup into a hidden directory on the **receiving Timeshift filesystem**. It does not use a source-side cache snapshot or an existing writable Timeshift snapshot as an implicit receive parent.
 
-When every payload passes, the first newer backup is sent incrementally with the common backup as the sender parent. Btrfs receive uses the existing exact read-only source/cache parent, so no full seed transfer is needed. Later backups continue incrementally from the previously received hidden snapshot.
+This hidden common backup provides the receiver with the exact parent and clone-source identities referenced by later incremental streams. Every later backup is sent incrementally from the preceding backup and received beside the preceding hidden snapshot. Before each incremental, restore verifies that the hidden receiver-side parent is read-only and that its `Received UUID` matches the effective send identity of the exact backup parent.
 
-When any exact receive parent is missing, writable, or has the wrong UUID, restore cannot safely use it. The terminal prints the precise reason and falls back to a full hidden receive of the common backup, followed by incrementals. Restore never guesses a parent from matching names and never changes an existing Timeshift snapshot to manufacture a parent.
+If Btrfs explicitly reports that an incremental parent or clone source cannot be found, restore deletes only the exact partial child produced by that failed receive and retries that one payload once as a full stream. Permission, storage, corruption, ENOSPC, and unrelated failures remain hard errors and are never converted into a full retry.
 
-Without any common parent, the oldest backup is full-received and every later backup is incremental.
+Without any common parent, the oldest backup is full-received as the hidden seed and every later backup is incremental.
 
 ### Restored-tag retention warning
 
@@ -396,7 +394,7 @@ Normal sync flow:
 4. Prepare destination helpers. `destination.snapshots` must be a Btrfs subvolume and has no mkdir fallback; state_file.parent, lock_file.parent, and log_dir may be ordinary directories or Btrfs subvolumes.
 5. Build one coherent source inventory. In SSH mode one SSH command runs Timeshift listing, reads every readable `<snapshot_root>/<date>/info.json` with ordinary `cat`, and performs bulk Btrfs metadata scans for both source.snapshot_root and source.cache_root. In local mode the same information is collected locally.
 6. Build one local bulk Btrfs index rooted at `destination.target_root/snapshots`, so mounted-subvolume list paths such as `snapshots/<date>` map to the correct absolute destination paths. Exact-probe any direct date missed by the bulk list before deciding it is ordinary.
-7. Compare Timeshift names, snapshot-root UUIDs, cache UUIDs, destination Received UUIDs, and state.json to find the newest safe common parent.
+7. Compare physical Timeshift/backup timestamp names and prove every payload through current UUID, retained-cache Parent/send UUID, backup Received UUID, and optional state.json evidence to find the newest safe common parent.
 8. Skip snapshots already received or older than the confirmed sync floor.
 9. Use full send only when the destination was empty at the start of the sync run.
 10. Use incremental send when a UUID-confirmed parent is available.
@@ -617,7 +615,7 @@ ts-btrfs restore --config ./config.toml \
   --snapshot 2026-07-15_05-00-02 \
   --dry-run
 
-# Or find the latest state/Btrfs UUID-confirmed common parent and preview all newer backups.
+# Or find the newest safely confirmed shared timestamp and preview all newer backups.
 ts-btrfs restore --config ./config.toml --all --dry-run
 ```
 
@@ -708,16 +706,16 @@ Applies destination retention without syncing first.
 
 ### `restore`
 
-Restores either one backup or a complete backup chain to `source.snapshot_root` in Timeshift's native layout. `--all` finds the newest common parent by current Timeshift UUID, backup Received UUID, and the same `state.json` identity record. `info.json` provenance remains a separate cross-OS warning, but it cannot invalidate an exact UUID-proven common parent. When the exact recorded read-only source send parent still exists, the first newer backup is incremental; otherwise restore explains why a full hidden seed is required. Writable Timeshift payloads are CoW snapshots of the hidden received subvolumes.
+Restores either one backup or a complete backup chain to `source.snapshot_root` in Timeshift's native layout. `--all` finds the newest timestamp physically present in both configured repositories. It prefers exact `state.json`/Btrfs or retained-cache lineage, and falls back to matching same-date `info.json` `sys-uuid`/`type` when all configured payloads are real Btrfs subvolumes on both sides. A chain always full-receives the exact common backup as a hidden receiver-side seed before later incrementals. Writable Timeshift payloads are CoW snapshots of the hidden received subvolumes.
 
 | Flag | What it does | Why it may be needed |
 |---|---|---|
 | `--config`, `-c` | Loads source endpoint, backup destination, stream, sudo, state, and lock settings. | Required to locate the backup, current Timeshift repository, and UUID identity history. |
 | `--snapshot SNAPSHOT` | Restores exactly one timestamp with a full send. | Use for an isolated snapshot import. Mutually exclusive with `--all`. |
-| `--all` | Restores every backup newer than the latest state/Btrfs UUID-confirmed common parent. | Starts incrementally when the exact recorded read-only receive parent still exists; otherwise uses one explained full seed followed by incrementals. Mutually exclusive with `--snapshot`. |
-| `--allow-no-common-parent` | Allows `--all` to proceed when no common snapshot can be proven. | Dangerous escape hatch for a full oldest-to-newest restore. It adds stronger typed confirmation. |
-| `--allow-os-identity-mismatch` | Allows restore without an exact UUID common parent when current Timeshift `info.json` provenance does not match the backup `sys-uuid` and Btrfs type. | Dangerous escape hatch when the backup may belong to another OS. It requires `I UNDERSTAND THIS BACKUP MAY BELONG TO ANOTHER OS`. An exact UUID-proven common parent does not need this override. |
-| `--dry-run` | Validates backup/source/state UUIDs, `info.json` OS identity, and exact receive-parent availability without changing Timeshift. | Always use first; it shows whether the first transfer will be incremental or why a full seed is required. |
+| `--all` | Restores every backup newer than the newest safely confirmed timestamp present in both repositories. | Full-receives the exact common backup as a hidden receiver-side seed, then applies every newer backup incrementally. Mutually exclusive with `--snapshot`. |
+| `--allow-no-common-parent` | Allows `--all` to proceed when no shared timestamp passes either exact Btrfs lineage proof or matching same-date `info.json` identity proof. | Dangerous escape hatch for a full oldest-to-newest restore. It adds stronger typed confirmation. |
+| `--allow-os-identity-mismatch` | Allows restore when the selected backup identity cannot be matched to the current Timeshift repository and no exact Btrfs proof overrides that warning. | Dangerous escape hatch when the backup may belong to another OS. It requires `I UNDERSTAND THIS BACKUP MAY BELONG TO ANOTHER OS`. |
+| `--dry-run` | Validates physical timestamp overlap, exact state/cache Btrfs proof where available, matching same-date `info.json` identity fallback, and the hidden-seed/incremental plan without changing Timeshift. | Always use first; it shows which newest shared timestamp was accepted, the proof method, and the receiver-side seed plan. |
 | `--run` | Performs the restore. | Required to modify the Timeshift repository. |
 | `--create-pre-restore-snapshot` | Creates and verifies one Timeshift on-demand safety snapshot before any receive. | The snapshot is created only on the Timeshift restore target, never on the backup repository, and is retained if restore later fails. |
 | `--i-understand-this-modifies-timeshift` | Required with `--run`. | Confirms direct Timeshift changes; the command then also requires `I UNDERSTAND TIMESHIFT MAY DELETE RESTORED SNAPSHOTS OR OLDER THAN RESTORED SNAPSHOTS` before receiving data. |

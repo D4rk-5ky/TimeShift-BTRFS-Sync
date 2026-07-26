@@ -17,7 +17,7 @@ import re
 import shlex
 
 from .commands import quote_join, sudo_prefix
-from .models import SubvolumeMeta
+from .models import SubvolumeMeta, send_stream_uuid
 from .btrfs_ops import BtrfsOps, parse_subvolume_show
 from .endpoint import CommandEndpoint
 from .paths import normalize_source_path as normalize_path, is_same_or_under as is_under, listed_path_to_absolute
@@ -71,6 +71,22 @@ class BtrfsIndex:
         """Return metadata for ``path`` if it was indexed."""
 
         return self.by_path.get(normalize_path(path)) if path else None
+
+    def find_send_uuid(self, uuid: str | None) -> SubvolumeMeta | None:
+        """Return a subvolume whose Btrfs send-stream identity equals ``uuid``.
+
+        Native snapshots send their local UUID. Received snapshots send the
+        original identity stored in ``Received UUID``. Looking through both
+        indexes prevents a received copy from being mistaken for a different
+        stream merely because its local UUID changed on receive.
+        """
+
+        if not uuid:
+            return None
+        for candidate in (self.by_received_uuid.get(uuid), self.by_uuid.get(uuid)):
+            if candidate is not None and send_stream_uuid(candidate) == uuid:
+                return candidate
+        return None
 
     def remove_tree(self, path: str | Path) -> None:
         """Remove a deleted path and all indexed descendants."""

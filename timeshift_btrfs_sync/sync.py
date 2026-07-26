@@ -27,7 +27,7 @@ from .executor import WorkflowExecutor
 from . import preflight, inventory
 from .commands import CommandError, stream_pipeline
 from .config import AppConfig
-from .models import SnapshotMeta, SubvolumeMeta, tags_text
+from .models import SnapshotMeta, SubvolumeMeta, send_stream_uuid, tags_text
 from .source import SourceRunner
 from .log import emit_success_summary
 from .retention import initial_sync_keep_names
@@ -1144,7 +1144,11 @@ def _match_source_path_to_destination_received_uuid(
     source_snapshot_index: inventory.BtrfsIndex | None = None,
     destination_index: inventory.BtrfsIndex | None = None,
 ) -> tuple[bool, str]:
-    """Check whether a source subvolume UUID matches the destination identity."""
+    """Check whether a source send-stream UUID matches destination identity.
+
+    Received source snapshots carry their stream identity in ``Received UUID``;
+    native source snapshots use their local UUID.
+    """
 
     if destination_meta is None:
         if destination_path is None:
@@ -1165,22 +1169,26 @@ def _match_source_path_to_destination_received_uuid(
         source_snapshot_index=source_snapshot_index,
         source_cache_index=source_cache_index,
     )
-    if not remote_meta or not remote_meta.uuid:
-        return False, f"{label} not found or has no UUID: {source_path}"
+    remote_send_uuid = send_stream_uuid(remote_meta)
+    if not remote_meta or not remote_send_uuid:
+        return False, f"{label} not found or has no usable send-stream UUID: {source_path}"
 
     allowed = set(expected_uuids or set())
     if destination_meta.received_uuid:
         allowed.add(destination_meta.received_uuid)
     if not allowed:
         return False, "destination parent has no received_uuid; cannot prove matching source parent"
-    if remote_meta.uuid not in allowed:
+    if remote_send_uuid not in allowed:
         expected = ", ".join(sorted(allowed))
-        return False, f"{label} UUID {remote_meta.uuid} does not match destination/state UUID(s) {expected}: {source_path}"
+        return False, (
+            f"{label} send UUID {remote_send_uuid} does not match destination/state UUID(s) "
+            f"{expected}: {source_path}"
+        )
     if require_readonly and remote_meta.readonly is False:
         return False, f"{label} UUID matches, but it is not read-only: {source_path}"
 
     readonly_note = "read-only confirmed" if remote_meta.readonly is True else "read-only flag not reported"
-    return True, f"destination received_uuid/state matches {label} UUID ({readonly_note})"
+    return True, f"destination received_uuid/state matches {label} send UUID ({readonly_note})"
 
 
 def _select_verified_parent_send_path(
@@ -1197,12 +1205,11 @@ def _select_verified_parent_send_path(
 ) -> tuple[str | None, str]:
     """Select a safe source parent path for incremental send without recreating it.
 
-    The safest recovery path is an existing source-cache snapshot whose UUID
-    equals the destination parent's Received UUID. This can happen when an
-    earlier SSH pull created read-only cache snapshots on the source and a later
-    local sync wants to reuse those already-created snapshots. The match is
-    accepted only when the indexed source-cache subvolume is read-only and its
-    UUID exactly matches the destination parent identity.
+    The safest recovery path is an existing source-cache snapshot whose
+    effective send-stream UUID equals the destination parent's Received UUID.
+    Native snapshots use local UUID; received snapshots use Received UUID. The
+    match is accepted only when the indexed source-cache subvolume is read-only
+    and carries the exact destination parent identity.
     """
 
     local_parent = _read_local_destination_parent_metadata(
@@ -1221,7 +1228,7 @@ def _select_verified_parent_send_path(
     # by the destination. This allows either source transport to reuse the same
     # valid read-only cache snapshot.
     if source_cache_index is not None and local_parent.received_uuid:
-        indexed_parent = source_cache_index.by_uuid.get(local_parent.received_uuid)
+        indexed_parent = source_cache_index.find_send_uuid(local_parent.received_uuid)
         if indexed_parent and indexed_parent.path:
             add_candidate("indexed source-cache UUID match", indexed_parent.path)
 
@@ -1246,7 +1253,7 @@ def _select_verified_parent_send_path(
     if source_cache_index is not None and state_parent:
         value = state_parent.get("send_source_uuid")
         if isinstance(value, str) and value:
-            indexed_parent = source_cache_index.by_uuid.get(value)
+            indexed_parent = source_cache_index.find_send_uuid(value)
             if indexed_parent and indexed_parent.path:
                 add_candidate("indexed source-cache state UUID", indexed_parent.path)
 
@@ -1454,17 +1461,17 @@ def _source_cache_meta_by_uuid(
     source_cache_index: inventory.BtrfsIndex | None,
     uuid: str | None,
 ) -> SubvolumeMeta | None:
-    """Return indexed read-only source-cache metadata for an exact UUID match.
+    """Return indexed read-only source-cache metadata for one send UUID.
 
-    The combined inventory already contains cache UUID and read-only metadata.
+    The combined inventory contains local UUID, Received UUID, and read-only metadata.
     Mutating operations refresh that index, and source-change recovery rebuilds
     it before retrying work.
     """
 
     if not uuid or source_cache_index is None:
         return None
-    indexed = source_cache_index.by_uuid.get(uuid)
-    if indexed and indexed.path and indexed.uuid == uuid and indexed.readonly is not False:
+    indexed = source_cache_index.find_send_uuid(uuid)
+    if indexed and indexed.path and indexed.readonly is not False:
         return indexed
     return None
 
@@ -1485,8 +1492,8 @@ def _match_existing_destination_to_source(
     Returns ``(snapshot, original_subvol, send_path, original_meta, send_meta,
     reason)``. ``send_path`` is non-empty only when the destination can be
     adopted into state safely. Adoption requires the destination Received UUID
-    to equal the UUID of either the original Timeshift source subvolume or an
-    existing read-only source-cache subvolume.
+    to equal the effective send-stream UUID of either the original Timeshift
+    source subvolume or an existing read-only source-cache subvolume.
     """
 
     if not destination_meta.received_uuid:
@@ -1511,8 +1518,15 @@ def _match_existing_destination_to_source(
             )
         except Exception:
             original_meta = None
-        if original_meta and original_meta.uuid == destination_meta.received_uuid:
-            return source_snapshot, original_subvol, original_path, original_meta, original_meta, "matched original Timeshift source UUID"
+        if original_meta and send_stream_uuid(original_meta) == destination_meta.received_uuid:
+            return (
+                source_snapshot,
+                original_subvol,
+                original_path,
+                original_meta,
+                original_meta,
+                "matched original Timeshift send-stream UUID",
+            )
 
     cache_meta = _source_cache_meta_by_uuid(
         source_cache_index,

@@ -18,6 +18,19 @@ class SubvolumeMeta:
     subvolume_id: int | None = None
 
 
+def send_stream_uuid(meta: SubvolumeMeta | None) -> str | None:
+    """Return the UUID identity carried when ``meta`` is sent by Btrfs.
+
+    Native snapshots use their local UUID. A snapshot produced by
+    ``btrfs receive`` keeps the original stream identity in ``Received UUID``;
+    when that snapshot is sent again Btrfs uses the received identity.
+    """
+
+    if meta is None:
+        return None
+    return meta.received_uuid or meta.uuid
+
+
 @dataclass(slots=True)
 class SnapshotMeta:
     """Metadata for one Timeshift snapshot."""

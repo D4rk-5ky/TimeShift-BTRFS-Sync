@@ -1,13 +1,15 @@
-# timeshift-btrfs-sync v0.1.68 config
+# timeshift-btrfs-sync v0.1.70 config
 # Run this config on the BACKUP/DESTINATION machine for normal sync.
 # source.mode controls only normal source-side sync/list/prune/manual commands.
 # Restore uses [restore] mode independently:
 #   local      = local backup -> local Timeshift
 #   ssh        = SSH backup -> local Timeshift
 #   ssh-target = local backup -> SSH Timeshift
-# Restore can import one snapshot or a UUID-validated full/incremental chain.
+# Restore can import one snapshot or a safely confirmed complete chain. For --all, it intersects physical dates and accepts the newest date proven by exact Btrfs lineage or matching same-date info.json sys-uuid/type identity.
 # Timeshift date directories are ordinary folders containing info.json and
-# Btrfs @/@home payload subvolumes. Restored H/D/W/M tags remain subject to
+# Btrfs @/@home payload subvolumes. Unprivileged restore additionally needs
+# read-only test, ls, and base64 through the relevant source/destination sudo
+# prefixes; the app never invokes a privileged shell. Restored H/D/W/M tags remain subject to
 # Timeshift retention and require the explicit typed retention warning.
 
 # Human-readable job name. This is only for identification.
@@ -36,7 +38,14 @@ log_dir = "/Backups/Kubuntu/timeshift-btrfs/.ts-btrfs-sync/logs"
 #   <target_root>/.ts-btrfs-sync/state.json
 #   <target_root>/.ts-btrfs-sync/lock
 # state_file records successfully received snapshots and incremental parent data.
-# With restore mode = "ssh", state_file follows the SSH backup repository.
+# Restore prefers it for exact UUID corroboration, but it is not mandatory. Missing or invalid state is ignored with a visible diagnostic and is never trusted.
+# After destination-only cleanup, a common date can still be proven through the
+# live Timeshift UUID -> retained cache Parent UUID -> backup Received UUID chain.
+# When exact state/cache lineage is unavailable, matching same-date info.json
+# sys-uuid/type plus real Btrfs payloads on both sides is the secure fallback.
+# Keeping source.cache_root therefore supports a fresh destination backup without
+# requiring every cache snapshot to be recreated.
+# With restore mode = "ssh", state_file follows the SSH backup repository and is read through destination.sudo using read-only test/base64 commands.
 # lock_file is always local to the machine running the restore command.
 # log_dir is local as well.
 # Do not manually delete state_file while a job is running. Use:
@@ -305,9 +314,11 @@ retention_count = 10
 mode = "ssh"
 
 # Source-side command prefix. sudo -n means sudo must not prompt for a password.
-# Normal backup needs btrfs/timeshift permission. Restore additionally invokes exact
-# mkdir, tee, chmod, mv, rm -f, and rmdir commands under this same prefix so it can
-# construct Timeshift's ordinary date directory and regular info.json.
+# Normal backup needs btrfs/timeshift permission. Restore additionally prefixes
+# read-only test, ls, and base64 commands while scanning physical date directories
+# and info.json, then exact mkdir, tee, chmod, mv, rm -f, and rmdir commands while
+# constructing Timeshift's ordinary date directory and regular info.json. The app
+# does not invoke sh/bash through this privilege prefix.
 sudo = "sudo -n"
 
 # Source-side commands. Absolute paths are also valid, for example /usr/bin/btrfs.
@@ -327,13 +338,13 @@ timeshift_command = "timeshift"
 #   snapshot_root/<snapshot-name>/<subvolume>
 # and reads the one shared Timeshift control file for each date from:
 #   snapshot_root/<snapshot-name>/info.json
-# In SSH mode every readable info.json is read with ordinary non-sudo `cat` inside
-# the same source inventory request as Timeshift and both bulk Btrfs scans. The
-# same request records the effective SSH account name and UID for permission
-# diagnostics. That account needs search permission on every parent, r-x on
-# snapshot_root so timestamp folders can be enumerated, and read permission on
-# each info.json. Prefer a stable /etc/fstab mount outside a private /media/<user>
-# path and grant narrow normal permissions or POSIX ACL access.
+# Normal sync inventory reads each readable info.json with ordinary non-sudo `cat`
+# and reports the effective account name/UID when permissions fail. Restore performs
+# a separate authoritative read-only physical scan of snapshot_root through
+# source.sudo using only test, ls, and base64. This lets local, SSH pull, and
+# SSH-target restore inspect the same actual timestamp directories even when the
+# ordinary account cannot read them or Timeshift omits them from --list. Prefer a
+# stable /etc/fstab mount and grant the narrowest suitable permissions.
 snapshot_root = "/timeshift-btrfs/snapshots"
 
 # Subvolumes expected inside each Timeshift snapshot. Both the usual pair and a
@@ -462,7 +473,7 @@ send_compressed_data = true
 # and two typed confirmations.
 target_root = "/Backups/Kubuntu/timeshift-btrfs"
 
-# Local sudo prefix for btrfs receive/delete/show commands.
+# Destination-side privilege prefix for Btrfs commands. Restore also uses it for read-only test, ls, and base64 while scanning backup date directories and reading state.json; it never runs a privileged shell.
 sudo = "sudo -n"
 btrfs_command = "btrfs"
 

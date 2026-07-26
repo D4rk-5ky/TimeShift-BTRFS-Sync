@@ -82,7 +82,7 @@ The same permissions are used for both restore selections:
 # One full snapshot.
 ts-btrfs restore --config ./config.toml --snapshot 2026-07-15_05-00-02 --dry-run
 
-# Latest state/Btrfs UUID-confirmed common parent, then every newer backup.
+# Newest safely confirmed shared timestamp, then every newer backup.
 ts-btrfs restore --config ./config.toml --all --dry-run
 ```
 
@@ -101,6 +101,9 @@ Running the app as an unprivileged user is possible only when `source.sudo` has 
 ```text
 btrfs
 timeshift
+test
+ls
+base64
 mkdir
 tee
 chmod
@@ -111,7 +114,7 @@ rmdir
 
 For SSH restore, those permissions must be configured for the remote SSH account on the source host. Running only the destination-side process as root does not provide remote permission. The command does not need passwordless `sh` or `bash`, and granting a general shell is not recommended.
 
-`--all` uses `state.json` and live Btrfs UUID metadata to identify the latest common source/backup snapshot. The current Timeshift payload UUID must match `original_source_uuid`, and the backup Received UUID must match `send_source_uuid`, in the same completed state record. `info.json` `sys-uuid`/type is retained as provenance and a separate cross-OS warning; snapshot-specific fields such as H/D/W/M tags, comments, creation time, file count, app version, and live status are ignored. Differing provenance cannot invalidate an exact UUID-proven common parent. If no common parent can be proven, a real full-chain restore additionally requires `--allow-no-common-parent`, the phrase `RESTORE ALL WITHOUT COMMON PARENT`, and the configured job name. If no current `info.json` provenance matches the backup, real restore also requires `--allow-os-identity-mismatch` and `I UNDERSTAND THIS BACKUP MAY BELONG TO ANOTHER OS`.
+`--all` intersects the timestamp directories physically present below the configured Timeshift and backup roots and tests candidates newest-to-oldest. Every configured payload must be a real Btrfs subvolume on both sides. Exact proof is preferred: a completed state record links current Timeshift UUID to `original_source_uuid` and backup Received UUID to `send_source_uuid`, or retained-cache metadata links current Timeshift UUID → cache Parent UUID and cache send identity → backup Received UUID. Missing or invalid state is ignored with a visible diagnostic rather than trusted. When exact state/cache lineage is unavailable, the same physical timestamp is still safely confirmed when source and backup `info.json` match stable `sys-uuid` and `type`; tags, comments, counters, and other mutable fields are ignored. This fallback is valid because restore full-receives the exact backup copy of the common timestamp into the hidden target-side chain instead of using the visible Timeshift snapshot as the receive parent. If no candidate passes either proof, a real full-chain restore additionally requires `--allow-no-common-parent`, the phrase `RESTORE ALL WITHOUT COMMON PARENT`, and the configured job name. If no current OS identity can be matched and no exact Btrfs proof overrides that warning, real restore also requires `--allow-os-identity-mismatch` and `I UNDERSTAND THIS BACKUP MAY BELONG TO ANOTHER OS`.
 
 Optionally add `--create-pre-restore-snapshot`. After all restore confirmations and before any receive, the app creates one Timeshift on-demand safety snapshot on the Timeshift target, verifies the new timestamp and every configured Btrfs payload, and leaves it in place even if restore later fails. Local restore creates it locally; SSH-target restore creates it on that SSH Timeshift host; SSH-backup pull restore creates it locally and never runs Timeshift creation on the remote backup host. This flag is independent of `[manual_snapshot]`, which applies to `sync`.
 
@@ -123,7 +126,7 @@ I UNDERSTAND TIMESHIFT MAY DELETE RESTORED SNAPSHOTS OR OLDER THAN RESTORED SNAP
 
 Review or pause Timeshift scheduling and retention until the intended rollback is complete.
 
-When the exact recorded read-only source send parent still exists with the expected UUID, the first newer backup is received incrementally and later backups continue incrementally. If that exact parent is unavailable, restore prints the reason and uses one full hidden seed followed by incrementals. The final Timeshift payloads are writable Btrfs CoW snapshots of the hidden read-only chain, so they retain shared extents after the hidden chain is deleted.
+When a common parent exists, restore always full-receives that exact backup into a hidden chain on the Timeshift receiving filesystem before sending newer backups incrementally. This prevents a source-side cache snapshot from being mistaken for a receiver-side Btrfs parent or clone source. Before every incremental, the hidden parent must be read-only and its Received UUID must match the exact backup parent send identity. An explicit missing-parent/clone-source receive error retries only that exact payload once as a full stream; unrelated failures remain hard errors. The final Timeshift payloads are writable Btrfs CoW snapshots of the hidden read-only chain, so they retain shared extents after the hidden chain is deleted.
 
 ### Pull restore from an SSH backup host
 
@@ -135,7 +138,7 @@ ts-btrfs restore --config ./config-restore-pull.toml \
   --dry-run
 ```
 
-The remote backup account needs ordinary traversal/read access to the backup date directories, `info.json`, and `state.json`; `base64`; and narrow passwordless sudo for Btrfs list/show/send. It does not need write access to a remote lock file or `flock`. The local machine needs the restore-target permissions described above and write access to the configured local `lock_file`.
+The remote backup account needs narrow passwordless permission through `destination.sudo` for Btrfs list/show/send and the read-only `test`, `ls`, and `base64` operations used to inspect backup date directories, control files, and `state.json`. The app prefixes those individual commands and does not invoke a privileged shell. It does not need write access to a remote lock file or `flock`. The local machine needs the restore-target permissions described above and write access to the configured local `lock_file`.
 
 Do not use the same path interpretation blindly for scheduled sync. In the pull profile, `[restore] mode = "ssh"` makes `destination.target_root` and `state_file` remote only for restore; `lock_file` remains local and normal sync/prune semantics remain unchanged.
 

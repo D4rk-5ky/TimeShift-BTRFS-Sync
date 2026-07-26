@@ -9,7 +9,7 @@ import os
 import posixpath
 import tempfile
 
-from .models import SnapshotMeta, SubvolumeMeta
+from .models import SnapshotMeta, SubvolumeMeta, send_stream_uuid
 from .paths import is_under, is_same_or_under
 
 SEND_PATH_KIND_SOURCE_CACHE = "source-cache"
@@ -424,9 +424,9 @@ def mark_subvolume_synced(
     snap_state["path"] = (Path("snapshots") / snapshot.name).as_posix()
 
     send_source_uuid = (
-        (send_meta.uuid if send_meta else None)
+        send_stream_uuid(send_meta)
         or (received_meta.received_uuid if received_meta else None)
-        or subvolume.uuid
+        or send_stream_uuid(subvolume)
     )
     original_source_uuid = (original_meta.uuid if original_meta else None) or subvolume.uuid
     send_path_kind = _kind_for_absolute_source_path(

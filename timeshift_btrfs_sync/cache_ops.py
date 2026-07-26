@@ -35,7 +35,20 @@ def validate_cache_snapshot(meta: SubvolumeMeta | None, *, cache_path: str, orig
             "Existing source cache path is a Btrfs subvolume but is not read-only:\n"
             f"  {cache_path}\nRefusing to use or overwrite it. Inspect the send-cache path manually."
         )
-    if original.uuid and meta.parent_uuid and meta.parent_uuid != original.uuid:
+    if not original.uuid:
+        raise RuntimeError(
+            "Cannot prove source-cache ownership because the original Timeshift subvolume has no readable UUID:\n"
+            f"  original: {original.path}\n  cache:    {cache_path}"
+        )
+    if not meta.parent_uuid:
+        raise RuntimeError(
+            "Existing source cache snapshot has no readable Parent UUID, so it cannot be proven to belong "
+            "to the requested Timeshift snapshot:\n"
+            f"  original: {original.path}\n  original UUID: {original.uuid}\n"
+            f"  cache:    {cache_path}\n"
+            "Refusing to use it as a send source."
+        )
+    if meta.parent_uuid != original.uuid:
         raise RuntimeError(
             "Existing source cache snapshot does not belong to the requested Timeshift snapshot:\n"
             f"  original: {original.path}\n  original UUID: {original.uuid}\n"
