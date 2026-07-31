@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "timeshift-btrfs-sync"
-version = "0.1.70"
-description = "Btrfs send/receive sync and restore for Timeshift snapshots, including SSH source sync and remote-backup pull restore"
+version = "0.1.72"
+description = "Btrfs send/receive sync and restore for Timeshift snapshots, including SSH source backup, pull restore, and push restore"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -26,7 +26,7 @@ ts-btrfs = "timeshift_btrfs_sync.cli:main"
 packages = ["timeshift_btrfs_sync"]
 
 [tool.setuptools.package-data]
-timeshift_btrfs_sync = ["data/config.example.toml", "data/config.restore-pull.example.toml"]
+timeshift_btrfs_sync = ["data/config.example.toml", "data/config.restore-pull.example.toml", "data/config.remote-roundtrip.example.toml"]
 
 [project.optional-dependencies]
 mqtt = ["paho-mqtt>=1.6"]

@@ -21,7 +21,27 @@ sudo apt install mbuffer
 sudo apt install sshpass
 ```
 
-Use `mbuffer` only if `[stream].use_mbuffer = true`. Use `sshpass` only if `[ssh].password` or `[ssh].password_file` is configured. Key-based SSH is recommended.
+Use `mbuffer` only if `[stream].use_mbuffer = true`. `sshpass` is required only for remote-account password authentication when no identity passphrase is configured. Encrypted private keys use the app-generated OpenSSH askpass helper and do not require a separate askpass package. Key-based SSH remains recommended.
+
+## Encrypted private-key passphrases
+
+Create an owner-only passphrase file on the machine running `ts-btrfs`:
+
+```bash
+sudo install -d -m 700 /root/.config/ts-btrfs
+sudo install -m 600 /dev/null /root/.config/ts-btrfs/identity.passphrase
+sudo nano /root/.config/ts-btrfs/identity.passphrase
+```
+
+Then configure:
+
+```toml
+[ssh]
+identity_file = "/root/.ssh/timeshift-btrfs-sync"
+identity_passphrase_file = "/root/.config/ts-btrfs/identity.passphrase"
+```
+
+The identity passphrase unlocks the local private key. It is separate from `password`/`password_file`, which authenticate the remote account. Both families may be present when both prompts are genuinely required. Remove `BatchMode=yes` whenever either family is configured.
 
 ## Install from source in a virtual environment
 
@@ -58,7 +78,16 @@ ts-btrfs init-config --profile restore-pull --path ./config-restore-pull.toml
 nano config-restore-pull.toml
 ```
 
-Both profiles document every supported setting. The `[ssh]` section includes key files, port, password/password_file through `sshpass`, compression, cipher, ControlMaster, host-key verification, connection timeouts, keepalives, jump hosts, and extra OpenSSH arguments.
+For an SSH Timeshift source backed up locally and push-restored back to the same SSH host, generate:
+
+```bash
+ts-btrfs init-config --profile remote-roundtrip --path ./config-remote-roundtrip.toml
+nano config-remote-roundtrip.toml
+```
+
+The pull-restore profile is restore-only. The app refuses `sync` with `[restore] mode = "ssh"` because sync always writes `destination.target_root` locally while pull restore reads that path on the SSH host.
+
+All profiles document every supported setting. The `[ssh]` section includes key files, `identity_passphrase`/`identity_passphrase_file`, separate remote-account `password`/`password_file`, port, compression, cipher, ControlMaster, host-key verification, connection timeouts, keepalives, jump hosts, and extra OpenSSH arguments.
 
 Recommended first checks:
 

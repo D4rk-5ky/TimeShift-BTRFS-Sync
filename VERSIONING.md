@@ -807,3 +807,29 @@ This build is version `0.1.17`.
 - Preserved `info.json` byte-for-byte while separating its stable same-OS fields (`sys-uuid` and `type`) from mutable tags, comments, counters, statistics, dates, and Timeshift version fields.
 - Clarified CLI errors, dry-run help, README, installation permissions, interface audit, generated configuration comments, and code-map explanations for the exact common-parent decision and all three restore transports.
 - Added regression coverage for same-date identity fallback after state/cache proof loss, mutable tag/comment differences, rejection when both exact and metadata proof fail, newest-candidate selection, privileged physical scans without privileged shells, and all existing restore transport/hidden-chain behavior.
+
+## 0.1.71
+
+- Completed a command-topology review after a newly created backup appeared to have no shared timestamp during SSH pull/push restore.
+- Confirmed and documented the command ownership rule: `sync` uses only `source.mode` and always writes `destination.target_root` locally; restore uses only `restore.mode` to place the backup or Timeshift side over SSH.
+- Added a hard safety refusal when `sync` is invoked with a pull-restore profile (`restore.mode = "ssh"`). That combination previously allowed a user to create a local backup while later restore interpreted the same path on the SSH host, producing different repositories, different OS UUIDs, and no timestamp overlap.
+- Added `topology.py` as the single source of truth for sync and restore endpoint descriptions and the pull-profile sync refusal.
+- Added a `SYNC TOPOLOGY` preamble showing the effective source endpoint, local backup destination, source path, backup root, and command interpretation before sync work starts.
+- Added an explicit restore endpoint map to every restore plan.
+- Improved no-common-timestamp diagnostics to include physical date counts and the newest backup and Timeshift dates instead of only saying that no backup timestamp is present.
+- Added the complete `remote-roundtrip` config profile for SSH Timeshift source -> local backup -> push restore back to the same SSH Timeshift host. It pairs `source.mode = "ssh"` with `restore.mode = "ssh-target"`.
+- Marked the packaged `restore-pull` profile as restore-only and documented that `sync` refuses it.
+- Expanded `init-config`, README, INSTALL, interface audit, all complete config examples, code map, and tests for the three explicit command topologies.
+- Added regression tests for pull-profile sync refusal, remote-roundtrip endpoint ownership, pull/push direction descriptions, and newest-date diagnostics when physical timestamp sets do not overlap.
+
+## 0.1.72
+
+- Added `ssh.identity_passphrase` and `ssh.identity_passphrase_file` for encrypted private keys, separate from the existing remote-account `ssh.password` and `ssh.password_file` settings.
+- Added strict config validation: exactly one direct/file value may be used per secret family, identity passphrase settings require `ssh.identity_file`, referenced files must exist, and any configured password/passphrase is refused with `BatchMode=yes`.
+- Added one process-private owner-only askpass helper that contains no secrets, distinguishes private-key passphrase prompts from remote-account password prompts, and fails closed for unknown prompts such as host-key confirmations.
+- Kept the established `sshpass -e` path unchanged for account-password-only authentication. When an identity passphrase is configured, OpenSSH askpass supplies the key passphrase and can also supply a different account password.
+- Applied the same authentication environment and command builder to normal SSH probes, sync streams, pull restore, and push restore.
+- Added empty-secret refusal and optional-final-newline handling for direct/file-backed SSH secrets.
+- Updated all three complete config profiles, README.md, INSTALL.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, VERSIONING.md, and package version metadata.
+- Added focused regression coverage for direct and file-backed passphrases, distinct key/account secrets, unknown-prompt refusal, `BatchMode=yes` rejection, missing identity validation, and unchanged password-only behavior.
+

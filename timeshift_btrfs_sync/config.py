@@ -27,7 +27,7 @@ STREAM_KEYS = {"use_mbuffer", "mbuffer_command", "mbuffer_size", "mbuffer_rate",
 RETENTION_KEYS = {"hourly", "daily", "weekly", "monthly", "boot", "ondemand", "cleanup_ondemand", "keep_latest", "keep_latest_common_parent", "protected_snapshots"}
 MANUAL_SNAPSHOT_KEYS = {"enabled", "cleanup_enabled", "comment", "marker", "retention_count"}
 RESTORE_KEYS = {"mode"}
-SSH_KEYS = {"host", "user", "port", "identity_file", "password", "password_file", "compression", "cipher", "control_master", "control_persist", "control_path", "extra_args"}
+SSH_KEYS = {"host", "user", "port", "identity_file", "identity_passphrase", "identity_passphrase_file", "password", "password_file", "compression", "cipher", "control_master", "control_persist", "control_path", "extra_args"}
 MQTT_KEYS = {"enabled", "host", "port", "topic", "username", "password", "password_file", "client_id", "qos", "retain", "timeout", "notify_on_success", "notify_on_failure"}
 MAIL_KEYS = {"enabled", "smtp_host", "smtp_port", "smtp_ssl", "starttls", "username", "password", "password_file", "from_addr", "to_addrs", "subject_prefix", "timeout", "notify_on_success", "notify_on_failure", "include_json", "attach_logs", "max_attachment_bytes"}
 
@@ -319,6 +319,23 @@ def load_config(path: str | Path) -> AppConfig:
     _reject_unknown_keys(ssh_raw, "[ssh]", SSH_KEYS)
     if source_mode == "ssh" or restore.mode in {"ssh", "ssh-target"}:
         port = _positive_int(ssh_raw.get("port"), "ssh.port")
+        identity_file = _optional_str(ssh_raw, "identity_file")
+        identity_passphrase = _optional_str(ssh_raw, "identity_passphrase")
+        identity_passphrase_file = _optional_str(ssh_raw, "identity_passphrase_file")
+        if identity_passphrase and identity_passphrase_file:
+            raise ConfigError(
+                "Use either ssh.identity_passphrase or ssh.identity_passphrase_file, not both"
+            )
+        if identity_passphrase_file and not Path(identity_passphrase_file).expanduser().is_file():
+            raise ConfigError(
+                "ssh.identity_passphrase_file does not exist or is not a file: "
+                f"{identity_passphrase_file}"
+            )
+        if (identity_passphrase or identity_passphrase_file) and not identity_file:
+            raise ConfigError(
+                "ssh.identity_passphrase/identity_passphrase_file requires ssh.identity_file"
+            )
+
         password = _optional_str(ssh_raw, "password")
         password_file = _optional_str(ssh_raw, "password_file")
         if password and password_file:
@@ -326,8 +343,16 @@ def load_config(path: str | Path) -> AppConfig:
         if password_file and not Path(password_file).expanduser().is_file():
             raise ConfigError(f"ssh.password_file does not exist or is not a file: {password_file}")
         extra_args = _string_list(ssh_raw.get("extra_args"), "ssh.extra_args")
-        if (password or password_file) and any("BatchMode=yes" in arg for arg in extra_args):
-            raise ConfigError("ssh.password/password_file cannot be used with BatchMode=yes; remove that SSH option")
+        if (
+            password
+            or password_file
+            or identity_passphrase
+            or identity_passphrase_file
+        ) and any("BatchMode=yes" in arg for arg in extra_args):
+            raise ConfigError(
+                "ssh password/passphrase options cannot be used with BatchMode=yes; "
+                "remove that SSH option"
+            )
         control_master = _bool(ssh_raw, "ssh", "control_master", False)
         control_persist = _optional_str(ssh_raw, "control_persist")
         control_path = _optional_str(ssh_raw, "control_path")
@@ -341,7 +366,9 @@ def load_config(path: str | Path) -> AppConfig:
             host=_as_str(ssh_raw.get("host"), "ssh.host"),
             user=_optional_str(ssh_raw, "user"),
             port=port,
-            identity_file=_optional_str(ssh_raw, "identity_file"),
+            identity_file=identity_file,
+            identity_passphrase=identity_passphrase,
+            identity_passphrase_file=identity_passphrase_file,
             password=password,
             password_file=password_file,
             compression=_bool(ssh_raw, "ssh", "compression", False),

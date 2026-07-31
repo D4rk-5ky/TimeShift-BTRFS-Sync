@@ -1,11 +1,12 @@
-# timeshift-btrfs-sync v0.1.70 remote-backup pull-restore config
+# timeshift-btrfs-sync v0.1.72 remote-backup pull-restore config
 # Run this config on the LOCAL Timeshift machine that will receive the restore.
 # This profile is for: SSH BACKUP HOST -> LOCAL TIMESHIFT RESTORE.
 # [restore] mode = "ssh" selects the remote backup transport directly.
 # source.mode remains sync-only and does not decide restore direction.
 # [ssh] identifies the backup host; destination.target_root and state_file are
 # read there. lock_file, source.snapshot_root, source.cache_root, and log_dir remain local.
-# Use a separate restore config so sync/prune path meanings remain unambiguous.
+# This is a restore-only profile. The app refuses `sync` with restore.mode = "ssh" because sync would write target_root locally while restore reads it on the SSH host.
+# Use a separate sync config so path and endpoint meanings remain unambiguous.
 # Restore can import one snapshot or a safely confirmed complete chain. For --all, it intersects physical dates and accepts the newest date proven by exact Btrfs lineage or matching same-date info.json sys-uuid/type identity.
 # It creates Timeshift's ordinary date directories plus Btrfs @/@home payloads.
 # Run local restore as root, or grant narrow local sudo for btrfs, timeshift,
@@ -170,6 +171,15 @@ user = "ts-btrfs-restore-user"
 # The key file itself should be protected with chmod 600.
 # identity_file = "/root/.ssh/timeshift-btrfs-sync"
 
+# Optional passphrase for the encrypted private key above. This is distinct
+# from password/password_file, which authenticate the remote SSH account.
+# Configure exactly one of identity_passphrase or identity_passphrase_file.
+# identity_passphrase_file is safer because it keeps the key passphrase out of
+# this TOML file. The file must contain only the passphrase plus an optional
+# final newline and should be owner-readable only (chmod 600).
+# identity_passphrase = "your-private-key-passphrase"
+# identity_passphrase_file = "/root/.config/ts-btrfs/identity.passphrase"
+
 # Optional SSH compression.
 # true adds: ssh -C
 # Useful over slow links; often unnecessary on fast LANs or already-compressed data.
@@ -206,14 +216,15 @@ control_master = false
 control_persist = "10m"
 # control_path = "/run/ts-btrfs-ssh/%C"
 
-# Optional SSH password authentication through sshpass on the machine running
-# ts-btrfs. Key-based authentication is strongly recommended for unattended jobs.
-# Install sshpass separately when either password setting is used:
+# Optional remote SSH account password. This is not the private-key
+# passphrase. Configure exactly one of password or password_file. Password-only
+# authentication uses sshpass, so install it when no identity passphrase is set:
 #   sudo apt install sshpass
-# Configure exactly one of password or password_file, never both.
-# The password is supplied to sshpass through the SSHPASS environment variable;
-# it is not added to the visible command line. A password stored directly in TOML
-# is still readable by anyone who can read this config, so password_file is safer.
+# When an identity passphrase is configured, the app's prompt-aware askpass
+# helper supplies the key passphrase and an optional different account password.
+# Secrets are not added to the visible command line. A password stored directly
+# in TOML is still readable by anyone who can read this config, so password_file
+# is safer.
 # Protect a password file with owner-only access:
 #   sudo install -m 600 /dev/null /root/.config/ts-btrfs/ssh.password
 # The file must contain only the SSH password, followed optionally by one newline.
@@ -223,7 +234,7 @@ control_persist = "10m"
 # Extra OpenSSH arguments, supplied exactly as separate argv entries.
 # Key authentication for scheduled jobs should normally fail instead of prompting:
 #   extra_args = ["-o", "BatchMode=yes"]
-# Password/password_file authentication must NOT use BatchMode=yes:
+# Password/passphrase options must NOT use BatchMode=yes:
 #   extra_args = ["-o", "NumberOfPasswordPrompts=1"]
 # Useful optional examples (combine only the entries you understand):
 #   ["-o", "ConnectTimeout=15"]
@@ -290,7 +301,7 @@ retention_count = 10
 # Before automatic/manual on-demand snapshot creation and before any send/receive
 # work, the app verifies source.snapshot_root, source.cache_root policy, and
 # destination.target_root. In SSH mode source checks run through the configured
-# SSH/sshpass source endpoint; in local mode they run locally.
+# configured SSH authentication source endpoint; in local mode they run locally.
 # source.snapshot_root is Timeshift-owned: it must already exist, may be an
 # ordinary directory on Btrfs, and is never created, pruned, deleted, destroyed,
 # or cleaned by this app. source.cache_root may already exist as a Btrfs

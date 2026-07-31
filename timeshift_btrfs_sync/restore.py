@@ -32,6 +32,7 @@ from .inventory import BtrfsIndex, SourceInventory, build_source_btrfs_index, bu
 from .models import SnapshotMeta, SubvolumeMeta, send_stream_uuid
 from .source import SourceRunner
 from .state import empty_state, validate_state_document
+from .topology import describe_restore_topology
 from .timeshift import (
     SNAPSHOT_RE,
     create_source_manual_snapshot,
@@ -918,9 +919,17 @@ def _find_latest_common_parent(
 
     raw_state_snapshots = state.get("snapshots", {})
     state_snapshots = raw_state_snapshots if isinstance(raw_state_snapshots, dict) else {}
-    candidate_names = sorted(set(backups) & set(source_by_name), reverse=True)
+    backup_names = sorted(backups)
+    source_names = sorted(source_by_name)
+    candidate_names = sorted(set(backup_names) & set(source_names), reverse=True)
     if not candidate_names:
-        return None, "no backup timestamp is physically present in the configured Timeshift snapshot_root"
+        newest_backup = backup_names[-1] if backup_names else "-"
+        newest_timeshift = source_names[-1] if source_names else "-"
+        return None, (
+            "no shared physical timestamp exists between backup snapshots and the configured Timeshift snapshot_root; "
+            f"backup dates={len(backup_names)} newest={newest_backup}; "
+            f"Timeshift dates={len(source_names)} newest={newest_timeshift}"
+        )
 
     candidate_failures: list[str] = []
     for name in candidate_names:
@@ -1427,8 +1436,10 @@ def _print_restore_plan(
     print("==========================")
     print(f"  selection:      {'all snapshots' if plan.common_parent or plan.no_common_parent else plan.restore_names[0]}")
     print(f"  restore mode:   {config.restore.mode}")
+    topology = describe_restore_topology(config)
     timeshift_location = "SSH remote" if timeshift.uses_ssh else "local"
     print(f"  Timeshift side: {timeshift_location}")
+    print(f"  endpoint map:   {topology.detail}")
     print(f"  snapshot_root:  {config.source.snapshot_root.rstrip('/')} ({timeshift_location})")
     print(f"  cache_root:     {config.source.cache_root or 'disabled'} ({timeshift_location})")
     print("  path ownership: snapshot_root and cache_root always use the same Timeshift endpoint")

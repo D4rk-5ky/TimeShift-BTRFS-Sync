@@ -1,15 +1,46 @@
 """SSH command construction.
 
-Supports key-based auth, optional sshpass password auth, SSH compression, and a
-chosen SSH cipher.
+Supports key-based authentication, encrypted private-key passphrases, optional
+remote account password authentication, SSH compression, and a chosen SSH
+cipher.
 """
 
 from __future__ import annotations
 
+import atexit
 from dataclasses import dataclass, field
 import os
 from pathlib import Path
+import shutil
+import tempfile
+import threading
+
 from .commands import Completed, CommandError, run_local
+
+
+_ASKPASS_HELPER_LOCK = threading.Lock()
+_ASKPASS_HELPER_DIR: Path | None = None
+_ASKPASS_HELPER_PATH: Path | None = None
+
+
+_ASKPASS_SCRIPT = """#!/bin/sh
+prompt=${1-}
+case "$prompt" in
+    *passphrase*|*Passphrase*)
+        [ -n "${TSBTRFS_IDENTITY_PASSPHRASE-}" ] || exit 1
+        printf '%s\n' "$TSBTRFS_IDENTITY_PASSPHRASE"
+        ;;
+    *password*|*Password*)
+        [ -n "${TSBTRFS_SSH_PASSWORD-}" ] || exit 1
+        printf '%s\n' "$TSBTRFS_SSH_PASSWORD"
+        ;;
+    *)
+        # Never approve host-key questions, confirmation prompts, or unknown
+        # keyboard-interactive challenges automatically.
+        exit 1
+        ;;
+esac
+"""
 
 
 def _is_relative_to(path: Path, root: Path) -> bool:
@@ -20,6 +51,52 @@ def _is_relative_to(path: Path, root: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+def _cleanup_askpass_helper() -> None:
+    """Remove the process-private askpass helper directory at normal exit."""
+
+    global _ASKPASS_HELPER_DIR, _ASKPASS_HELPER_PATH
+    directory = _ASKPASS_HELPER_DIR
+    _ASKPASS_HELPER_DIR = None
+    _ASKPASS_HELPER_PATH = None
+    if directory is not None:
+        shutil.rmtree(directory, ignore_errors=True)
+
+
+def _ensure_askpass_helper() -> Path:
+    """Create and return one private prompt-dispatch helper for this process.
+
+    The helper contains no secret. Secrets are inherited only by the SSH child
+    process and are selected according to the prompt text: private-key
+    passphrase prompts receive the identity passphrase, while remote account
+    password prompts receive the SSH account password. Unknown prompts fail
+    closed instead of being approved automatically.
+    """
+
+    global _ASKPASS_HELPER_DIR, _ASKPASS_HELPER_PATH
+    with _ASKPASS_HELPER_LOCK:
+        if _ASKPASS_HELPER_PATH is not None and _ASKPASS_HELPER_PATH.is_file():
+            return _ASKPASS_HELPER_PATH
+
+        directory = Path(tempfile.mkdtemp(prefix=f"ts-btrfs-askpass-{os.geteuid()}-"))
+        directory.chmod(0o700)
+        helper = directory / "askpass"
+        fd = os.open(helper, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o700)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+                handle.write(_ASKPASS_SCRIPT)
+                handle.flush()
+                os.fsync(handle.fileno())
+        except Exception:
+            shutil.rmtree(directory, ignore_errors=True)
+            raise
+        helper.chmod(0o700)
+
+        _ASKPASS_HELPER_DIR = directory
+        _ASKPASS_HELPER_PATH = helper
+        atexit.register(_cleanup_askpass_helper)
+        return helper
 
 
 def validate_control_path_safety(control_path: str | None) -> None:
@@ -99,6 +176,8 @@ class SSHConfig:
     user: str | None = None
     port: int | None = None
     identity_file: str | None = None
+    identity_passphrase: str | None = None
+    identity_passphrase_file: str | None = None
     password: str | None = None
     password_file: str | None = None
     compression: bool = False
@@ -116,32 +195,83 @@ class SSHConfig:
 
     @property
     def uses_password_auth(self) -> bool:
-        """Return True when sshpass is needed."""
+        """Return True when a remote SSH account password is configured."""
 
         return bool(self.password or self.password_file)
 
-    def _read_password(self) -> str | None:
-        """Read password from TOML or password_file."""
+    @property
+    def uses_identity_passphrase(self) -> bool:
+        """Return True when the configured private key needs an app-supplied passphrase."""
 
-        if self.password is not None:
-            return self.password
-        if self.password_file:
-            return Path(self.password_file).expanduser().read_text(encoding="utf-8").rstrip("\n")
-        return None
+        return bool(self.identity_passphrase or self.identity_passphrase_file)
+
+    @property
+    def uses_askpass(self) -> bool:
+        """Return True when prompt-aware OpenSSH askpass dispatch is required."""
+
+        return self.uses_identity_passphrase
+
+    @staticmethod
+    def _read_secret(value: str | None, file_path: str | None, label: str) -> str | None:
+        """Read one configured secret and reject an empty direct value or file."""
+
+        if value is not None:
+            secret = value
+        elif file_path:
+            secret = Path(file_path).expanduser().read_text(encoding="utf-8").rstrip("\r\n")
+        else:
+            return None
+        if not secret:
+            raise ValueError(f"{label} is empty")
+        return secret
+
+    def _read_password(self) -> str | None:
+        """Read the remote SSH account password from TOML or password_file."""
+
+        return self._read_secret(self.password, self.password_file, "ssh.password/password_file")
+
+    def _read_identity_passphrase(self) -> str | None:
+        """Read the private-key passphrase from TOML or identity_passphrase_file."""
+
+        return self._read_secret(
+            self.identity_passphrase,
+            self.identity_passphrase_file,
+            "ssh.identity_passphrase/identity_passphrase_file",
+        )
 
     def environment(self) -> dict[str, str] | None:
-        """Return environment variables required by sshpass."""
+        """Return authentication environment for sshpass or OpenSSH askpass.
+
+        Password-only authentication keeps the established ``sshpass -e`` path.
+        When an identity passphrase is configured, a prompt-aware askpass helper
+        is used instead so a key passphrase and a different remote account
+        password can both be supplied correctly.
+        """
 
         password = self._read_password()
-        if password is None:
-            return None
-        return {"SSHPASS": password}
+        identity_passphrase = self._read_identity_passphrase()
+        if identity_passphrase is not None:
+            env = {
+                "SSH_ASKPASS": str(_ensure_askpass_helper()),
+                "SSH_ASKPASS_REQUIRE": "force",
+                "DISPLAY": os.environ.get("DISPLAY") or "ts-btrfs-sync:0",
+                "TSBTRFS_IDENTITY_PASSPHRASE": identity_passphrase,
+            }
+            if password is not None:
+                env["TSBTRFS_SSH_PASSWORD"] = password
+            return env
+        if password is not None:
+            return {"SSHPASS": password}
+        return None
 
     def base_command(self) -> list[str]:
         """Build base SSH argv; remote command is appended later."""
 
         cmd: list[str] = []
-        if self.uses_password_auth:
+        # sshpass is retained for the established account-password-only path.
+        # When an encrypted identity is configured, OpenSSH askpass handles both
+        # the key passphrase and an optional separate account password.
+        if self.uses_password_auth and not self.uses_askpass:
             cmd += ["sshpass", "-e"]
         cmd.append("ssh")
         if self.port:

@@ -22,19 +22,22 @@ This file lists the current public interface. The loader rejects any key not lis
 
 - `timeshift_btrfs_sync/data/config.example.toml`: complete normal sync/local-restore profile.
 - `timeshift_btrfs_sync/data/config.restore-pull.example.toml`: complete SSH-backup-to-local-Timeshift restore profile.
+- `timeshift_btrfs_sync/data/config.remote-roundtrip.example.toml`: complete SSH Timeshift source → local backup → SSH-target push-restore profile.
 - `init-config --profile sync` writes the first profile.
 - `init-config --profile restore-pull` writes the second profile.
-- Both profiles document every current schema key, including restore transport and all SSH authentication/transport settings.
-- SSH password authentication is supported only through `sshpass`, using exactly one of `ssh.password` or `ssh.password_file`; key authentication remains recommended.
+- `init-config --profile remote-roundtrip` writes the third profile.
+- All profiles document every current schema key, including restore transport and all SSH authentication/transport settings.
+- Encrypted SSH identities support exactly one of `ssh.identity_passphrase` or `ssh.identity_passphrase_file`; remote account passwords independently support exactly one of `ssh.password` or `ssh.password_file`. Password-only authentication retains `sshpass`; identity-passphrase authentication uses the process-private prompt-aware askpass helper and may also answer a distinct account-password prompt.
 
 ## `init-config` flags
 
 - `--path`
 - `--profile sync`
 - `--profile restore-pull`
+- `--profile remote-roundtrip`
 - `--force`
 
-The default profile is `sync`. Both generated profiles contain every current configuration key and differ only in profile-oriented defaults and explanations.
+The default profile is `sync`. All generated profiles contain every current configuration key and differ only in profile-oriented defaults and explanations.
 
 ## Destination Btrfs layout
 
@@ -122,6 +125,8 @@ The default profile is `sync`. Both generated profiles contain every current con
 - `extra_args`
 - `host`
 - `identity_file`
+- `identity_passphrase`
+- `identity_passphrase_file`
 - `password`
 - `password_file`
 - `port`
@@ -210,3 +215,22 @@ The selected backup set must have one consistent `info.json` identity. `sys-dist
 With a common parent, restore always full-receives the exact common backup into the hidden chain on the receiving Timeshift filesystem. Later backups are incremental from the immediately preceding backup, and the hidden receiver-side parent is verified read-only with the expected Received UUID before each stream. Source cache paths are used only to prove lineage and are never treated as implicit receive parents. An explicit Btrfs missing-parent/clone-source error deletes only the exact partial child and retries that payload once as a full stream; all unrelated failures remain hard errors. Without a common parent, the oldest backup is the full seed. Visible Timeshift payloads are writable Btrfs snapshots of the hidden received chain, retaining CoW sharing. Without a common parent, real execution is refused unless `--allow-no-common-parent` is supplied and the stronger typed confirmations succeed.
 
 The original `info.json` is restored unchanged, so its H/D/W/M tags remain active and normal Timeshift retention can delete restored snapshots or existing tagged snapshots older than the restored snapshots. Dry-run and real mode print the warning. Every real restore requires the exact additional sentence `I UNDERSTAND TIMESHIFT MAY DELETE RESTORED SNAPSHOTS OR OLDER THAN RESTORED SNAPSHOTS` before any Btrfs receive.
+
+
+## 0.1.71 topology safety audit
+
+- `sync` uses only `source.mode`; its destination is always local.
+- `restore` uses only `restore.mode`; `ssh` means remote backup/local Timeshift and `ssh-target` means local backup/remote Timeshift.
+- `sync` now refuses a pull-restore profile (`restore.mode = "ssh"`) because that profile makes the same `destination.target_root` local during sync but remote during restore.
+- The remote-roundtrip profile pairs `source.mode = "ssh"` with `restore.mode = "ssh-target"`, so the same SSH host is the Timeshift source during backup and the Timeshift target during restore.
+- Restore plan output now prints the effective endpoint map and no-overlap diagnostics include both repository counts and newest physical dates.
+
+## 0.1.72 encrypted identity authentication audit
+
+- Added `ssh.identity_passphrase` and `ssh.identity_passphrase_file` as separate private-key passphrase settings.
+- Kept `ssh.password` and `ssh.password_file` exclusively for the remote SSH account password.
+- Exactly one direct/file setting is allowed within each secret family; identity passphrases require `ssh.identity_file`.
+- A process-private `0700` askpass helper distinguishes private-key passphrase prompts from remote-account password prompts and refuses unknown prompts.
+- Password-only authentication retains the existing `sshpass -e` command path.
+- Any configured password or passphrase is incompatible with `BatchMode=yes`.
+- The same `SSHConfig.environment()` and `SSHConfig.base_command()` path is consumed by normal SSH commands and streaming pipelines, so sync, pull restore, and push restore share the behavior.

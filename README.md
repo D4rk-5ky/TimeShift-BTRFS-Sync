@@ -26,7 +26,36 @@ MIT License. See [`LICENSE`](LICENSE).
 
 It supports full and incremental backup sends, Timeshift snapshot discovery, copying each snapshot date’s shared Timeshift `info.json`, writable source snapshots through a read-only send cache, restoring one backup or a full post-common backup chain to Timeshift’s native layout, safe destination pruning, optional automatic Timeshift on-demand snapshots, split logs, MQTT notifications, and email notifications with optional log attachments.
 
-Two complete commented config profiles are packaged: `config.example.toml` for normal sync/local restore and `config.restore-pull.example.toml` for SSH-backup-to-local-Timeshift restore. Generate either one with `ts-btrfs init-config --profile ...`.
+### Command topology: the most important configuration rule
+
+Normal `sync` and `restore` deliberately interpret the configuration differently:
+
+| Command | Timeshift side | Backup side | Setting that selects SSH |
+|---|---|---|---|
+| `sync` with `source.mode = "local"` | Local | Local | SSH is not used. |
+| `sync` with `source.mode = "ssh"` | SSH host | Local | `[source].mode` and `[ssh]`. |
+| `restore` with `restore.mode = "local"` | Local | Local | SSH is not used. |
+| `restore` with `restore.mode = "ssh"` | Local | SSH host | `[restore].mode` and `[ssh]`; this is pull restore. |
+| `restore` with `restore.mode = "ssh-target"` | SSH host | Local | `[restore].mode` and `[ssh]`; this is push restore. |
+
+`sync` **never writes the backup destination over SSH**. `destination.target_root` is always local during `sync`. Therefore a pull-restore profile with `restore.mode = "ssh"` must not be used to create the backup: during restore that same path is read on the SSH host, but during sync it would have been written locally. The app refuses this command/config combination instead of silently creating a different repository.
+
+For a reversible remote round trip, run both commands on the backup machine with one SSH host:
+
+```toml
+[source]
+mode = "ssh"
+
+[restore]
+mode = "ssh-target"
+
+[ssh]
+host = "the-timeshift-source.example.lan"
+```
+
+This means: pull Timeshift snapshots from that SSH host into the local backup, then push the local backup back to that same SSH Timeshift host. For pull restore, use a separate `restore-pull` profile on the Timeshift machine; its SSH host is the backup machine.
+
+Three complete commented config profiles are packaged: `config.example.toml` for normal sync/local restore, `config.restore-pull.example.toml` for SSH-backup-to-local-Timeshift restore, and `config.remote-roundtrip.example.toml` for SSH Timeshift source → local backup → push restore back to the same SSH Timeshift host. Generate one with `ts-btrfs init-config --profile ...`.
 
 ## Packaged project layout
 
@@ -35,6 +64,7 @@ The release zip keeps package data as real directories. The complete profiles li
 ```text
 timeshift_btrfs_sync/data/config.example.toml
 timeshift_btrfs_sync/data/config.restore-pull.example.toml
+timeshift_btrfs_sync/data/config.remote-roundtrip.example.toml
 ```
 
 There should not be root-level config templates in the release zip. The `data` path must be a directory, not a file, because `init-config` reads the selected profile as package data.
@@ -251,7 +281,7 @@ ts-btrfs init-config \
   --path ./config-restore-pull.toml
 ```
 
-The generated file includes every supported top-level, restore, SSH, source, destination, stream, retention, manual-snapshot, MQTT, and mail setting with comments. Its `[ssh]` section includes both key authentication and optional `sshpass` password/password-file authentication, plus port, cipher, compression, ControlMaster, strict host-key checking, timeouts, keepalives, and jump-host examples.
+The generated file includes every supported top-level, restore, SSH, source, destination, stream, retention, manual-snapshot, MQTT, and mail setting with comments. Its `[ssh]` section includes key authentication, `identity_passphrase`/`identity_passphrase_file` for encrypted private keys, optional remote-account `password`/`password_file`, plus port, cipher, compression, ControlMaster, strict host-key checking, timeouts, keepalives, and jump-host examples.
 
 The generated pull profile sets `[restore] mode = "ssh"`, so `destination.target_root` and `state_file` are interpreted on the SSH backup host. `lock_file`, `source.snapshot_root`, and `source.cache_root` remain local to the machine running the restore; neither Timeshift path nor the restore lock is probed on the backup host. `source.mode` is not used to choose restore direction. Use a separate restore config so later normal `sync`, `prune`, and `destroy-leftovers` runs do not accidentally interpret remote restore paths as local backup paths.
 
@@ -418,7 +448,7 @@ source.cache_root, when configured; missing cache roots are created as Btrfs sub
 destination.target_root
 ```
 
-The snapshot-root and cache-root source preflight checks are executed inside one source command, and the cache check runs only after the snapshot-root script emits its explicit safe marker. They use the configured source Btrfs command. In SSH mode those source commands are executed through the configured SSH/sshpass source endpoint; in local mode they run locally. `source.snapshot_root` is Timeshift-owned: it must already exist, it may be an ordinary directory on a Btrfs filesystem, and the app never creates, prunes, deletes, destroys, or cleans it. Snapshot-root verification first tries `btrfs subvolume list -o <snapshot_root>` and then falls back to `btrfs filesystem df <snapshot_root>` so ordinary Timeshift directories can be accepted even when a Btrfs version does not accept the ordinary directory for subvolume listing. This prevents the app from hiding a missing Timeshift mount, wrong OS root, or wrong snapshot path by creating an empty replacement directory, and it prevents source cleanup from ever touching Timeshift-owned snapshots. `source.cache_root` is app-owned send-cache storage, must be outside `source.snapshot_root`, and is created as a Btrfs subvolume when it is missing and `create_readonly_cache = true`; an existing ordinary directory is refused. If `destination.target_root` is missing and `destination.create_target_root = true`, the app verifies that its parent already exists and is Btrfs-accessible, then creates the exact target root with `btrfs subvolume create <target_root>` and verifies it with `btrfs subvolume show`. If `destination.target_root` already exists, it must also pass `btrfs subvolume show`; an ordinary directory inside Btrfs is refused. This keeps the app-owned backup root explicit and prevents a later receive/prune run from continuing after a misleading preflight. Dry-run mode describes cache/target creation attempts without creating them, but missing `source.snapshot_root` is still an error.
+The snapshot-root and cache-root source preflight checks are executed inside one source command, and the cache check runs only after the snapshot-root script emits its explicit safe marker. They use the configured source Btrfs command. In SSH mode those source commands are executed through the configured SSH authentication source endpoint; in local mode they run locally. `source.snapshot_root` is Timeshift-owned: it must already exist, it may be an ordinary directory on a Btrfs filesystem, and the app never creates, prunes, deletes, destroys, or cleans it. Snapshot-root verification first tries `btrfs subvolume list -o <snapshot_root>` and then falls back to `btrfs filesystem df <snapshot_root>` so ordinary Timeshift directories can be accepted even when a Btrfs version does not accept the ordinary directory for subvolume listing. This prevents the app from hiding a missing Timeshift mount, wrong OS root, or wrong snapshot path by creating an empty replacement directory, and it prevents source cleanup from ever touching Timeshift-owned snapshots. `source.cache_root` is app-owned send-cache storage, must be outside `source.snapshot_root`, and is created as a Btrfs subvolume when it is missing and `create_readonly_cache = true`; an existing ordinary directory is refused. If `destination.target_root` is missing and `destination.create_target_root = true`, the app verifies that its parent already exists and is Btrfs-accessible, then creates the exact target root with `btrfs subvolume create <target_root>` and verifies it with `btrfs subvolume show`. If `destination.target_root` already exists, it must also pass `btrfs subvolume show`; an ordinary directory inside Btrfs is refused. This keeps the app-owned backup root explicit and prevents a later receive/prune run from continuing after a misleading preflight. Dry-run mode describes cache/target creation attempts without creating them, but missing `source.snapshot_root` is still an error.
 
 If `source.snapshot_root` is missing, not a directory, or not Btrfs-accessible through the configured source endpoint, the app fails before creating a fresh Timeshift on-demand snapshot, before creating source cache storage, and before trying to send data. In SSH mode, `snapshot_root` must be the path as seen on the remote source machine, and the source Timeshift filesystem must already be mounted there. The same early failure happens if the cache root exists as an ordinary directory instead of a Btrfs subvolume, the cache-root parent is not accessible, or the destination target-root parent cannot be used for Btrfs subvolume creation. This is intended to prevent avoidable leftover on-demand snapshots after a restored VM, changed mount point, wrong Timeshift snapshot path, wrong send-cache path, or broken destination.
 
@@ -635,7 +665,14 @@ ts-btrfs init-config --profile restore-pull --path ./config-restore-pull.toml
 nano config-restore-pull.toml
 ```
 
-Both packaged profiles contain every current configuration key with comments. The pull-restore profile is preconfigured with `[restore] mode = "ssh"`, `[ssh]` describing the backup host, remote meanings for `destination.target_root` and `state_file`, and a local `lock_file`. `source.mode` remains available only for sync/source commands. Its SSH section documents key authentication, `password`, `password_file`, `sshpass`, port, cipher, compression, ControlMaster, host-key checking, timeouts, keepalives, and jump-host arguments.
+Generate the SSH Timeshift source → local backup → push-restore round-trip profile:
+
+```bash
+ts-btrfs init-config --profile remote-roundtrip --path ./config-remote-roundtrip.toml
+nano config-remote-roundtrip.toml
+```
+
+All packaged profiles contain every current configuration key with comments. The pull-restore profile is restore-only and is preconfigured with `[restore] mode = "ssh"`; `sync` refuses it because normal sync cannot write `destination.target_root` to the SSH backup host. The remote-roundtrip profile pairs `source.mode = "ssh"` with `restore.mode = "ssh-target"`, so the same `[ssh]` host is the Timeshift source during backup and the Timeshift target during push restore. The SSH sections document key authentication, encrypted-key `identity_passphrase`/`identity_passphrase_file`, separate remote-account `password`/`password_file`, prompt-aware askpass handling, `sshpass` for password-only authentication, port, cipher, compression, ControlMaster, host-key checking, timeouts, keepalives, and jump-host arguments.
 
 The packaged `timeshift_btrfs_sync/data/config.example.toml` file contains all options with safe defaults. Keep `default_dry_run = true` and `retention.cleanup_ondemand = false` unless you intentionally want less conservative behavior. Incremental sends require a proven matching parent; there is no unsafe override to continue when source and destination parent metadata does not match. Manual snapshot creation follows the same safety model: existing destinations require a UUID-confirmed source/destination anchor and a proven next-parent path before Timeshift is asked to create a new source snapshot, while a destination that was empty at run start may start with a full seed.
 
@@ -658,7 +695,8 @@ Writes one complete commented config profile.
 |---|---|---|
 | `--path PATH` | Writes the selected profile to `PATH`; default is `./ts-btrfs.toml`. | Lets you create a config in the folder or name you prefer. |
 | `--profile sync` | Writes the normal sync/local-restore profile; this is the default. | Use for SSH-source backup, local backup, and restore from a locally mounted backup repository. |
-| `--profile restore-pull` | Writes the complete SSH-backup-to-local-Timeshift profile. | Sets `[restore] mode = "ssh"`; includes every supported SSH authentication and transport option with comments. |
+| `--profile restore-pull` | Writes the complete SSH-backup-to-local-Timeshift profile. | Sets `[restore] mode = "ssh"`; this profile is restore-only and `sync` refuses it. |
+| `--profile remote-roundtrip` | Writes the SSH Timeshift source → local backup → SSH-target push-restore profile. | Pairs `source.mode = "ssh"` with `restore.mode = "ssh-target"` so backup and restore use the same SSH Timeshift host. |
 | `--force` | Overwrites the target file if it already exists. | Needed when refreshing an existing generated template. Review changes before replacing a real config. |
 
 ### `test-source`
@@ -786,7 +824,7 @@ When `--delete-both` is used, the command prints `SOURCE / DESTINATION SNAPSHOT 
 
 ## Config reference
 
-Every option below is present in both packaged profiles. Commented entries are optional but supported. The two files differ only in profile-oriented defaults and path/transport explanations; they expose the same current schema.
+Every option below is present in all packaged profiles. Commented entries are optional but supported. The files differ only in profile-oriented defaults and path/transport explanations; they expose the same current schema.
 
 ### Top-level options
 
@@ -849,14 +887,31 @@ Used when `source.mode = "ssh"` for normal sync/source commands, or when `[resto
 | `user` | SSH endpoint user. | Use a dedicated low-privilege account with only the permissions required by the selected direction. |
 | `port` | Optional SSH port. | Needed if the source does not use port `22`. |
 | `identity_file` | SSH private key path passed with `ssh -i`. | Recommended for unattended scheduled jobs. |
+| `identity_passphrase` | Passphrase for the encrypted `identity_file`, stored directly in TOML. | Distinct from the remote account password. Works for sync, pull restore, and push restore, but the file-backed option is safer. Do not use with `BatchMode=yes`. |
+| `identity_passphrase_file` | Owner-only file containing the encrypted private-key passphrase. | Preferred way to unlock an encrypted identity without `ssh-agent`; use only one identity passphrase setting. |
 | `compression` | Adds `ssh -C`. | Can help on slow links; often unnecessary on fast LANs or already-compressed streams. |
 | `cipher` | Adds `ssh -c <cipher>`. | Lets you choose a fast cipher for your hardware/network. Omit for OpenSSH defaults. |
 | `control_master` | Adds OpenSSH `ControlMaster=auto`. | Reuses an existing SSH connection so password-protected keys are unlocked fewer times. Disabled by default because the local control socket must be protected. |
 | `control_persist` | Adds OpenSSH `ControlPersist=<value>`. | Keeps the master connection alive between metadata probes and send commands. Default example is `10m`. |
 | `control_path` | Adds OpenSSH `ControlPath=<path>`. | Required when `control_master = true`. If the parent directory is missing, the app creates it with owner-only access (`0700`). Existing parents must already be owned by the app user and private. |
-| `password` | SSH password passed through `sshpass -e`. | Less safe than key auth; use only if needed. Do not use with `BatchMode=yes`. |
-| `password_file` | File containing the SSH password for `sshpass -e`. | Safer than storing the SSH password directly in config. |
+| `password` | Remote SSH account password stored directly in TOML. | Distinct from the private-key passphrase. Password-only authentication uses `sshpass`; when an identity passphrase is also configured, the prompt-aware helper supplies each distinct secret. Do not use with `BatchMode=yes`. |
+| `password_file` | Owner-only file containing the remote SSH account password. | Safer than storing the account password directly in config; use only one account-password setting. |
 | `extra_args` | Extra OpenSSH arguments as a string list. | Commonly used for `BatchMode=yes` with key auth or host-key behavior. |
+
+#### Encrypted SSH private keys
+
+Use `identity_file` together with exactly one of `identity_passphrase` or `identity_passphrase_file` when the private key is encrypted and should be unlocked non-interactively by the app:
+
+```toml
+[ssh]
+identity_file = "/root/.ssh/timeshift-btrfs-sync"
+identity_passphrase_file = "/root/.config/ts-btrfs/identity.passphrase"
+extra_args = ["-o", "ConnectTimeout=15"]
+```
+
+`identity_passphrase` is the local private-key passphrase. `password` is the separate remote SSH account password. They may both be configured when a server requires both; the app creates a process-private askpass helper that examines the OpenSSH prompt and returns the matching secret. Unknown prompts, including host-key confirmation questions, are refused. Secret values are inherited through the child environment and are not included in the logged command line.
+
+Do not combine either password/passphrase family with `BatchMode=yes`, because BatchMode disables the prompts the configured secret must answer. `identity_passphrase_file` and `password_file` should be owner-only files containing only their secret plus an optional final newline.
 
 #### Safe SSH ControlMaster use
 

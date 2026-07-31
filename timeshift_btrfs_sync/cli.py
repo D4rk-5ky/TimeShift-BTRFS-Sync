@@ -27,6 +27,7 @@ from .state import load_state, refresh_state_metadata_and_report
 from .sync import confirm_source_identity_before_manual_snapshot, list_source_snapshots, print_snapshot_table, source_snapshot_index, sync_once
 from .preflight import check_required_sync_paths, prepare_destination_helper_paths, prepare_lock_path
 from .timeshift import create_source_manual_snapshot
+from .topology import describe_sync_topology, reject_pull_restore_profile_for_sync
 
 
 CLI_FORMATTER = argparse.RawTextHelpFormatter
@@ -235,11 +236,11 @@ def cmd_init_config(args) -> int:
     if path.exists() and not args.force:
         print(f"Refusing to overwrite existing file: {path}", file=sys.stderr)
         return 2
-    template_name = (
-        "config.restore-pull.example.toml"
-        if args.profile == "restore-pull"
-        else "config.example.toml"
-    )
+    template_name = {
+        "sync": "config.example.toml",
+        "restore-pull": "config.restore-pull.example.toml",
+        "remote-roundtrip": "config.remote-roundtrip.example.toml",
+    }[args.profile]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         files("timeshift_btrfs_sync").joinpath(f"data/{template_name}").read_text(encoding="utf-8"),
@@ -303,6 +304,16 @@ def cmd_list_source(args) -> int:
 
 def cmd_sync(args) -> int:
     config = load_config(args.config)
+    reject_pull_restore_profile_for_sync(config)
+    topology = describe_sync_topology(config)
+    print("SYNC TOPOLOGY")
+    print("=============")
+    print(f"  Timeshift source: {topology.source_label}")
+    print(f"  backup target:    {topology.destination_label}")
+    print(f"  source path:      {config.source.snapshot_root}")
+    print(f"  backup root:      {config.destination.target_root}")
+    print(f"  effective rule:   {topology.detail}")
+    print()
     dry_run = _resolve_dry_run(args, config)
 
     def _run_dry() -> int:
@@ -536,7 +547,7 @@ Command-specific flags are shown by asking the command for help, for example:
   ts-btrfs prune --help
   ts-btrfs init-config --help
 
-Config options are documented in README.md and both packaged init-config profiles.
+Config options are documented in README.md and all packaged init-config profiles.
 Typical first test:
   ts-btrfs sync --config ./config.toml --dry-run
 """
@@ -574,7 +585,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--path", default="./ts-btrfs.toml", help="where to write the config; default: ./ts-btrfs.toml")
     p.add_argument(
         "--profile",
-        choices=("sync", "restore-pull"),
+        choices=("sync", "restore-pull", "remote-roundtrip"),
         default="sync",
         help="config profile to write; default: sync",
     )
