@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.1.79 remote-backup pull-restore config
+# timeshift-btrfs-sync v0.1.84 remote-backup pull-restore config
 # Run this config on the LOCAL Timeshift machine that will receive the restore.
 # This profile is for: SSH BACKUP HOST -> LOCAL TIMESHIFT RESTORE.
 # [restore] mode = "ssh" selects the remote backup transport directly.
@@ -32,7 +32,7 @@ prune_after_sync = false
 #   *.err = real command/pipeline error output
 #   *.btrfs = btrfs send/receive status/verbose output and commands
 #   *.mbuffer = mbuffer progress/summary and transfer command header
-#   *.succes = readable sync/retention statistics and success mail body
+#   *.succes = final mail body: run name, sync summary, cleanup summary, transfer list
 log_dir = "/var/log/timeshift-btrfs-sync"
 
 
@@ -140,7 +140,7 @@ include_json = true
 # Attach split run logs to the email when top-level log_dir is enabled.
 # The app attaches only non-empty files that exist for this run, in this order:
 #   .log, .err, .btrfs, .mbuffer, .succes
-# When .succes exists and has content, its text becomes the email body.
+# When .succes exists and has content, its text becomes the email body. Sync finalization rewrites it so the configured run name, SYNC SUMMARY, and CLEANUP SUMMARY are at the top.
 attach_logs = true
 
 # Optional safety cap for each attachment in bytes. 0 means no size cap.
@@ -543,6 +543,10 @@ transfer_size_mode = "estimate"
 transfer_size_safety_margin = "1G"
 
 # Optional mbuffer between source send and local receive.
+# On successful sends, mbuffer's measured stream total is also summed into
+# SYNC SUMMARY as the run's actual transferred MB/GB/TB value. The app runs
+# mbuffer without a controlling TTY and mirrors its captured stderr live, so
+# interactive runs cannot lose the final byte total through mbuffer's /dev/tty behavior.
 # SSH mode false pipeline:
 #   ssh source 'btrfs send ...' | btrfs receive ...
 # Local mode false pipeline:
@@ -558,7 +562,8 @@ mbuffer_size = "256M"
 # Optional mbuffer rate limit. Example: "100M" adds `mbuffer -R 100M`.
 # mbuffer_rate = "100M"
 
-# Optional extra mbuffer arguments as a TOML string list.
+# Optional extra mbuffer arguments as a TOML string list. Avoid `-q` if you
+# want mbuffer's final summary available for actual transferred-byte accounting.
 mbuffer_extra_args = []
 
 # Optional Btrfs verbose output.

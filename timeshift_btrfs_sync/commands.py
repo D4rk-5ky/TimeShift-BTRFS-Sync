@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 import os
+import re
 import shlex
 import subprocess
 
@@ -53,6 +54,65 @@ class Completed:
     returncode: int
     stdout: str
     stderr: str
+
+
+@dataclass(slots=True, frozen=True)
+class PipelineResult:
+    """Successful streaming-pipeline statistics needed by higher-level summaries."""
+
+    transferred_bytes: int | None = None
+
+
+def parse_mbuffer_transferred_bytes(text: str) -> int | None:
+    """Return the successful byte total reported by mbuffer, when available.
+
+    mbuffer writes progress and its final summary to stderr. Depending on the
+    installed version/terminal mode, the final useful number may appear as
+    ``summary: 6509 MiByte ...`` or in a progress line such as
+    ``6509 MiB total``. Prefer the final summary and otherwise use the last
+    progress total. No estimate is invented when mbuffer suppresses its total.
+    """
+
+    if not text:
+        return None
+
+    unit_powers = {
+        "kb": (1000, 1), "kbyte": (1000, 1),
+        "mb": (1000, 2), "mbyte": (1000, 2),
+        "gb": (1000, 3), "gbyte": (1000, 3),
+        "tb": (1000, 4), "tbyte": (1000, 4),
+        "kib": (1024, 1), "kibyte": (1024, 1),
+        "mib": (1024, 2), "mibyte": (1024, 2),
+        "gib": (1024, 3), "gibyte": (1024, 3),
+        "tib": (1024, 4), "tibyte": (1024, 4),
+    }
+
+    def convert(number: str, unit: str) -> int | None:
+        spec = unit_powers.get(unit.lower())
+        if spec is None:
+            return None
+        base, power = spec
+        try:
+            return int(round(float(number) * (base ** power)))
+        except ValueError:
+            return None
+
+    summary_matches = re.findall(
+        r"summary:\s*(?:[0-9]+x\s*)?([0-9]+(?:\.[0-9]+)?)\s*(KiByte|MiByte|GiByte|TiByte|KByte|MByte|GByte|TByte)\b",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if summary_matches:
+        return convert(*summary_matches[-1])
+
+    progress_matches = re.findall(
+        r"([0-9]+(?:\.[0-9]+)?)\s*(KiB|MiB|GiB|TiB|kB|MB|GB|TB)\s+total\b",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if progress_matches:
+        return convert(*progress_matches[-1])
+    return None
 
 
 def sudo_prefix(sudo: str | None) -> list[str]:
@@ -209,7 +269,7 @@ def stream_pipeline(
     left_label: str = "REMOTE SEND",
     middle_label: str = "STREAM BUFFER",
     right_label: str = "LOCAL RECEIVE",
-) -> None:
+) -> PipelineResult:
     """Stream left command into optional middle command, then right command.
 
     Without mbuffer:
@@ -264,12 +324,23 @@ def stream_pipeline(
     middle = None
     receive_stdin = left.stdout
     if middle_cmd:
+        # mbuffer deliberately reopens /dev/tty for its status/progress output
+        # when it detects a controlling terminal. If we launch it in the same
+        # session as an interactive ts-btrfs run, that bypasses this stderr
+        # pipe: the user can see mbuffer progress, but Python cannot capture the
+        # final ``summary: ... MiByte`` line for transfer-byte accounting and
+        # .mbuffer logging. Start the middle process in a fresh session so it has
+        # no controlling terminal. mbuffer then keeps status on stderr, which our
+        # reader mirrors live back to the user's terminal while also capturing
+        # it for the run summary and .mbuffer log. This does not change the data
+        # path: stdin/stdout remain the same pipes.
         middle = subprocess.Popen(
             middle_cmd,
             stdin=left.stdout,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=_merged_env(middle_env),
+            start_new_session=True,
         )
         left.stdout.close()
         assert middle.stdout is not None
@@ -342,3 +413,6 @@ def stream_pipeline(
                 "receive": "".join(right_err_chunks),
             },
         )
+
+    transferred_bytes = parse_mbuffer_transferred_bytes("".join(middle_err_chunks)) if middle else None
+    return PipelineResult(transferred_bytes=transferred_bytes)

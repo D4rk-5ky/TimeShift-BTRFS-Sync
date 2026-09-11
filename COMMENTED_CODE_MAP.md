@@ -114,13 +114,15 @@ No runtime classes or functions are defined in this file.
 
 **Why this module exists:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
-- `new_subparser` (function, line 36): Return or perform new subparser. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `add_version_arg` (function): Add the same actionable `--version` option to the top-level parser and every subcommand. **Why:** Users can prove which installed/source-tree version is running regardless of argument position, and help/version behavior stays centralized.
 
-- `add_config_arg` (function, line 42): Return or perform add config arg. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `new_subparser` (function): Build a version-stamped, self-contained subcommand parser with command description, epilog examples/troubleshooting, and shared `--version`. **Why:** Prevents command help from drifting into terse flag-only output and keeps the CLI usable without consulting separate documentation for flag relationships.
 
-- `add_run_mode_args` (function, line 44): Return or perform add run mode args. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `add_config_arg` (function): Add the required config-file option with a complete explanation of what the selected TOML controls. **Why:** Every config-using command gives the same path/topology/SSH/default-mode guidance.
 
-- `add_yes_delete_arg` (function, line 50): Return or perform add yes delete arg. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `add_run_mode_args` (function): Add mutually exclusive `--dry-run`/`--run` actions with command-specific explanations. **Why:** Keeps execution-mode safety consistent while letting each command state its exact default and side effects.
+
+- `add_yes_delete_arg` (function): Add the explicit real-retention-delete authorization flag. **Why:** Keeps deletion authorization separate from merely selecting real-run/prune mode.
 
 - `_load_config_state` (function, line 54): Load state and resolve all root-relative paths against this config. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
@@ -173,7 +175,7 @@ No runtime classes or functions are defined in this file.
 - `cmd_show_state` (function, line 510): Return or perform cmd show state. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
   - **CLI command `show-state`:** Parses that command’s intent and routes it into the shared workflow implementation.
 
-- `build_parser` (function, line 556): Create the argparse parser and command-specific flag help. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `build_parser` (function): Create the full CLI contract: version-stamped top-level help, every command, every public flag, dependencies, examples, safety notes, and troubleshooting. **Why:** Makes `--help` the authoritative operational guide for CLI usage rather than requiring README lookup to discover flag combinations.
 
 - `main` (function, line 796): Return or perform main. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
@@ -1206,3 +1208,47 @@ These helpers are intentionally local to one command so command-specific sequenc
 - `_verify_absent` (function, line 101): Return or perform verify absent. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
 - `delete_subvolume_tree` (function, line 118): Delete one managed tree deepest-first and prove the root is absent.  **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+## 0.1.81 final sync/cleanup reporting symbols
+
+- `SyncRunSummary` (class): carries completed sync counters/events until the final reporting phase. **Why:** allows retention output to finish before the mandatory final summary pair is emitted.
+- `format_sync_summary` (function): renders one `SYNC SUMMARY` block from `SyncRunSummary`. **Why:** separates transfer execution from end-of-run presentation and makes the ordering testable.
+- `PruneResult` (class): records snapshot-level retention outcome counts. **Why:** lets sync report zero, successful, protected/retry, and legacy source-only cleanup accurately without parsing terminal text.
+- `PruneResult.cleaned_snapshots` (property): totals completed tracked plus legacy source-only snapshot cleanup. **Why:** exposes the user-facing cleanup count without counting individual Btrfs subvolume operations.
+- `PruneResult.retry_destination_state_items` (property): counts tracked candidates whose paired cleanup did not complete. **Why:** final reporting must distinguish retained-for-retry items from successful deletions.
+- `PruneResult.blocked_source_candidates` (property): counts current source app-snapshot candidates not authorized for deletion. **Why:** makes backup-proof safety blocks visible in the final cleanup result.
+- `_format_cleanup_summary` (function): renders the mandatory `CLEANUP SUMMARY` for requested, skipped, dry-run, completed, protected/retry, and failed cases. **Why:** cleanup must never disappear silently after sync.
+- `_format_failed_sync_summary` (function): renders a final failed sync block when normal sync accounting never completed. **Why:** the end-of-run summary contract must remain useful on failures.
+- `RunLogger.log_text` (method): writes preformatted text to `.log`. **Why:** final structured summary blocks should not be broken into unrelated status lines.
+- `RunLogger.queue_final_log_summary` (method): retains the final summary pair until logger close. **Why:** guarantees the pair is the final `.log` block after the internal logging-finished marker.
+- `stage_final_run_summary` (function): writes the final pair to `.succes` and queues the `.log` tail before notifications. **Why:** success mail can consume the complete summary while `.log` ordering remains deterministic.
+- `emit_final_terminal_summary` (function): prints the staged final pair to the real terminal after notification handling. **Why:** makes it the final normal terminal block for service/manual runs.
+- `_with_logging._summary_text` (local helper): safely asks an optional command finalizer to build the summary text. **Why:** summary-formatting failure must not mask the real command result.
+- `_with_logging._stage` (local helper): stages non-empty final summary text into run logs. **Why:** centralizes pre-notification log ordering.
+- `_with_logging._emit_terminal` (local helper): emits non-empty final summary text after notifications. **Why:** centralizes terminal ordering.
+- `cmd_sync._finalize` (local helper): combines the sync and cleanup summary blocks for success/failure paths. **Why:** one place enforces the required `SYNC SUMMARY` then `CLEANUP SUMMARY` order.
+
+
+## 0.1.82 transfer/timer/mail-summary symbols
+
+- `format_duration` (function): converts monotonic elapsed seconds into `HH:MM:SS` or `Nd HH:MM:SS`. **Why:** keeps one stable total-backup-time representation for terminal, logs, and mail.
+- `format_transferred_snapshots` (function): renders the dedicated final transfer-list block, or the dry-run planned-transfer equivalent. **Why:** moves verbose per-transfer paths out of the compact sync summary and guarantees the transfer list is third-from-last.
+- `RunLogger.set_success_text` (method): replaces `.succes` with the final mail-friendly summary body. **Why:** intermediate retention statistics must not appear above the configured run name and final summaries in email.
+- `_with_logging._mail_summary_text` (local helper): builds an optional mail-specific final body separately from terminal/`.log` ordering. **Why:** mail needs run name + summaries at the top while terminal/.log need transferred snapshots immediately before the two summaries.
+- `cmd_sync._final_blocks` (local helper): builds transfer, sync, and cleanup blocks from one shared final state and one cached elapsed duration. **Why:** terminal and mail must report identical counts/time even though their block order differs.
+- `cmd_sync._mail_finalize` (local helper): renders the sync email body in run-name → sync summary → cleanup summary → transfers order. **Why:** success mail should show the important run identity/status without scrolling through transfer details.
+
+## 0.1.83 transfer-byte accounting symbols
+
+- `commands.PipelineResult` (dataclass): returns successful streaming-pipeline statistics to sync/restore callers. **Why:** lets sync retain transfer accounting without scraping log files after the fact.
+- `commands.parse_mbuffer_transferred_bytes` (function): parses mbuffer's final `MiByte` summary, with a progress-line `MiB total` fallback, into bytes. **Why:** uses the live pipeline's measured data volume without generating another Btrfs send stream.
+- `commands.parse_mbuffer_transferred_bytes.convert` (local helper): converts one parsed mbuffer number/unit pair to bytes. **Why:** keeps decimal and IEC unit handling centralized inside the parser.
+- `sync.format_transferred_bytes_total` (function): scales an actual byte total to MB, GB, or TB for the human-readable summary. **Why:** keeps large backup totals readable while preserving one consistent summary field.
+- `sync._summary_transferred_bytes` (function): sums byte counts only for completed sync events and reports whether any completed transfer lacks a truthful measurement. **Why:** prevents estimates or partial measurements from being presented as a complete transferred total.
+- `sync._transfer_size_preflight` (updated function): now returns its measurement object after a successful check. **Why:** exact mode can reuse the already-generated exact stream size as transfer accounting when mbuffer does not provide a total, without another expensive send pass.
+- `sync._record_sync_event` (updated function): stores optional transferred-byte accounting and its source with each completed event. **Why:** the final summary can aggregate only successfully completed transfers.
+
+
+## 0.1.84 mbuffer interactive-accounting fix
+
+- `commands.stream_pipeline` (updated function): starts the optional middle/mbuffer process with `start_new_session=True` while keeping stdin/stdout/stderr on the existing transfer pipes. **Why:** mbuffer otherwise detects an interactive controlling terminal, reopens `/dev/tty`, and writes progress/final summary there; the user sees it but the app cannot capture it for `.mbuffer` logging or transfer-byte accounting. A fresh session removes the controlling TTY, so the existing reader mirrors the same status live while retaining it for accounting.
+- `commands.parse_mbuffer_transferred_bytes` (updated function): accepts optional multi-sender summary prefixes such as `summary: 2x 6.5 GiByte ...` in addition to normal single-output summaries and progress totals. **Why:** transfer accounting should handle supported mbuffer summary forms without falling back to unavailable.

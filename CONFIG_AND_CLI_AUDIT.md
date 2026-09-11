@@ -18,6 +18,29 @@ This file lists the current public interface. The loader rejects any key not lis
 
 
 
+
+## CLI help contract
+
+- Top-level `--help` prints the installed application version, every command, run-mode precedence, destructive-confirmation rules, exit codes, and a diagnosis flow.
+- `--version` works both as `ts-btrfs --version` and after every subcommand, for example `ts-btrfs sync --version`.
+- Every subcommand `--help` page is self-contained and explains every public flag, mutually exclusive/required relationships, relevant config interaction, examples, and command-specific safety/troubleshooting.
+- Release tests recursively inspect the argparse tree and fail if a public option has missing/weak help, is absent from rendered help, if a subcommand loses version information/examples, or if required subcommand arguments prevent `--help`/`--version` from exiting successfully.
+
+### Complete CLI flag index
+
+- Global: `--help`, `--version`.
+- `init-config`: `--help`, `--version`, `--path`, `--profile {sync,restore-pull,remote-roundtrip}`, `--force`.
+- `test-source`: `--help`, `--version`, `--config`/`-c`.
+- `list-source`: `--help`, `--version`, `--config`/`-c`, `--verify-btrfs`.
+- `sync`: `--help`, `--version`, `--config`/`-c`, `--dry-run`, `--run`, `--limit`, `--snapshot`, `--resend`, `--prune`, `--yes-delete`.
+- `prune`: `--help`, `--version`, `--config`/`-c`, `--dry-run`, `--run`, `--yes-delete`.
+- `restore`: `--help`, `--version`, `--config`/`-c`, exactly one of `--snapshot`/`--all`, `--create-pre-restore-snapshot`, `--allow-no-common-parent`, `--allow-os-identity-mismatch`, `--dry-run`, `--run`, `--i-understand-this-modifies-timeshift`.
+- `create-manual`: `--help`, `--version`, `--config`/`-c`, `--comment`.
+- `destroy-leftovers`: `--help`, `--version`, `--config`/`-c`, exactly one of `--delete-source`/`--delete-destination`/`--delete-both`, `--dry-run`, `--run`, `--i-understand-this-destroys-data`.
+- `clear-state`: `--help`, `--version`, `--config`/`-c`, `--dry-run`, `--run`, `--i-understand-this-clears-state`.
+- `delete-lock`: `--help`, `--version`, `--config`/`-c`, `--dry-run`, `--run`, `--i-understand-this-deletes-lock`.
+- `show-state`: `--help`, `--version`, `--config`/`-c`, `--json`.
+
 ## Packaged config profiles
 
 - `timeshift_btrfs_sync/data/config.example.toml`: complete normal sync/local-restore profile.
@@ -241,3 +264,7 @@ The original `info.json` is restored unchanged, so its H/D/W/M tags remain activ
 - Password-only authentication retains the existing `sshpass -e` command path.
 - Any configured password or passphrase is incompatible with `BatchMode=yes`.
 - The same `SSHConfig.environment()` and `SSHConfig.base_command()` path is consumed by normal SSH commands and streaming pipelines, so sync, pull restore, and push restore share the behavior.
+## Sync completion summary contract
+
+Every `sync` invocation that reaches command execution finishes terminal and `.log` reporting with three blocks in this exact order: `TRANSFERRED SNAPSHOTS` (or dry-run planned transfers), `SYNC SUMMARY`, `CLEANUP SUMMARY`. Cleanup reporting is mandatory even when pruning is disabled or deletes zero snapshots. `SYNC SUMMARY` includes monotonic total backup time measured from sync-command start through cleanup completion and, when the real transfer byte count is available, the summed actual transferred size automatically formatted as MB/GB/TB. mbuffer totals are preferred; the mbuffer stage is launched without a controlling TTY so its progress/final summary remains capturable and is mirrored back to the terminal even during interactive runs. An already-computed exact preflight size is a fallback. Estimate-mode sizes are not reported as actual transferred bytes. For mail, `.succes` is rewritten at finalization into run name → `SYNC SUMMARY` → `CLEANUP SUMMARY` → transfer list so the important status is at the top of the message body.
+

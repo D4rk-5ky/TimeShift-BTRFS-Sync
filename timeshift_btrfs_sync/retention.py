@@ -52,6 +52,37 @@ class PrunePlan:
         self.reasons.setdefault(snapshot, []).append(f"delete: {reason}")
 
 
+@dataclass(slots=True)
+class PruneResult:
+    """Retention outcome used by the final sync cleanup summary."""
+
+    plan: PrunePlan
+    dry_run: bool
+    destination_state_deleted: int = 0
+    legacy_source_deleted: int = 0
+    source_delete_candidates: int = 0
+    source_delete_authorized: int = 0
+    remaining_state: int = 0
+
+    @property
+    def cleaned_snapshots(self) -> int:
+        """Return snapshot-level cleanup successes, not subvolume delete count."""
+
+        return self.destination_state_deleted + self.legacy_source_deleted
+
+    @property
+    def retry_destination_state_items(self) -> int:
+        """Return paired/state candidates that could not complete cleanup."""
+
+        return max(0, len(self.plan.delete) - self.destination_state_deleted)
+
+    @property
+    def blocked_source_candidates(self) -> int:
+        """Return current source app-snapshot candidates not authorized now."""
+
+        return max(0, self.source_delete_candidates - self.source_delete_authorized)
+
+
 def _is_app_created_ondemand(snapshot_state: dict, marker: str) -> bool:
     """Return true when a state entry is a tag O snapshot with the app marker."""
 
@@ -716,7 +747,7 @@ def prune(
     dry_run: bool,
     yes_delete: bool,
     source_timeshift_index: dict[str, SnapshotMeta] | None = None,
-) -> PrunePlan:
+) -> PruneResult:
     """Apply backup retention plus paired app-created source O retention."""
 
     plan = build_prune_plan(config, state)
@@ -781,7 +812,13 @@ def prune(
 
     if dry_run:
         print("Dry-run: no retention deletes were performed.")
-        return plan
+        return PruneResult(
+            plan=plan,
+            dry_run=True,
+            source_delete_candidates=len(source_delete_candidates),
+            source_delete_authorized=len(source_delete_allowed),
+            remaining_state=len(state.get("snapshots", {})),
+        )
     if (plan.delete or source_delete_candidates) and not yes_delete:
         raise RuntimeError("Refusing to delete without --yes-delete")
 
@@ -861,5 +898,13 @@ def prune(
     logger = get_logger()
     if logger:
         logger.success_text(summary + "\n")
-    return plan
+    return PruneResult(
+        plan=plan,
+        dry_run=False,
+        destination_state_deleted=deleted,
+        legacy_source_deleted=legacy_deleted,
+        source_delete_candidates=len(source_delete_candidates),
+        source_delete_authorized=len(source_delete_allowed),
+        remaining_state=len(state.get("snapshots", {})),
+    )
 

@@ -14,6 +14,7 @@ The important performance/safety rule in this version is:
 from __future__ import annotations
 
 from pathlib import Path
+from dataclasses import dataclass
 import os
 import tempfile
 from . import timeshift
@@ -29,7 +30,6 @@ from .commands import CommandError, stream_pipeline
 from .config import AppConfig
 from .models import SnapshotMeta, SubvolumeMeta, send_stream_uuid, tags_text
 from .source import SourceRunner
-from .log import emit_success_summary
 from .retention import initial_sync_keep_names
 from .transfer_size import (
     TransferSizeError,
@@ -38,6 +38,7 @@ from .transfer_size import (
     exact_send_stream_size,
     format_bytes,
     parse_size_bytes,
+    TransferSizeMeasurement,
 )
 from .state import (
     latest_synced_before,
@@ -109,11 +110,15 @@ def _transfer_size_preflight(
     subvolume_name: str,
     current_path: str,
     parent_path: str | None,
-) -> None:
-    """Measure one planned send and refuse it when Btrfs free space is too small."""
+) -> TransferSizeMeasurement | None:
+    """Measure one planned send and refuse it when Btrfs free space is too small.
+
+    Return the measurement so exact mode can also provide a truthful transfer
+    byte count when mbuffer is disabled or suppresses its final summary.
+    """
 
     if not config.stream.transfer_size_check:
-        return
+        return None
 
     mode = config.stream.transfer_size_mode
     print()
@@ -180,6 +185,7 @@ def _transfer_size_preflight(
         )
 
     print("  result:       OK")
+    return measurement
 
 
 
@@ -194,6 +200,8 @@ def _record_sync_event(
     parent_name: str | None,
     parent_send_path: str | None,
     status: str,
+    transferred_bytes: int | None = None,
+    transferred_bytes_source: str | None = None,
 ) -> None:
     """Add one planned or completed transfer to the run summary."""
 
@@ -208,26 +216,97 @@ def _record_sync_event(
             "parent": parent_name or "-",
             "parent_source": parent_send_path or "-",
             "status": status,
+            "transferred_bytes": transferred_bytes,
+            "transferred_bytes_source": transferred_bytes_source,
         }
     )
 
 
-def _print_sync_summary(
-    events: list[dict],
-    *,
-    dry_run: bool,
-    skipped_by_floor: int,
-    already_synced: int,
-) -> None:
-    """Write a terminal-friendly transfer summary to terminal and .succes.
+@dataclass(slots=True)
+class SyncRunSummary:
+    """Completed sync statistics retained until the final end-of-run report."""
 
-    The readable statistics intentionally go to the separate .succes file, not
-    the normal .log file. Mail uses .succes as the plain-text success body.
+    transferred: int
+    events: list[dict]
+    dry_run: bool
+    skipped_by_floor: int
+    already_synced: int
+
+
+def format_duration(seconds: float) -> str:
+    """Format a monotonic elapsed duration as human-readable wall time."""
+
+    total_seconds = max(0, int(round(seconds)))
+    days, remainder = divmod(total_seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if days:
+        return f"{days}d {hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
+def format_transferred_snapshots(summary: SyncRunSummary) -> str:
+    """Return the transfer list that must be third-from-last in sync output."""
+
+    events = summary.events
+    heading = "PLANNED SNAPSHOT TRANSFERS" if summary.dry_run else "TRANSFERRED SNAPSHOTS"
+    rule = "=" * len(heading)
+    if summary.dry_run:
+        description = "The snapshot/subvolume payloads below would be transferred by this dry-run."
+    else:
+        description = "These are the snapshot/subvolume payloads transferred successfully during this sync run."
+    lines = [heading, rule, description]
+
+    if not events:
+        lines += ["", "  none"]
+        return "\n".join(lines)
+
+    for event in events:
+        action = "FULL" if event["mode"] == "full" else "INCREMENTAL"
+        if summary.dry_run:
+            action = "WOULD " + action
+        lines.append("")
+        lines.append(f"  [{action}] {event['snapshot']}  subvol={event['subvolume']}  tags={event['tags']}")
+        lines.append(f"      parent:      {event['parent']}")
+        if event["parent_source"] != "-":
+            lines.append(f"      parent path: {event['parent_source']}")
+        lines.append(f"      source:      {event['source']}")
+        lines.append(f"      destination: {event['destination']}")
+    return "\n".join(lines)
+
+
+def format_transferred_bytes_total(value: int) -> str:
+    """Format an actual successful-transfer total as MB, GB, or TB.
+
+    The summary uses decimal display units because it describes transferred
+    bytes rather than filesystem allocation. Small non-zero transfers below
+    one megabyte are still shown as MB so the field has a stable unit family.
     """
 
+    value = max(0, int(value))
+    if value >= 1_000_000_000_000:
+        return f"{value / 1_000_000_000_000:.2f} TB"
+    if value >= 1_000_000_000:
+        return f"{value / 1_000_000_000:.2f} GB"
+    return f"{value / 1_000_000:.2f} MB"
+
+
+def _summary_transferred_bytes(summary: SyncRunSummary) -> tuple[int, int, int]:
+    """Return known bytes, known transfer count, and unknown transfer count."""
+
+    completed = [event for event in summary.events if event.get("status") == "synced"]
+    known = [event for event in completed if isinstance(event.get("transferred_bytes"), int)]
+    total = sum(int(event["transferred_bytes"]) for event in known)
+    return total, len(known), len(completed) - len(known)
+
+
+def format_sync_summary(summary: SyncRunSummary, *, elapsed_seconds: float | None = None) -> str:
+    """Return the compact sync summary that is second-from-last in sync output."""
+
+    events = summary.events
     full_count = sum(1 for event in events if event.get("mode") == "full")
     incremental_count = sum(1 for event in events if event.get("mode") == "incremental")
-    mode_text = "dry-run plan" if dry_run else "completed transfers"
+    mode_text = "dry-run plan" if summary.dry_run else "completed transfers"
     lines = [
         "SYNC SUMMARY",
         "============",
@@ -235,28 +314,26 @@ def _print_sync_summary(
         f"  full syncs:        {full_count}",
         f"  incremental syncs: {incremental_count}",
         f"  total listed:      {len(events)}",
-        f"  already synced:    {already_synced}",
-        f"  skipped by floor:  {skipped_by_floor}",
+        f"  already synced:    {summary.already_synced}",
+        f"  skipped by floor:  {summary.skipped_by_floor}",
+        f"  transferred:       {summary.transferred}",
     ]
-
-    if not events:
-        lines += ["  transfers:         none", ""]
-        emit_success_summary("\n".join(lines))
-        return
-
-    lines += ["", "SYNC TRANSFERS", "--------------"]
-    for event in events:
-        action = "FULL SYNC" if event["mode"] == "full" else "INCREMENTAL SYNC"
-        if dry_run:
-            action = "WOULD " + action
-        lines.append(f"  [{action}] {event['snapshot']}  subvol={event['subvolume']}  tags={event['tags']}")
-        lines.append(f"      parent:      {event['parent']}")
-        if event["parent_source"] != "-":
-            lines.append(f"      parent path: {event['parent_source']}")
-        lines.append(f"      source:      {event['source']}")
-        lines.append(f"      destination: {event['destination']}")
-    lines.append("")
-    emit_success_summary("\n".join(lines))
+    known_bytes, known_count, unknown_count = _summary_transferred_bytes(summary)
+    if summary.dry_run:
+        lines.append("  total transferred: 0.00 MB (dry-run; no data transferred)")
+    elif summary.transferred == 0:
+        lines.append("  total transferred: 0.00 MB")
+    elif unknown_count == 0 and known_count == summary.transferred:
+        lines.append(f"  total transferred: {format_transferred_bytes_total(known_bytes)}")
+    else:
+        lines.append(
+            "  total transferred: unavailable "
+            f"(actual byte count missing for {unknown_count} of {summary.transferred} transfer(s); "
+            "enable mbuffer or exact transfer-size checking)"
+        )
+    if elapsed_seconds is not None:
+        lines.append(f"  total backup time: {format_duration(elapsed_seconds)}")
+    return "\n".join(lines)
 
 def prepare_destination(config: AppConfig) -> None:
     """Create/validate destination helper folders before writes.
@@ -2161,7 +2238,7 @@ def _verify_sync_viability_before_manual_snapshot(
     _human_rule("----")
 
 
-def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | None = None, only_snapshot: str | None = None, only_missing: bool = True) -> int:
+def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | None = None, only_snapshot: str | None = None, only_missing: bool = True) -> SyncRunSummary:
     """Run one sync pass.
 
     A sync pass processes source snapshots oldest-to-newest. After every
@@ -2793,7 +2870,7 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             # Capacity preflight happens before the destination date container is
             # created. Exact mode generates the same stream once on the source
             # endpoint and counts it there; only the byte count crosses SSH.
-            _transfer_size_preflight(
+            transfer_size_measurement = _transfer_size_preflight(
                 config,
                 source_btrfs,
                 destination_btrfs,
@@ -2831,7 +2908,7 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             # with sshpass in SSH mode. Local mode uses no extra environment.
             inventory_before_send = source_inventory
             try:
-                stream_pipeline(
+                pipeline_result = stream_pipeline(
                     send_cmd,
                     receive_cmd,
                     middle_cmd=config.stream.command(),
@@ -2985,6 +3062,19 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             )
             save_state(config.state_file, state)
             trusted_parent_send_paths.add(current_send_path)
+            transferred_bytes = pipeline_result.transferred_bytes
+            transferred_bytes_source = "mbuffer" if transferred_bytes is not None else None
+            if (
+                transferred_bytes is None
+                and transfer_size_measurement is not None
+                and transfer_size_measurement.mode == "exact"
+            ):
+                # The source and parent are read-only and are guarded against
+                # identity changes around the send, so an exact preflight is
+                # the same Btrfs stream size as the successful real transfer.
+                transferred_bytes = transfer_size_measurement.size_bytes
+                transferred_bytes_source = "exact-preflight"
+
             _record_sync_event(
                 sync_events,
                 mode=mode,
@@ -2995,6 +3085,8 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
                 parent_name=parent_name,
                 parent_send_path=parent_send_path,
                 status="synced",
+                transferred_bytes=transferred_bytes,
+                transferred_bytes_source=transferred_bytes_source,
             )
 
             # Keep every source-side read-only cache snapshot created by this
@@ -3019,10 +3111,10 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
         print(f"Skipped {skipped_by_floor} source snapshot(s) at or below confirmed sync floor.")
     print("No missing subvolumes to sync." if transferred == 0 else f"Synced {transferred} subvolume(s).")
     print()
-    _print_sync_summary(
-        sync_events,
+    return SyncRunSummary(
+        transferred=transferred,
+        events=sync_events,
         dry_run=dry_run,
         skipped_by_floor=skipped_by_floor,
         already_synced=already_synced,
     )
-    return transferred

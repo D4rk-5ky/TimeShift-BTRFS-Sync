@@ -530,7 +530,11 @@ Automatic creation is skipped when `--snapshot <name>` is used, because that com
 
 ## Run summaries
 
-Every `sync` ends with a terminal-friendly `SYNC SUMMARY`. It shows how many full syncs and incremental syncs were planned or completed, how many entries were already synced, and which source/destination paths were used. Each transfer is labeled clearly as `FULL SYNC` or `INCREMENTAL`. When `log_dir` is enabled, this readable statistics block is written to `.succes`, not mixed into `.log`.
+Every `sync` ends with three final human-readable blocks in this exact order: `TRANSFERRED SNAPSHOTS` (or `PLANNED SNAPSHOT TRANSFERS` in dry-run), `SYNC SUMMARY`, then `CLEANUP SUMMARY`. The transfer block explains that the listed snapshot/subvolume payloads are the ones transferred by that run and shows full/incremental mode plus parent/source/destination paths. `SYNC SUMMARY` stays compact and includes full/incremental counts, already-synced/skipped counts, transferred count, the total actual transferred data size when measurable, and `total backup time`. The data-size field is summed across all successful subvolume sends and automatically displayed as MB, GB, or TB. It uses mbuffer's live byte total when available, or an already-requested exact transfer-size preflight; estimate-mode values are never mislabeled as actual transferred bytes. The app launches mbuffer without a controlling TTY and mirrors its stderr back to the terminal, so interactive mbuffer progress/final summaries are captured for `.mbuffer` logging and transfer accounting instead of bypassing Python via `/dev/tty`. The timer uses a monotonic clock from sync-command start through retention completion, so it includes discovery, preflight, transfer work, and cleanup but excludes later notification delivery time.
+
+The cleanup block is always present, even when zero snapshots were deleted. If retention ran and found nothing to remove it reports `SUCCESS - cleaned 0 snapshot(s)`. If retention was not requested, it explicitly reports that neither `--prune` nor `prune_after_sync=true` enabled cleanup and shows `cleaned snapshots: 0`. Dry-run and failed/not-completed cleanup are labeled separately instead of looking like successful deletion.
+
+When `log_dir` is enabled, terminal and `.log` finish with the same three-block order: transferred snapshots, `SYNC SUMMARY`, `CLEANUP SUMMARY`. The `.log` copy is queued until logger close so these are literally the last human-readable blocks after the internal `Logging finished` marker. `.succes` is rewritten at finalization into the mail-friendly order: configured run name first, then `SYNC SUMMARY`, then `CLEANUP SUMMARY`, followed by the transfer list. This guarantees the most important status and elapsed time appear at the top of success mail.
 
 If a transfer is interrupted while `btrfs receive` has already created the destination path, that path is not marked as complete in `state.json`. For a destination that was already populated when the next run starts, the app first requires at least one complete UUID-confirmed source/destination snapshot anchor. If no such anchor exists, it errors before deleting recovery data or sending anything; use an empty/separate target for a new full backup. After that guard passes, `destination.cleanup_incomplete_receive = true` makes the real sync treat the whole snapshot date as the recovery unit. If either configured source subvolume for that Timeshift date, for example `@` or `@home`, is incomplete, missing from state, or missing on destination, the app first live-checks every configured subvolume under `source.snapshot_root/<date>`. When all source subvolumes still exist, it removes the current failed `snapshots/<date>` destination version, removes the matching app-owned `source.cache_root/<date>` send-cache version, removes the stale state entry, refreshes the in-memory Btrfs indexes, and then transfers the snapshot again in the normal oldest-to-newest position.
 
@@ -542,7 +546,7 @@ The copied control file is required for every snapshot date processed by sync. I
 
 This also applies when the failed snapshot is an app-created on-demand snapshot. The app does not move the on-demand snapshot to the front of the queue. It keeps the already sorted source snapshot list, recovers or skips the failed snapshot only when that snapshot date is reached, and then continues in the existing oldest-to-newest order. If automatic on-demand creation is enabled, a fresh on-demand snapshot for the current run is still created and then added to the same sorted queue.
 
-Every `prune` prints a `RETENTION SUMMARY`, a `RETENTION DELETE PLAN`, a separate `SOURCE TIMESHIFT APP-SNAPSHOT RETENTION` block when applicable, and a `RETENTION DELETE SUMMARY` after real deletion. Delete candidates are labeled as `WOULD DELETE` in dry-run mode or `DELETE` in real mode, and each entry includes the destination subvolumes, source send-cache subvolumes, Timeshift tags, and the reason it falls outside the active retention rules. The final summary reports attempted, completed, retry, and remaining state counts. When `log_dir` is enabled, these readable summaries are written to `.succes` and the normal run log.
+Standalone `prune` still prints its detailed `RETENTION SUMMARY`, `RETENTION DELETE PLAN`, optional `SOURCE TIMESHIFT APP-SNAPSHOT RETENTION` block, and `RETENTION DELETE SUMMARY`. During `sync`, those retention details appear before the mandatory final three blocks: transfer list, `SYNC SUMMARY`, `CLEANUP SUMMARY`. Delete candidates are labeled as `WOULD DELETE` in dry-run mode or `DELETE` in real mode, and each entry includes the destination subvolumes, source send-cache subvolumes, Timeshift tags, and the reason it falls outside the active retention rules.
 
 ## Pruning and retention
 
@@ -595,16 +599,16 @@ For `destroy-leftovers`, logs must survive the cleanup. If the configured `log_d
 *.err      real command/pipeline error output
 *.btrfs    Btrfs send/receive command headers and status/verbose output
 *.mbuffer  mbuffer progress and summary
-*.succes   readable sync/retention statistics and success mail body
+*.succes   final mail-friendly summary body: run name, sync summary, cleanup summary, transfer list
 ```
 
-Email notifications can attach these log files when `mail.attach_logs = true`. Missing files and 0-byte files are skipped. `mail.max_attachment_bytes` can limit attachment size. When `.succes` exists and has content, its text is used as the plain-text email message body.
+Email notifications can attach these log files when `mail.attach_logs = true`. Missing files and 0-byte files are skipped. `mail.max_attachment_bytes` can limit attachment size. When `.succes` exists and has content, its text is used as the plain-text email message body. For `sync`, finalization replaces any intermediate `.succes` retention text so the body always starts with the configured top-level `name`, followed immediately by `SYNC SUMMARY` and `CLEANUP SUMMARY`; the transferred-snapshots list follows those summaries. The full `.log` remains a separate attachment rather than being copied into the message body.
 
 MQTT notifications publish simple JSON status to the configured topic. Failure messages include exit code, error text, and latest captured stderr. MQTT uses optional `paho-mqtt`; email uses Python standard library `smtplib` / `email`.
 
 ## Transfer output
 
-`mbuffer` is the useful live throughput display. It can show rate, total transferred, elapsed time, and buffer fill. Btrfs verbose output is optional and can be useful for debugging, but it is operation/detail output, not a percentage progress bar.
+`mbuffer` is the useful live throughput display. It can show rate, total transferred, elapsed time, and buffer fill. TimeShift-BTRFS-Sync runs the mbuffer stage in a fresh session so mbuffer cannot redirect progress directly to `/dev/tty`; stderr is instead captured, written to `.mbuffer`, and mirrored live to the terminal. This also makes the final mbuffer-reported byte total available to `SYNC SUMMARY`. Btrfs verbose output is optional and can be useful for debugging, but it is operation/detail output, not a percentage progress bar.
 
 The app does not estimate a progress bar from Btrfs disk-usage values because those values can be very different from the real send-stream size.
 
@@ -694,14 +698,14 @@ The packaged `timeshift_btrfs_sync/data/config.example.toml` file contains all o
 
 ## Command reference
 
-Top-level help lists every command. Command-specific flags are visible with `ts-btrfs <command> --help` or `python3 -m timeshift_btrfs_sync <command> --help`.
+Top-level help lists every command and the installed version. Each command-specific help page is intentionally self-contained: `ts-btrfs <command> --help` explains every flag, required combination, config interaction, examples, and the relevant safety/troubleshooting rules. `--version` works both before a command (`ts-btrfs --version`) and after one (`ts-btrfs sync --version`).
 
 ### Global
 
 | Flag | What it does | Why it may be needed |
 |---|---|---|
 | `--help` | Shows help for the main command or subcommand. | Use it to check the exact supported flags in the installed package. |
-| `--version` | Prints the app version. | Useful when confirming which package is installed. |
+| `--version` | Prints the installed app version and exits. It works at the top level and after any subcommand. | Useful when confirming exactly which package/source tree is running, including `ts-btrfs sync --version`. |
 
 ### `init-config`
 
@@ -888,7 +892,7 @@ Every option below is present in all packaged profiles. Commented entries are op
 | `to_addrs` | Recipient list. | Required when mail is enabled. |
 | `subject_prefix` | Prefix added to success/failure subjects. | Helps filter or recognize backup emails. |
 | `include_json` | Adds the JSON status payload to the email body. | Useful for debugging or parsing mail content. |
-| `attach_logs` | Attaches non-empty `.log`, `.err`, `.btrfs`, `.mbuffer`, and `.succes` files. | Useful for diagnostics without logging into the backup host. Requires `log_dir`. The `.succes` text is also used as the email body when present. |
+| `attach_logs` | Attaches non-empty `.log`, `.err`, `.btrfs`, `.mbuffer`, and `.succes` files. | Useful for diagnostics without logging into the backup host. Requires `log_dir`. The `.succes` text is also used as the email body when present; sync mail is finalized as run name → SYNC SUMMARY → CLEANUP SUMMARY → transferred snapshots. |
 | `max_attachment_bytes` | Per-file attachment size cap; `0` means no cap. | Prevents huge verbose logs from being mailed. |
 | `notify_on_success` | Sends success emails. | Disable if you only want failure mail. |
 | `notify_on_failure` | Sends failure emails. | Usually keep true so failed backups alert you. |
@@ -1002,7 +1006,7 @@ Timeshift's native timestamp path remains an ordinary directory. Restore mode ch
 | `transfer_size_check` | Enables a per-subvolume normal-sync capacity preflight before destination receive. Default: `false`. | Disabled by default to avoid extra work for unattended/background backups; enable it when a capacity warning is useful. |
 | `transfer_size_mode` | `estimate` (default) uses source-side `btrfs send --no-data` + `btrfs receive --dump` + C-locale streaming summation and returns only the changed-byte total; `exact` generates/counts the real send stream. | `estimate` is parent-specific, avoids reading file payload, and avoids returning/capturing the potentially huge dump, making it suitable for background backups; `exact` is slower but gives the real stream byte count. |
 | `transfer_size_safety_margin` | Extra free space required above the measured/estimated stream size, e.g. `1G`. | Accounts for the fact that stream bytes and final Btrfs allocation are not guaranteed to match and that free space can change during the run. |
-| `use_mbuffer` | Inserts `mbuffer` between source send and local receive. | Gives useful throughput/total display and smooths network/disk bursts. |
+| `use_mbuffer` | Inserts `mbuffer` between source send and local receive. | Gives useful throughput/total display, smooths network/disk bursts, and supplies the successful live-stream byte total used by `SYNC SUMMARY`. The app captures mbuffer stderr even in interactive runs instead of letting mbuffer bypass logging through `/dev/tty`. |
 | `mbuffer_command` | mbuffer command name/path. | Use an absolute path or alternative command name if needed. |
 | `mbuffer_size` | Memory buffer size passed to `mbuffer -m`. | Larger buffers can smooth bursts; too large wastes RAM. |
 | `mbuffer_rate` | Optional rate limit passed to `mbuffer -R`. | Useful if backups should not saturate network or disks. |

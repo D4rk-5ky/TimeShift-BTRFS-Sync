@@ -60,6 +60,7 @@ class RunLogger:
         self._success_fh: IO[str] = self.success_path.open("a", encoding="utf-8", buffering=1)
         self._lock = threading.Lock()
         self._stderr_tail = ""
+        self._final_log_summary = ""
 
         self.info(f"Logging started: {timestamp}")
         self.info(f"LOG file: {self.log_path}")
@@ -69,9 +70,11 @@ class RunLogger:
         self.info(f"SUCCESS SUMMARY file: {self.success_path}")
 
     def close(self) -> None:
-        """Close all log files."""
+        """Close all log files, leaving any queued final summary last in .log."""
 
         self.info("Logging finished")
+        if self._final_log_summary:
+            self.log_text(self._final_log_summary)
         self._log_fh.close()
         self._err_fh.close()
         self._btrfs_out_fh.close()
@@ -142,6 +145,36 @@ class RunLogger:
         if text and not text.endswith("\n"):
             text += "\n"
         self._write(self._success_fh, text)
+
+    def set_success_text(self, text: str) -> None:
+        """Replace .succes with the final mail-friendly run summary.
+
+        Retention may write intermediate statistics earlier in the run. Final
+        sync reporting deliberately replaces those intermediate lines so the
+        success-mail body always starts with the configured run name and final
+        sync/cleanup summaries. Detailed retention output remains in .log.
+        """
+
+        if text and not text.endswith("\n"):
+            text += "\n"
+        with self._lock:
+            self._success_fh.close()
+            self.success_path.write_text(text, encoding="utf-8")
+            self._success_fh = self.success_path.open("a", encoding="utf-8", buffering=1)
+
+    def log_text(self, text: str) -> None:
+        """Write a preformatted block to the normal .log file."""
+
+        if text and not text.endswith("\n"):
+            text += "\n"
+        self._write(self._log_fh, text)
+
+    def queue_final_log_summary(self, text: str) -> None:
+        """Queue the final sync/cleanup summary so it is last in .log."""
+
+        if text and not text.endswith("\n"):
+            text += "\n"
+        self._final_log_summary = text
 
     def err(self, text: str = "") -> None:
         """Write an error/stderr line to .err and remember its tail."""
@@ -265,6 +298,36 @@ def emit_success_summary(text: str) -> None:
     logger = get_logger()
     if logger:
         logger.success_text(text)
+
+
+def stage_final_run_summary(text: str, *, success_text: str | None = None) -> None:
+    """Stage final terminal/log text and optional mail-body text before notification.
+
+    ``text`` is queued as the literal final block of .log and is later printed to
+    the real terminal. ``success_text`` is written to .succes immediately so the
+    success mail can use a differently ordered, mail-friendly body. When omitted,
+    .succes receives the same text as terminal/.log.
+    """
+
+    if text and not text.endswith("\n"):
+        text += "\n"
+    if success_text is None:
+        success_text = text
+    elif success_text and not success_text.endswith("\n"):
+        success_text += "\n"
+    logger = get_logger()
+    if logger:
+        logger.set_success_text(success_text)
+        logger.queue_final_log_summary(text)
+
+
+def emit_final_terminal_summary(text: str) -> None:
+    """Print the staged final summary after notifications have completed."""
+
+    if text and not text.endswith("\n"):
+        text += "\n"
+    terminal_stdout().write(text)
+    terminal_stdout().flush()
 
 
 class TeeTextIO:

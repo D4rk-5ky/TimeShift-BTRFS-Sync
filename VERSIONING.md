@@ -922,3 +922,51 @@ This build is version `0.1.17`.
 - Updated README.md, INSTALL.md, all three config profiles, COMMENTED_CODE_MAP.md, package/config version metadata, and regression tests for the source-side streaming reduction design.
 - Added a regression test that deliberately sends non-UTF-8 binary bytes through the fake metadata-only producer and proves that Python receives only the ASCII summary, plus coverage for dump-stage failure propagation.
 
+## 0.1.80
+
+- Reworked argparse help into a self-contained CLI operational reference. Top-level `--help` now prints the installed TimeShift-BTRFS-Sync version, run-mode precedence, destructive-confirmation rules, exit codes, and a diagnosis flow.
+- Kept the existing top-level `--version` and extended it to every subcommand, so both `ts-btrfs --version` and forms such as `ts-btrfs sync --version` work even when that command normally has required flags/groups.
+- Expanded every public flag description with its actual effect, default/config interaction, dependencies, mutual-exclusion/selection rules, and safety boundaries. In particular, `--resend`, `--prune`/`--yes-delete`, restore danger overrides, maintenance danger flags, `--limit`, and profile/delete-selection choices now explain what they do and do not override.
+- Added command-specific examples and troubleshooting/guard guidance to every subcommand help page, including topology guidance for remote-source sync and explicit real-run requirements for destructive commands.
+- Changed value metavars to user-facing names such as `FILE`, `DATE`, `N`, `TEXT`, and `PROFILE` where useful, without changing the accepted CLI syntax or command behavior.
+- Added `tests/test_cli_help_contract.py` to recursively audit the argparse tree: every public option must have meaningful rendered help; every subcommand must show version information and examples; top-level/subcommand `--version` must succeed; and `--help` must exit successfully before required command-specific selections are validated.
+- Updated README.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, package/config version metadata, VERSIONING.md, and release tests for 0.1.80.
+## 0.1.81
+
+- Made the end-of-sync reporting contract explicit: every sync now finishes with `SYNC SUMMARY` followed immediately by `CLEANUP SUMMARY`. The cleanup block is present even when retention is not requested or when zero snapshots are deleted.
+- Kept retention safety behavior unchanged: cleanup still runs only when `--prune` is supplied or `prune_after_sync = true`. A skipped cleanup now explains that gate and reports `cleaned snapshots: 0` instead of ending silently.
+- Added structured `PruneResult` accounting for destination/state cleanup, legacy source-only cleanup, retry/protected items, source candidates/authorizations, and remaining state, so the final cleanup summary reports snapshot-level outcomes accurately.
+- Deferred the final sync summary until after retention work so verbose retention planning/deletion output cannot appear after it. Sync failures and cleanup failures now receive explicit final status blocks rather than losing the completion summary.
+- Added final-summary log staging: `.succes` gets the final pair before notifications (so success mail can use it), while `.log` queues the same pair until logger close so it remains the final block after the internal logging-finished marker. Terminal output is emitted after notification handling.
+- Added regression coverage for skipped cleanup, successful zero-delete cleanup, dry-run cleanup, sync summary formatting, and the requirement that `SYNC SUMMARY` precede `CLEANUP SUMMARY` at the tail of `.log` and `.succes`.
+- Updated README.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, all packaged config version headers, package version metadata, VERSIONING.md, and release tests for 0.1.81.
+
+
+## 0.1.82
+
+- Changed sync end-of-run ordering so the last three human-readable terminal/`.log` blocks are always the transferred-snapshots list, `SYNC SUMMARY`, and `CLEANUP SUMMARY`, in that order.
+- Split detailed transfer listings out of `SYNC SUMMARY`; the transfer block now explains that it contains the snapshot/subvolume payloads transferred successfully by the current run (or planned by a dry-run).
+- Added a monotonic total backup timer to `SYNC SUMMARY`. It starts when the `sync` command begins and is finalized after retention/cleanup work, so it covers discovery, preflight, transfer work, and cleanup while excluding later MQTT/SMTP notification delivery.
+- Changed final `.succes` handling so sync finalization replaces intermediate retention text with a mail-friendly body whose top is: configured run name, `SYNC SUMMARY`, `CLEANUP SUMMARY`, then the transfer list. The full `.log` remains an attachment rather than the email body.
+- Added regression coverage for final terminal/`.log` ordering, timer formatting, mail-body ordering, configured run name placement, and replacement of intermediate `.succes` text.
+- Updated README.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, packaged config comments/version headers, package metadata, and release hygiene expectations for 0.1.82.
+
+## 0.1.83
+
+- Added total successful transfer-volume accounting to `SYNC SUMMARY`; totals are automatically displayed as MB, GB, or TB.
+- Successful pipelines now return mbuffer's measured byte total when mbuffer reports one. The run summary sums only successfully completed subvolume transfers, so failed streams never inflate the total.
+- When mbuffer does not provide a total, an already-enabled `transfer_size_mode = "exact"` preflight measurement is reused as the truthful stream-size fallback without generating another Btrfs send pass. Estimate-mode values are deliberately not reported as actual transferred bytes.
+- If one or more successful transfers have no trustworthy byte measurement (for example mbuffer disabled and no exact preflight), `SYNC SUMMARY` reports the total as unavailable instead of presenting a partial/estimated number as the run total.
+- Added regression coverage for mbuffer summary/progress parsing, successful pipeline byte accounting, total-size summation, automatic GB/TB formatting, and incomplete-measurement reporting.
+- Updated README.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, packaged config version headers, package metadata, and release hygiene expectations for 0.1.83.
+
+
+## 0.1.84
+
+- Fixed successful interactive syncs reporting `total transferred: unavailable` even with `use_mbuffer = true`. mbuffer can detect a controlling terminal and reopen `/dev/tty` for status/progress output, bypassing the stderr pipe that TimeShift-BTRFS-Sync captures. The progress was visible to the user, but the final byte summary never reached transfer accounting.
+- The optional middle/mbuffer process is now launched in a fresh session (`start_new_session=True`). Its stdin/stdout remain the same streaming pipes, but it has no controlling TTY to reopen; mbuffer status/final summary therefore stays on captured stderr, is mirrored live back to the terminal, is written to `.mbuffer`, and is available to the per-transfer byte counter.
+- Kept actual-transfer accounting semantics unchanged: only successfully completed stream totals are summed; estimate-mode preflight values are not presented as actual transferred bytes, while an already-computed exact preflight remains the fallback if mbuffer supplies no usable total.
+- Extended mbuffer summary parsing to accept multi-sender forms such as `summary: 2x ...` as well as the normal summary/progress forms.
+- Documented that custom `mbuffer_extra_args` containing `-q` can intentionally suppress status/final-summary output and therefore make live byte accounting unavailable unless exact preflight provides the fallback.
+- Added regression coverage proving the middle process starts as a new session leader and that its final byte summary is captured, plus multi-sender summary parsing coverage.
+- Updated README.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, all packaged config version headers/comments, package metadata, VERSIONING.md, and release hygiene expectations for 0.1.84.
