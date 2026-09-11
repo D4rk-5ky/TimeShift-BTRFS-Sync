@@ -31,6 +31,14 @@ from .models import SnapshotMeta, SubvolumeMeta, send_stream_uuid, tags_text
 from .source import SourceRunner
 from .log import emit_success_summary
 from .retention import initial_sync_keep_names
+from .transfer_size import (
+    TransferSizeError,
+    destination_free_bytes,
+    estimated_send_stream_size,
+    exact_send_stream_size,
+    format_bytes,
+    parse_size_bytes,
+)
 from .state import (
     latest_synced_before,
     mark_subvolume_synced,
@@ -90,6 +98,88 @@ def _human_rule(text: str = "----") -> None:
     print()
     print(text)
     print()
+
+
+def _transfer_size_preflight(
+    config: AppConfig,
+    source_btrfs: BtrfsOps,
+    destination_btrfs: BtrfsOps,
+    *,
+    snapshot_name: str,
+    subvolume_name: str,
+    current_path: str,
+    parent_path: str | None,
+) -> None:
+    """Measure one planned send and refuse it when Btrfs free space is too small."""
+
+    if not config.stream.transfer_size_check:
+        return
+
+    mode = config.stream.transfer_size_mode
+    print()
+    print("TRANSFER SIZE PREFLIGHT")
+    print(f"  snapshot:     {snapshot_name}/{subvolume_name}")
+    print(f"  send type:    {'incremental' if parent_path else 'full'}")
+    if parent_path:
+        print(f"  parent:       {parent_path}")
+    print(f"  mode:         {mode}")
+
+    try:
+        if mode == "exact":
+            print("  calculating:  real Btrfs send stream on source endpoint (stream is counted and discarded there)")
+            measurement = exact_send_stream_size(
+                source_btrfs,
+                current_path,
+                parent_path=parent_path,
+                compressed_data=config.source.send_compressed_data,
+                proto=config.source.send_proto,
+            )
+        else:
+            print("  calculating:  fast parent-specific Btrfs metadata-only send estimate (file payload is not read)")
+            measurement = estimated_send_stream_size(
+                source_btrfs,
+                current_path,
+                parent_path=parent_path,
+                compressed_data=config.source.send_compressed_data,
+                proto=config.source.send_proto,
+            )
+        free_bytes = destination_free_bytes(destination_btrfs, config.destination.target_root)
+        margin_bytes = parse_size_bytes(config.stream.transfer_size_safety_margin)
+    except (TransferSizeError, ValueError) as exc:
+        raise SyncError(
+            f"Transfer-size preflight failed for {snapshot_name}/{subvolume_name}: {exc}"
+        ) from exc
+
+    required_bytes = measurement.size_bytes + margin_bytes
+    print(f"  send size:    {format_bytes(measurement.size_bytes)}")
+    print(f"  basis:        {measurement.basis}")
+    print(f"  safety margin: {format_bytes(margin_bytes)}")
+    print(f"  required:     {format_bytes(required_bytes)}")
+    print(f"  Btrfs free:   {format_bytes(free_bytes)}")
+
+    if mode == "estimate":
+        print(
+            "  warning:      estimate mode totals logical changed extents from a metadata-only send; "
+            "compression/final allocation can differ, so the safety margin still matters"
+        )
+
+    if free_bytes < required_bytes:
+        shortfall = required_bytes - free_bytes
+        raise SyncError(
+            "Transfer-size safety check refused the send before creating the destination snapshot.\n\n"
+            f"Snapshot: {snapshot_name}/{subvolume_name}\n"
+            f"Mode: {mode}\n"
+            f"Calculated send size: {format_bytes(measurement.size_bytes)}\n"
+            f"Configured safety margin: {format_bytes(margin_bytes)}\n"
+            f"Required Btrfs free space: {format_bytes(required_bytes)}\n"
+            f"Current Btrfs Free (estimated): {format_bytes(free_bytes)}\n"
+            f"Shortfall: {format_bytes(shortfall)}\n\n"
+            "Free space may still change between this read-only preflight and btrfs receive, and send-stream "
+            "bytes are not guaranteed to equal final physical allocation. Increase destination free space or "
+            "the safety margin as appropriate before retrying."
+        )
+
+    print("  result:       OK")
 
 
 
@@ -271,6 +361,101 @@ def _required_pipeline_source_changes(
             )
     return changes
 
+
+
+_DESTINATION_RECEIVE_FATAL_PATTERNS: tuple[tuple[str, str], ...] = (
+    ("no space left on device", "destination reported no allocatable space (ENOSPC)"),
+    ("disk quota exceeded", "destination reported a disk/quota limit"),
+    ("read-only file system", "destination filesystem is read-only"),
+)
+
+
+def _terminal_destination_receive_failure_reason(exc: CommandError) -> str | None:
+    """Return a clear destination-side reason that must not be source-retried.
+
+    A failed Btrfs receive can make the upstream sender and mbuffer fail with
+    broken-pipe errors.  Those secondary failures must not cause the sync loop
+    to reinterpret a definitive local storage error as source churn.
+    """
+
+    receive_rc = exc.stage_returncodes.get("receive")
+    receive_stderr = exc.stage_stderr.get("receive", "")
+    if receive_rc in (None, 0):
+        return None
+    lowered = receive_stderr.lower()
+    for needle, reason in _DESTINATION_RECEIVE_FATAL_PATTERNS:
+        if needle in lowered:
+            return reason
+    return None
+
+
+def _revalidate_missing_required_pipeline_paths(
+    config: AppConfig,
+    source: SourceRunner,
+    before: inventory.SourceInventory,
+    after: inventory.SourceInventory,
+    *,
+    current_path: str,
+    parent_path: str | None,
+    additional_paths: tuple[tuple[str, str | None], ...] = (),
+) -> list[str]:
+    """Exact-probe required source paths omitted by the refreshed bulk index.
+
+    Source-change recovery is destructive to the app-owned cache/destination
+    version, so a bulk-index omission alone is not enough to declare a required
+    send path gone.  On a failed pipeline only, exact ``btrfs subvolume show``
+    probes revalidate paths that existed before the send but are absent from the
+    refreshed combined inventory.  Confirmed paths are put back into that
+    inventory before the normal identity comparison runs.
+    """
+
+    notes: list[str] = []
+    required_paths = (
+        ("current send path", current_path),
+        ("incremental parent path", parent_path),
+        *additional_paths,
+    )
+    seen: set[str] = set()
+    ops = BtrfsOps(
+        CommandEndpoint.for_source(source),
+        config.source.sudo,
+        config.source.btrfs_command,
+    )
+    for label, path in required_paths:
+        if not path or path in seen:
+            continue
+        seen.add(path)
+        old_meta = before.meta(path)
+        if old_meta is None or after.meta(path) is not None:
+            continue
+
+        target_index = (
+            after.cache_index
+            if after.cache_index is not None and is_under(path, config.source.cache_root)
+            else after.snapshot_index
+        )
+        exact = inventory.refresh_path(
+            target_index,
+            ops,
+            path,
+            name=Path(path).name,
+        )
+        if exact is None:
+            notes.append(f"{label}: exact Btrfs probe confirms absent: {path}")
+            continue
+        if old_meta.uuid and exact.uuid == old_meta.uuid:
+            notes.append(
+                f"{label}: bulk inventory omitted path, but exact Btrfs probe confirms the same UUID still exists: "
+                f"{path} ({exact.uuid})"
+            )
+        elif old_meta.uuid:
+            notes.append(
+                f"{label}: exact Btrfs probe found a different UUID: {path}: "
+                f"{old_meta.uuid} -> {exact.uuid or '-'}"
+            )
+        else:
+            notes.append(f"{label}: exact Btrfs probe confirms path still exists: {path}")
+    return notes
 
 def confirm_source_identity_before_manual_snapshot(
     config: AppConfig,
@@ -780,7 +965,7 @@ def _send_path_kind_text(config: AppConfig, send_path: str, original_path: str) 
     if Path(send_path) == Path(original_path):
         return "Timeshift original read-only snapshot; protected from app prune"
     if is_under(send_path, config.source.cache_root):
-        return "app-created source send-cache snapshot; prune may delete with destination retention"
+        return "app-created source send-cache snapshot; prune may delete with paired retention"
     return "external read-only send path; protected from app prune"
 
 
@@ -1029,7 +1214,7 @@ def _prepare_snapshot_for_transfer_or_recover(
 
     # Already-complete snapshots do not need source probing. Timeshift may have
     # pruned old hourly sources, but a complete destination backup remains valid
-    # until normal destination retention deletes it.
+    # until retention safely retires it.
     if state_complete and dest_complete:
         return True
 
@@ -1327,8 +1512,9 @@ def _find_confirmed_sync_floor(
 ) -> tuple[str | None, str]:
     """Return newest state snapshot that still exists on source and matches UUIDs.
 
-    After destination pruning, old source snapshots may still exist on the source
-    side. Without a floor, sync would see those pruned snapshots as missing and
+    After pruning, source snapshots can still exist when Timeshift/user retention
+    keeps them or app-created source cleanup is disabled/blocked. Without a floor,
+    sync would see destination-pruned snapshots as missing and
     send them again. Instead of adding a long list of tombstones, we walk
     state.json newest-to-oldest and find the newest snapshot that:
 
@@ -2255,7 +2441,9 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
         print("SOURCE INVENTORY CHANGED DURING TRANSFER PREPARATION" if operation != "send/receive" else "SOURCE INVENTORY CHANGED DURING TRANSFER")
         print(f"  failed item: {failed_snapshot.name}/{subvolume_name}")
         print(f"  operation:   {operation}")
-        print(f"  retry:       {retry_number}/{config.source.source_change_retry_count}")
+        retry_limit = config.source.source_change_retry_count
+        print(f"  retry event: {retry_number}")
+        print(f"  retry limit: {retry_limit}")
         print("  required path change(s):")
         for change in required_changes:
             print(f"    - {change}")
@@ -2263,16 +2451,19 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             print("  complete inventory difference:")
             for change in inventory_changes:
                 print(f"    - {change}")
-        print("  action:      clean the incomplete snapshot version, rebuild all source lists, and continue oldest-to-newest")
-        _human_rule("---")
 
-        if retry_number > config.source.source_change_retry_count:
+        if retry_number > retry_limit:
+            print("  action:      stop; automatic source-change retry limit was already exhausted")
+            _human_rule("---")
             raise SyncError(
                 "Source Timeshift/cache metadata kept changing while work was in progress and the automatic "
                 f"retry limit was exhausted for {failed_snapshot.name}/{subvolume_name}. "
                 f"Configured source.source_change_retry_count={config.source.source_change_retry_count}.\n\n"
                 + "\n".join(required_changes)
             ) from original_error
+
+        print("  action:      clean the incomplete snapshot version, rebuild all source lists, and continue oldest-to-newest")
+        _human_rule("---")
 
         source_inventory = refreshed_inventory
         source_by_name = refreshed_source_by_name
@@ -2570,6 +2761,14 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
                 if parent_name:
                     print()
                     print("    safety: real run verifies the selected parent send_path or original source UUID against destination received_uuid")
+                if config.stream.transfer_size_check:
+                    print()
+                    print(
+                        "    size-check: real run would "
+                        f"{config.stream.transfer_size_mode} measure this {mode} send and require "
+                        f"the result + {config.stream.transfer_size_safety_margin} safety margin "
+                        "to fit within destination Btrfs Free (estimated)"
+                    )
                 if config.stream.use_mbuffer:
                     print()
                     print(f"    stream: would use {' '.join(config.stream.command() or [])}")
@@ -2584,18 +2783,36 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             # later run can establish a prune-safe high-watermark without keeping
             # tombstones for every deleted destination snapshot.
 
-            # Create the local receive directory only after parent selection.
-            # This prevents an empty in-progress directory from being mistaken as
-            # an existing backup by the safety guard.
+            source_btrfs = BtrfsOps(
+                CommandEndpoint.for_source(source), config.source.sudo, config.source.btrfs_command
+            )
+            destination_btrfs = BtrfsOps(
+                CommandEndpoint.local(), config.destination.sudo, config.destination.btrfs_command
+            )
+
+            # Capacity preflight happens before the destination date container is
+            # created. Exact mode generates the same stream once on the source
+            # endpoint and counts it there; only the byte count crosses SSH.
+            _transfer_size_preflight(
+                config,
+                source_btrfs,
+                destination_btrfs,
+                snapshot_name=snapshot.name,
+                subvolume_name=subvol_name,
+                current_path=current_send_path,
+                parent_path=parent_send_path,
+            )
+
+            # Create the local receive directory only after parent selection and
+            # transfer-size capacity approval. This prevents an empty in-progress
+            # directory from being mistaken as an existing backup by the safety guard.
             target_dir = _ensure_destination_snapshot_subvolume(config, snapshot.name, destination_index)
             _human_blank()
             print(f"  {subvol_name}: {mode} send/receive")
             print(f"    source-kind: {_send_path_kind_text(config, current_send_path, subvolume.path)}")
             # Build source send command. If parent_send_path is set, btrfs send
             # receives `-p <parent>` and sends an incremental stream.
-            send_cmd = BtrfsOps(
-                CommandEndpoint.for_source(source), config.source.sudo, config.source.btrfs_command
-            ).send_command(
+            send_cmd = source_btrfs.send_command(
                 current_send_path,
                 parent_path=parent_send_path,
                 compressed_data=config.source.send_compressed_data,
@@ -2605,9 +2822,9 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
 
             # Build local receive command. Destination compression is left to
             # the filesystem mount/property policy outside this app.
-            receive_cmd = BtrfsOps(
-                CommandEndpoint.local(), config.destination.sudo, config.destination.btrfs_command
-            ).receive_command(target_dir, verbose=config.stream.btrfs_verbose)
+            receive_cmd = destination_btrfs.receive_command(
+                target_dir, verbose=config.stream.btrfs_verbose
+            )
 
             # Optional mbuffer is inserted as the middle command. Password auth
             # environment is passed to the source side so streamed sends work
@@ -2626,6 +2843,26 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
                     passthrough_right_stdout=config.stream.btrfs_verbose,
                 )
             except CommandError as pipeline_exc:
+                terminal_receive_reason = _terminal_destination_receive_failure_reason(pipeline_exc)
+                if terminal_receive_reason:
+                    _human_blank()
+                    print("DESTINATION RECEIVE FAILURE")
+                    print(f"  primary error: {terminal_receive_reason}")
+                    print(f"  destination:   {config.destination.target_root}")
+                    print("  action:        stop immediately; source-change recovery will not run")
+                    _human_rule("---")
+                    raise SyncError(
+                        "Local Btrfs receive failed with a destination-side storage error. "
+                        "Automatic source-change recovery is intentionally not attempted because recreating "
+                        "source cache snapshots cannot fix this failure.\n\n"
+                        f"Reason: {terminal_receive_reason}.\n"
+                        f"Destination root: {config.destination.target_root}\n"
+                        "The failed destination version is left incomplete and will be handled by the existing "
+                        "cleanup_incomplete_receive recovery on the next sync after the destination problem is fixed.\n"
+                        "Check destination capacity with `df -h` and `btrfs filesystem usage` (including Btrfs "
+                        "metadata allocation), then rerun the sync."
+                    ) from pipeline_exc
+
                 try:
                     refreshed_inventory, refreshed_source_by_name = load_source_inventory(
                         f"after failed transfer {snapshot.name}/{subvol_name}"
@@ -2637,6 +2874,21 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
                         f"Pipeline error: {pipeline_exc}\n"
                         f"Inventory refresh error: {refresh_exc}"
                     ) from pipeline_exc
+
+                exact_revalidation = _revalidate_missing_required_pipeline_paths(
+                    config,
+                    source,
+                    inventory_before_send,
+                    refreshed_inventory,
+                    current_path=current_send_path,
+                    parent_path=parent_send_path,
+                )
+                if exact_revalidation:
+                    _human_blank()
+                    print("REQUIRED SOURCE PATH REVALIDATION AFTER PIPELINE FAILURE")
+                    for note in exact_revalidation:
+                        print(f"  - {note}")
+                    _human_rule("---")
 
                 inventory_changes = inventory.describe_source_inventory_changes(
                     inventory_before_send,

@@ -1,0 +1,27 @@
+# Ignore user/runtime config files by default
+*.config
+*.toml
+
+# Keep packaged example configs tracked
+!config.example.config
+!config.example.toml
+!timeshift_btrfs_sync/data/config.example.toml
+!timeshift_btrfs_sync/data/config.restore-pull.example.toml
+!timeshift_btrfs_sync/data/config.remote-roundtrip.example.toml
+
+# Runtime logs
+logs/
+**/logs/
+*.succes
+
+# Python/test/build cache files
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+*.spec
+*.egg-info/
+dist/

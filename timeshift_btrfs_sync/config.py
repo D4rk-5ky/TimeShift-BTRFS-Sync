@@ -11,6 +11,7 @@ import tomllib
 from .ssh import SSHConfig, validate_control_path_safety
 from .mqtt import MQTTConfig
 from .mail import MailConfig
+from .transfer_size import parse_size_bytes
 
 TOP_LEVEL_KEYS = {
     "name", "default_dry_run", "prune_after_sync", "log_dir", "state_file", "lock_file",
@@ -23,7 +24,7 @@ SOURCE_KEYS = {
     "source_change_retry_count", "send_compressed_data", "send_proto",
 }
 DESTINATION_KEYS = {"target_root", "sudo", "btrfs_command", "create_target_root", "cleanup_incomplete_receive"}
-STREAM_KEYS = {"use_mbuffer", "mbuffer_command", "mbuffer_size", "mbuffer_rate", "mbuffer_extra_args", "btrfs_verbose"}
+STREAM_KEYS = {"use_mbuffer", "mbuffer_command", "mbuffer_size", "mbuffer_rate", "mbuffer_extra_args", "btrfs_verbose", "transfer_size_check", "transfer_size_mode", "transfer_size_safety_margin"}
 RETENTION_KEYS = {"hourly", "daily", "weekly", "monthly", "boot", "ondemand", "cleanup_ondemand", "keep_latest", "keep_latest_common_parent", "protected_snapshots"}
 MANUAL_SNAPSHOT_KEYS = {"enabled", "cleanup_enabled", "comment", "marker", "retention_count"}
 RESTORE_KEYS = {"mode"}
@@ -66,11 +67,13 @@ class ManualSnapshotConfig:
     # destination state entries. Matching is case-insensitive.
     marker: str = "ts-btrfs-sync"
 
-    # Destination retention for app-created on-demand snapshots. This is separate
-    # from retention.ondemand, which applies only to normal/user-created
-    # Timeshift O snapshots when retention.cleanup_ondemand = true.
-    # Set to 0 to delete all matching app-created snapshots except globally
-    # protected/newest snapshots. Disable cleanup_enabled to keep them all.
+    # Paired retention for app-created on-demand snapshots on the source Timeshift
+    # repository and backup destination. This is separate from retention.ondemand,
+    # which applies only to normal/user-created Timeshift O snapshots on the backup
+    # when retention.cleanup_ondemand = true. Source deletion is re-proven from the
+    # current Timeshift O tag + marker and a complete live backup before Timeshift
+    # is asked to delete it. Set to 0 to retire all matching app-created snapshots
+    # except globally protected/newest snapshots. Disable cleanup_enabled to keep all.
     retention_count: int = 10
 
 @dataclass(slots=True)
@@ -79,9 +82,10 @@ class SourceConfig:
 
     # Timeshift-owned snapshot directory. During restore this path and cache_root
     # are always interpreted on the same Timeshift endpoint selected by restore.mode.
-    # It may be an ordinary directory on a
-    # Btrfs filesystem, but the app must never create, prune, delete, destroy,
-    # or clean this path or anything below it.
+    # It may be an ordinary directory on a Btrfs filesystem. The app never creates
+    # or destroys this root and raw Btrfs/cache cleanup is forbidden below it. The
+    # only normal-prune exception is an app-created tag O snapshot that is freshly
+    # revalidated by Timeshift and safely retired through `timeshift --delete`.
     snapshot_root: str
     mode: str = "ssh"
     subvolumes: list[str] = field(default_factory=lambda: ["@", "@home"])
@@ -109,8 +113,10 @@ class SourceConfig:
     verify_incremental_parent_once_per_run: bool = True
 
     # Number of automatic inventory rebuild/retry cycles allowed for one
-    # snapshot/subvolume when a required source or parent path disappears or
-    # changes identity during btrfs send. Zero disables automatic continuation.
+    # snapshot/subvolume when a required source or parent path is exactly
+    # confirmed missing or changes identity during btrfs send. Definitive local
+    # receive/storage failures (for example ENOSPC) do not consume this budget.
+    # Zero disables automatic source-change continuation.
     source_change_retry_count: int = 5
 
     send_compressed_data: bool = False
@@ -146,6 +152,14 @@ class StreamConfig:
     mbuffer_rate: str | None = None
     mbuffer_extra_args: list[str] = field(default_factory=list)
 
+    # Optional per-subvolume capacity preflight. Exact mode generates the same
+    # Btrfs send stream once on the source endpoint and counts it locally there;
+    # only the byte count returns over SSH. Estimate mode uses a parent-specific
+    # metadata-only btrfs send and totals changed extent lengths without file payload.
+    transfer_size_check: bool = False
+    transfer_size_mode: str = "estimate"
+    transfer_size_safety_margin: str = "1G"
+
     # When true, add -v to both btrfs send and btrfs receive and let their
     # stderr/stdout text pass through to the terminal during the transfer.
     # This is not byte progress; it is Btrfs operation verbosity.
@@ -166,7 +180,7 @@ class StreamConfig:
 
 @dataclass(slots=True)
 class RetentionConfig:
-    """Destination retention counts by Timeshift tag."""
+    """Backup retention counts by Timeshift tag."""
 
     hourly: int = 6
     daily: int = 7
@@ -422,12 +436,23 @@ def load_config(path: str | Path) -> AppConfig:
 
     stream_raw = _table(raw, "stream")
     _reject_unknown_keys(stream_raw, "[stream]", STREAM_KEYS)
+    transfer_size_mode = _stripped(stream_raw, "transfer_size_mode", "estimate").lower()
+    if transfer_size_mode not in {"exact", "estimate"}:
+        raise ConfigError("stream.transfer_size_mode must be 'exact' or 'estimate'")
+    transfer_size_safety_margin = _stripped(stream_raw, "transfer_size_safety_margin", "1G")
+    try:
+        parse_size_bytes(transfer_size_safety_margin)
+    except ValueError as exc:
+        raise ConfigError(f"stream.transfer_size_safety_margin is invalid: {exc}") from exc
     stream = StreamConfig(
         use_mbuffer=_bool(stream_raw, "stream", "use_mbuffer", False),
         mbuffer_command=str(stream_raw.get("mbuffer_command", "mbuffer")),
         mbuffer_size=str(stream_raw.get("mbuffer_size", "256M")),
         mbuffer_rate=(str(stream_raw.get("mbuffer_rate")) if stream_raw.get("mbuffer_rate") else None),
         mbuffer_extra_args=_string_list(stream_raw.get("mbuffer_extra_args"), "stream.mbuffer_extra_args"),
+        transfer_size_check=_bool(stream_raw, "stream", "transfer_size_check", False),
+        transfer_size_mode=transfer_size_mode,
+        transfer_size_safety_margin=transfer_size_safety_margin,
         btrfs_verbose=_bool(stream_raw, "stream", "btrfs_verbose", False),
     )
 

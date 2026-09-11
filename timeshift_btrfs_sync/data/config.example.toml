@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.1.72 config
+# timeshift-btrfs-sync v0.1.79 config
 # Run this config on the BACKUP/DESTINATION machine for normal sync.
 # source.mode controls only normal source-side sync/list/prune/manual commands.
 # Sync always writes destination.target_root locally; it never sends the backup destination over SSH.
@@ -19,7 +19,7 @@ name = "kubuntu-timeshift"
 # Safe default: commands preview changes unless --run is passed.
 default_dry_run = true
 
-# If true, `sync` automatically runs destination retention pruning after a successful sync.
+# If true, `sync` automatically runs retention pruning after a successful sync.
 # Safety rule: pruning only deletes for real when the command is also run with
 # both --run and --yes-delete. Without --yes-delete, the app prints the prune
 # plan and refuses to delete. Keep false while testing.
@@ -279,31 +279,41 @@ extra_args = ["-o", "BatchMode=yes"]
 # creation is skipped because that command is a targeted sync.
 enabled = true
 
-# Independent cleanup for app-created on-demand snapshots.
+# Independent paired cleanup for app-created on-demand snapshots.
 # This only affects tag O snapshots whose saved Timeshift comment contains marker.
 # It does not affect normal/user-created Timeshift on-demand snapshots.
+# Eligible old app snapshots are retired on BOTH the source Timeshift repository
+# and backup destination. Source deletion is performed only through Timeshift after
+# current tag O + marker and complete live-backup proof are revalidated.
 # Real deletion still requires prune to run with --run --yes-delete.
 cleanup_enabled = true
 
 # Comment passed to Timeshift. Keep the marker text inside the comment so the
-# destination prune logic can recognize snapshots created by this app.
+# prune logic can recognize snapshots created by this app on both ends.
 comment = "ts-btrfs-sync automatic on-demand snapshot"
 marker = "ts-btrfs-sync"
 
-# Destination retention for app-created on-demand snapshots recognized by marker.
-# Default 10. This is independent from [retention].ondemand.
-# Set 0 to delete all matching app-created snapshots except globally protected
-# snapshots/newest common parent. Set cleanup_enabled = false to keep them all.
+# Paired source+destination retention for app-created on-demand snapshots recognized
+# by marker. Default 10. This is independent from [retention].ondemand.
+# With ordinary app snapshots that have only tag O and no explicit protection, a
+# successful real prune converges to this many app-created snapshots on both ends.
+# A snapshot carrying another retained tag or listed in protected_snapshots can be
+# intentionally kept in addition to this count. Set 0 to retire all matching app
+# snapshots except globally protected/newest safeguards. Set cleanup_enabled=false
+# to keep them all.
 retention_count = 10
 
 # Sync path preflight:
 # Before automatic/manual on-demand snapshot creation and before any send/receive
 # work, the app verifies source.snapshot_root, source.cache_root policy, and
 # destination.target_root. In SSH mode source checks run through the configured
-# configured SSH authentication source endpoint; in local mode they run locally.
-# source.snapshot_root is Timeshift-owned: it must already exist, may be an
-# ordinary directory on Btrfs, and is never created, pruned, deleted, destroyed,
-# or cleaned by this app. source.cache_root may already exist as a Btrfs
+# SSH authentication source endpoint; in local mode they run locally.
+# source.snapshot_root is Timeshift-owned: it must already exist and may be an
+# ordinary directory on Btrfs. The root is never created/destroyed and raw Btrfs
+# cleanup never deletes anything below it. Normal prune has one narrow exception:
+# an app-created tag O snapshot may be retired through Timeshift itself after the
+# current O tag + marker and complete live-backup proof are revalidated.
+# source.cache_root may already exist as a Btrfs
 # subvolume, or if create_readonly_cache = true it may be missing as long as
 # its parent is Btrfs-accessible; real preflight creates it as a Btrfs subvolume.
 # source.cache_root is not created unless source.snapshot_root has already been
@@ -340,8 +350,10 @@ timeshift_command = "timeshift"
 #   sudo -n timeshift --list
 # This directory belongs to Timeshift and must already exist. It may be a
 # normal directory on a Btrfs filesystem because Timeshift creates snapshot
-# subvolumes inside it. The app never creates source.snapshot_root and must
-# never prune, delete, destroy, or clean source.snapshot_root or anything below it.
+# subvolumes inside it. The app never creates/destroys source.snapshot_root and
+# never raw-deletes any path below it. Retention may delete only an app-created
+# tag O snapshot through `timeshift --delete --snapshot <name>` after current
+# Timeshift ownership metadata and complete live-backup proof are revalidated.
 # For normal sync, source.mode selects the endpoint. For restore, restore.mode
 # selects the Timeshift endpoint and this path always shares that endpoint with
 # source.cache_root.
@@ -387,8 +399,12 @@ verify_incremental_parent_once_per_run = true
 # Number of times one snapshot/subvolume may automatically rebuild the complete
 # Timeshift + snapshot_root + cache_root inventory after a failed cache/send
 # operation proves that a required source or parent path disappeared or changed
-# UUID. Recovery cleans the incomplete whole snapshot version and rebuilds the
-# oldest-to-newest queue. Set 0 to disable this automatic continuation.
+# UUID. A path omitted by the refreshed bulk inventory is exact-probed with
+# `btrfs subvolume show` before it counts as disappeared. Definitive local receive
+# failures such as ENOSPC, disk-quota exhaustion, or a read-only destination abort
+# immediately and do not consume this retry budget. Recovery cleans the incomplete
+# whole snapshot version and rebuilds the oldest-to-newest queue. Set 0 to disable
+# automatic source-change continuation.
 source_change_retry_count = 5
 
 # Source-side read-only cache for writable Timeshift snapshots.
@@ -501,6 +517,30 @@ cleanup_incomplete_receive = true
 
 
 [stream]
+# Optional normal-sync capacity preflight before each full/incremental send.
+# Disabled by default so background syncs do not add extra preflight work.
+# Set true to measure/estimate the pending send and compare it with destination
+# Btrfs `Free (estimated)` before the destination snapshot date is created.
+transfer_size_check = false
+
+# "exact" generates the real btrfs send stream once on the source endpoint and
+# pipes it into `wc -c` there. The stream is not stored and, for SSH sources,
+# only the final byte count crosses SSH. The reported value is Btrfs stream bytes, not
+# SSH/TCP wire overhead. This adds an extra source read/send pass.
+# "estimate" is the default when the check is enabled. It runs a parent-specific
+# metadata-only `btrfs send --no-data`, validates it with `btrfs receive --dump`,
+# and streams that dump through source-side C-locale `awk` to total changed extent
+# lengths. Only one ASCII byte count returns to the app; file payload and the full
+# dump are not transferred/captured. This is faster than exact mode but remains
+# an estimate of destination needs.
+# Use "exact" only when the slower byte-for-byte stream measurement is wanted.
+transfer_size_mode = "estimate"
+
+# Extra Btrfs free space required above the calculated stream size. Binary suffixes
+# K/M/G/T/P/E are accepted; 1G means 1 GiB. This reduces, but cannot eliminate,
+# ENOSPC risk because final receive allocation is not guaranteed to equal stream bytes.
+transfer_size_safety_margin = "1G"
+
 # Optional mbuffer between source send and local receive.
 # SSH mode false pipeline:
 #   ssh source 'btrfs send ...' | btrfs receive ...
@@ -529,7 +569,7 @@ mbuffer_extra_args = []
 btrfs_verbose = false
 
 [retention]
-# Destination retention counts by Timeshift tag.
+# Backup retention counts by Timeshift tag.
 # H=hourly, D=daily, W=weekly, M=monthly, B=boot, O=on-demand/manual.
 #
 # These rules are used by:

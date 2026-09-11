@@ -27,6 +27,7 @@ This file lists the current public interface. The loader rejects any key not lis
 - `init-config --profile restore-pull` writes the second profile.
 - `init-config --profile remote-roundtrip` writes the third profile.
 - All profiles document every current schema key, including restore transport and all SSH authentication/transport settings.
+- PyInstaller builds bundle the complete package data directory, so frozen executables expose the same three `init-config` profiles as the Python package.
 - Encrypted SSH identities support exactly one of `ssh.identity_passphrase` or `ssh.identity_passphrase_file`; remote account passwords independently support exactly one of `ssh.password` or `ssh.password_file`. Password-only authentication retains `sshpass`; identity-passphrase authentication uses the process-private prompt-aware askpass helper and may also answer a distinct account-password prompt.
 
 ## `init-config` flags
@@ -71,6 +72,7 @@ The default profile is `sync`. All generated profiles contain every current conf
 - `send_proto`
 - `snapshot_root`
 - `source_change_retry_count`
+  - Applies only to exactly confirmed required source/cache path disappearance or UUID changes; refreshed bulk-index misses are exact-probed first, while definitive local receive/storage failures such as ENOSPC abort immediately without consuming the retry budget.
 - `subvolumes`
 - `sudo`
 - `timeshift_command`
@@ -92,6 +94,9 @@ The default profile is `sync`. All generated profiles contain every current conf
 - `mbuffer_extra_args`
 - `mbuffer_rate`
 - `mbuffer_size`
+- `transfer_size_check`
+- `transfer_size_mode`
+- `transfer_size_safety_margin`
 - `use_mbuffer`
 
 ## `[retention]`
@@ -114,6 +119,8 @@ The default profile is `sync`. All generated profiles contain every current conf
 - `enabled`
 - `marker`
 - `retention_count`
+
+Current retention semantics: `cleanup_enabled = true` makes `retention_count` a paired target for app-created tag `O` snapshots recognized by `marker` on the source Timeshift repository and backup destination. Source retirement is not raw Btrfs cleanup: a real prune revalidates current tag `O` + marker, proves the required backup payloads are complete, uses Timeshift's own `--delete --snapshot` command, verifies the snapshot is no longer listed, and only then continues destination/cache cleanup. Normal/user-created tag `O` snapshots are excluded from this source cleanup. Legacy source-only app snapshots from older one-sided pruning are deleted only when the newest retained app-snapshot window is independently proven on the live backup.
 
 ## `[ssh]`
 

@@ -833,3 +833,92 @@ This build is version `0.1.17`.
 - Updated all three complete config profiles, README.md, INSTALL.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, VERSIONING.md, and package version metadata.
 - Added focused regression coverage for direct and file-backed passphrases, distinct key/account secrets, unknown-prompt refusal, `BatchMode=yes` rejection, missing identity validation, and unchanged password-only behavior.
 
+
+## 0.1.73
+
+- Restored the missing complete `timeshift_btrfs_sync/data/config.remote-roundtrip.example.toml` profile. It is preconfigured for SSH Timeshift source -> local backup -> push restore to the same SSH Timeshift host with `source.mode = "ssh"` and `restore.mode = "ssh-target"`.
+- Updated all three complete config profile headers to 0.1.73 and kept every current configuration option documented in every profile.
+- Fixed PyInstaller packaging so `scripts/build_pyinstaller.py` bundles the complete `timeshift_btrfs_sync/data/` directory instead of embedding only `config.example.toml`. This makes `sync`, `restore-pull`, and `remote-roundtrip` available to frozen builds and makes future packaged profile additions automatically follow the same data-directory rule.
+- Corrected the direct PyInstaller examples in `INSTALL.md` to include the same complete package-data directory, and added frozen-executable `init-config` verification commands for all three profiles.
+- Corrected `init-config --help` so its command description explicitly explains the `remote-roundtrip` profile as well as `sync` and `restore-pull`, and added regression coverage preventing a packaged profile from disappearing from that help.
+- Added a new `tests/` regression suite using Python's standard-library `unittest`, with coverage for packaged profile generation/loading, config-schema presence, PyInstaller data packaging, 0.1.70 restore common-parent/physical-scan behavior, 0.1.71 topology safety/direction behavior, 0.1.72 encrypted identity authentication behavior, CLI/documentation coverage, version consistency, and release hygiene.
+- Added a regression guard that scans runtime/build Python symbols and fails when a class/function is missing from `COMMENTED_CODE_MAP.md`.
+- Completed `COMMENTED_CODE_MAP.md` entries for command-local CLI closures, remote inventory parser flush helpers, inventory comparison, log pipe reader, prune action handlers, and sync-local parent/inventory/queue/recovery helpers that were previously omitted.
+- Removed the unused legacy `timeshift_btrfs_sync/metadata.py` runtime module after confirming the current application does not import it.
+- Removed the unreferenced standalone `delete-btrfs-tree.sh` helper so release cleanup has no separate broad ordinary-filesystem deletion implementation outside the guarded Btrfs tree engine.
+- Added `*.succes` to `.gitignore` and removed the stray runtime success-summary file from the release tree.
+- Corrected `.gitignore` exceptions so all three packaged TOML examples, including the newly restored remote-roundtrip file, remain trackable despite the general `*.toml` ignore; also ignored common Python/test/build cache artifacts.
+- Kept README.md focused on current usage, configuration, safety, and every current CLI command; removed the internal module/package-layout discussion that belongs in the code map rather than the user guide.
+- Updated README.md, INSTALL.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, VERSIONING.md, config profiles, PyInstaller build script, package version metadata, and release tests for the current 0.1.73 behavior.
+- Intentionally omitted the stale prebuilt `dist/ts-btrfs` 0.1.72 executable from the 0.1.73 release package because PyInstaller is unavailable in the validation environment and package-network access is blocked. Shipping that binary would falsely present an old executable that lacks the restored packaged profiles; rebuild it with `scripts/build_pyinstaller.py` on a system with the PyInstaller extra before distributing a frozen binary.
+
+## 0.1.74
+
+- Fixed app-created on-demand retention so `[manual_snapshot].cleanup_enabled = true` and `retention_count` now apply as a paired source+destination target instead of pruning only the backup destination. With ordinary app-created snapshots carrying only tag `O` and no explicit protection, `retention_count = 10` converges to 10 matching app-created snapshots on both the source Timeshift repository and backup destination after a successful real prune.
+- Added current source Timeshift revalidation before any source deletion. A source snapshot is eligible only when the current Timeshift listing still proves tag `O` and the configured `manual_snapshot.marker`; normal/user-created tag `O` snapshots are never deleted by the app-created source cleanup path.
+- Added live backup proof before retiring a tracked source snapshot. Every configured subvolume must be recorded complete in state and must still exist as a Btrfs subvolume at its exact current destination path.
+- Source snapshot retirement now uses Timeshift's supported `timeshift --delete --snapshot <name> --scripted --yes` command through the configured local/SSH source endpoint and `source.sudo`. The app never raw-deletes a Timeshift snapshot with `btrfs subvolume delete` or `rm`; a post-delete `timeshift --list` in the same source command verifies that the timestamp is actually gone.
+- Ordered paired deletion for retry safety: after live backup proof succeeds, the source Timeshift snapshot is retired first, then the old destination snapshot, then the app-owned send-cache, and state is removed only after every required action succeeds. If Timeshift deletion fails, the destination backup is deliberately left untouched so the next prune can re-prove the backup and retry safely.
+- Added guarded migration cleanup for source-only app snapshots left behind by the 0.1.73 one-sided retention behavior. An old source-only candidate is authorized only when the complete newest `manual_snapshot.retention_count` app-created source window is independently proven complete in current state and on the live destination; otherwise legacy source deletion is blocked.
+- Fixed legacy-candidate accounting so a normally paired prune item cannot be reclassified/count again as a source-only legacy candidate after its state entry is removed during the same run.
+- Reused the Timeshift metadata refresh already performed by standalone `prune` for source-retention decisions, avoiding a duplicate source Timeshift list/SSH call in that command path. Post-sync prune performs one current source Timeshift refresh for the destructive retention decision.
+- Added `ActionKind.DELETE_SOURCE_TIMESHIFT` and extended the shared prune workflow planner/executor so dry-run/real ordering remains explicit and auditable.
+- Added `tests/test_manual_snapshot_retention.py` with regression coverage for keeping the newest 10 app snapshots, excluding normal/user `O` snapshots, exact live destination proof, safe 0.1.73 backlog migration, blocked migration when the retained window is incomplete, current tag+marker revalidation, Timeshift-only delete commands, post-delete verification, retry-safe action ordering, and preservation of destination/state when source retirement fails.
+- Updated all three config profiles, README.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, CLI help, runtime config comments, and package version metadata for the paired-retention behavior.
+- Corrected two pre-existing empty Markdown command blocks in README.md by restoring concrete prune and `destroy-leftovers` dry-run examples.
+
+## 0.1.75
+
+- Fixed pipeline failure classification so definitive local `btrfs receive` storage errors remain the primary failure instead of being reinterpreted as source inventory churn. `No space left on device` (ENOSPC), disk-quota exhaustion, and read-only destination failures now abort immediately and do not consume `source.source_change_retry_count`.
+- Extended `CommandError`/`stream_pipeline` with per-stage send/buffer/receive return codes and stderr. This lets sync distinguish the real receive-side failure from the expected upstream `Broken pipe` errors caused when `btrfs receive` exits first.
+- Added exact required-path revalidation after non-terminal pipeline failures. If the refreshed bulk source inventory omits a current send path or incremental parent that existed before the transfer, the app now runs an exact `btrfs subvolume show` probe before declaring that path disappeared. Same-UUID paths are restored into the refreshed in-memory index and are not treated as source-change retries.
+- Added explicit terminal diagnostics for destination storage failures explaining that source-cache recreation cannot fix the problem, that the incomplete destination version is left for the existing `cleanup_incomplete_receive` recovery on the next run, and that destination/Btrfs capacity should be checked before retrying. Corrected the source-change retry-limit output so an exhausted sixth event with a limit of five says it is stopping instead of printing a misleading `6/5` clean-and-continue action.
+- Clarified current README/config documentation so `source_change_retry_count` applies only to exactly confirmed source/cache disappearance or UUID changes, not ENOSPC or unrelated `info.json` churn.
+- Added regression tests for receive-side ENOSPC classification, broken-pipe non-classification, exact-probe repair of bulk cache-index omissions, and exact confirmation of truly missing cache paths.
+- Updated package/config version metadata, README.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, VERSIONING.md, and the release test suite for 0.1.75. Release hygiene now also rejects `dist/` and `*.egg-info/` build artifacts, and `.gitignore` excludes them.
+
+
+## 0.1.76
+
+- Added optional per-subvolume transfer-size capacity preflight for normal `sync` with the requested `[stream]` settings: `transfer_size_check`, `transfer_size_mode`, and `transfer_size_safety_margin`.
+- Exact mode now generates the same full/incremental `btrfs send` stream that the real transfer will use, including the exact selected `-p` parent, send protocol, and compressed-data option, and pipes it into `wc -c` on the source endpoint. For SSH sources the stream remains remote and only the decimal byte count returns over SSH; no send-stream temporary file is created.
+- Exact measurement emits and parses an explicit producer return-code marker so POSIX pipeline semantics cannot hide a failed `btrfs send` behind a successful `wc -c`.
+- Added estimate mode using summarized raw `btrfs filesystem du`. Full sends use total referenced bytes; incremental sends use current exclusive bytes as a deliberately rough, non-parent-specific estimate and print/document that it may under- or over-estimate the real stream.
+- Added destination capacity probing through `btrfs filesystem usage -b <target_root>`. The parser uses `Free (estimated)` and prefers Btrfs's `min` lower bound when present.
+- A real sync now refuses a transfer before creating the destination snapshot date when calculated send bytes plus `transfer_size_safety_margin` exceed current Btrfs estimated free space. The refusal reports send size, margin, required space, current free space, and shortfall.
+- Dry-run does not perform the expensive exact stream-generation pass; it reports that the real run would execute the configured transfer-size check.
+- Added binary K/M/G/T/P/E parsing for the safety margin; `1G` means 1 GiB. The three packaged configs enable exact checking with a 1 GiB margin by default.
+- Added `transfer_size.py` and focused regression coverage for binary size parsing, Btrfs free-space lower-bound parsing, FIEMAP estimate parsing, exact source-side stream counting, producer failure detection, config validation, and allow/refuse capacity decisions.
+- Updated all three config profiles, README.md, INSTALL.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, VERSIONING.md, package version metadata, and release tests for 0.1.76.
+
+## 0.1.77
+
+- Changed transfer-size preflight to be opt-in by default: `stream.transfer_size_check` now defaults to `false` in both runtime fallback configuration and all three packaged config profiles. Existing configs that explicitly set `true` keep their configured behavior.
+- Changed the default transfer-size mode from `exact` to `estimate` so users who enable the preflight get the quick Btrfs accounting path unless they explicitly request the slower byte-for-byte send-stream measurement.
+- Kept `transfer_size_mode = "exact"` fully supported for users who prefer the real generated send-stream byte count despite the extra source read/send-generation pass.
+- Kept the default `transfer_size_safety_margin = "1G"` unchanged.
+- Updated README.md, INSTALL.md, COMMENTED_CODE_MAP.md, all packaged config examples, package version metadata, and regression tests for the new background-backup-friendly defaults.
+- Added regression coverage proving that configs which omit the transfer-size options resolve to `transfer_size_check = false`, `transfer_size_mode = "estimate"`, and the unchanged `1G` safety margin.
+
+## 0.1.78
+
+- Replaced the unsafe incremental `estimate` implementation that used `btrfs filesystem du --raw -s` exclusive bytes. Real-world logs showed a 20+ GiB referenced send-cache snapshot reporting `Exclusive = 0`, causing the preflight to estimate `0 B` and approve a transfer that later exhausted the destination.
+- Estimate mode now performs a parent-specific metadata-only `btrfs send --no-data` with the same selected `-p` parent, send protocol, and compressed-data setting as the real send, and pipes it into `btrfs receive --dump` on the source endpoint. It totals `UPDATE_EXTENT` lengths without reading/transferring file payload, retaining the time-saving purpose of estimate mode while tracking the actual incremental relationship.
+- Added producer return-code validation to estimate mode so a failed metadata-only `btrfs send` cannot be hidden by a successful `btrfs receive --dump` consumer.
+- Added robust parsing for both modern `size=<bytes>` and older/verbose `len=<bytes>` UPDATE_EXTENT forms.
+- Kept `transfer_size_check = false`, `transfer_size_mode = "estimate"`, and `transfer_size_safety_margin = "1G"` as the defaults. Existing explicit exact-mode configs remain supported unchanged.
+- Added an explicit terminal `DESTINATION RECEIVE FAILURE` block when local receive reports ENOSPC/quota/read-only storage failure, so downstream storage failure is visibly identified as the primary error after all pipeline reader threads finish even if upstream tools also emit secondary broken-pipe text.
+- Confirmed from the supplied 0.1.77 failure logs that structured `.err` diagnostics already prioritized the local receive ENOSPC; no `Broken pipe` text was present in the supplied `.err` or `.mbuffer` files. The terminal block improves visibility rather than changing the underlying receive-stage classification.
+- Updated README.md, INSTALL.md, all config examples, COMMENTED_CODE_MAP.md, package/config version metadata, and regression tests for the parent-specific metadata-only estimate behavior.
+- Added regression coverage for metadata-only UPDATE_EXTENT parsing, parent/protocol/compressed-data command construction, failed-producer detection, avoidance of exclusive-byte accounting, and estimate-mode capacity refusal.
+
+## 0.1.79
+
+- Fixed a real estimate-mode crash where a large `btrfs send --no-data | btrfs receive --dump` result reached the generic UTF-8 subprocess capture path and raised `UnicodeDecodeError` before the capacity estimate could complete.
+- Kept the parent-specific metadata-only estimator introduced in 0.1.78, but moved `UPDATE_EXTENT` summation fully onto the source endpoint: `btrfs send --no-data` now feeds `btrfs receive --dump`, whose output is immediately streamed through source-side `LC_ALL=C awk`. Only one ASCII `TSBTRFS_ESTIMATE_CHANGED_BYTES=<bytes>` marker returns to Python.
+- Added an explicit `btrfs receive --dump` return-code marker in addition to the existing send producer marker, so both stages are independently validated even though POSIX pipelines normally expose only the final command status.
+- Estimate mode no longer captures or transports the potentially very large dump text, reducing Python memory usage and SSH return traffic while avoiding UTF-8 decoding hazards. Exact mode is unchanged.
+- Kept the requested defaults unchanged: `transfer_size_check = false`, `transfer_size_mode = "estimate"`, and `transfer_size_safety_margin = "1G"`.
+- Updated README.md, INSTALL.md, all three config profiles, COMMENTED_CODE_MAP.md, package/config version metadata, and regression tests for the source-side streaming reduction design.
+- Added a regression test that deliberately sends non-UTF-8 binary bytes through the fake metadata-only producer and proves that Python receives only the ASCII summary, plus coverage for dump-stage failure propagation.
+

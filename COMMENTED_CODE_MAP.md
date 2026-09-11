@@ -72,7 +72,9 @@ No runtime classes or functions are defined in this file.
 
 - `BtrfsOps.delete` (method, line 190): Return or perform delete. **Why:** Keeps this operation inside `BtrfsOps` so callers use the class endpoint, state, and validation rules.
 
-- `BtrfsOps.send_command` (method, line 205): Return or perform send command. **Why:** Keeps this operation inside `BtrfsOps` so callers use the class endpoint, state, and validation rules.
+- `BtrfsOps.send_argv` (method): Build the source-endpoint argv for one full or incremental `btrfs send`. **Why:** Exact size measurement and the real transfer must use the same send options without duplicating command construction.
+
+- `BtrfsOps.send_command` (method): Wrap `send_argv` for execution through the configured local/SSH endpoint. **Why:** Keeps one canonical send-option builder while still exposing the process argv needed by the streaming pipeline.
 
 - `BtrfsOps.receive_command` (method, line 226): Return or perform receive command. **Why:** Keeps this operation inside `BtrfsOps` so callers use the class endpoint, state, and validation rules.
 
@@ -150,7 +152,7 @@ No runtime classes or functions are defined in this file.
 - `cmd_sync` (function, line 305): Return or perform cmd sync. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
   - **CLI command `sync`:** Parses that command’s intent and routes it into the shared workflow implementation.
 
-- `cmd_prune` (function, line 345): Return or perform cmd prune. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `cmd_prune` (function, line 347): Runs standalone retention. It refreshes current source Timeshift metadata once and passes that same index into dry-run/real prune. **Why:** Keeps destructive source ownership decisions current without adding a duplicate Timeshift/SSH list call.
   - **CLI command `prune`:** Parses that command’s intent and routes it into the shared workflow implementation.
 
 - `cmd_restore` (function, line 374): Restore one snapshot or the complete post-common backup chain into Timeshift. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
@@ -175,15 +177,32 @@ No runtime classes or functions are defined in this file.
 
 - `main` (function, line 796): Return or perform main. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
+### Nested command closures in `cli.py`
+
+These helpers are intentionally local to one command so command-specific sequencing cannot become a second public/runtime API.
+
+- `cmd_test_source._run` / `_run` (local function, line 256): Builds the configured source endpoint, performs the SSH probe when needed, then verifies privileged Timeshift listing and Btrfs version access. **Why:** Keeps test-source logging/notification wrapping shared while the actual probe sequence stays private to that command.
+- `cmd_list_source._run` / `_run` (local function, line 292): Reads and prints the source snapshot list, optionally with Btrfs verification. **Why:** Lets `_with_logging` wrap the command without duplicating list-source behavior.
+- `cmd_sync._run_dry` / `_run_dry` (local function, line 319): Executes the strict dry-run sync path and optional dry-run prune plan. **Why:** Separates preview execution from lock/destination-changing setup.
+- `cmd_sync._run_locked` / `_run_locked` (local function, line 328): Executes the real sync and optional real prune after the outer command has acquired the lock. **Why:** Ensures real changes happen only inside the guarded lock scope.
+- `cmd_prune._run_dry` / `_run_dry` (local function, line 349): Refreshes metadata and evaluates retention without creating a lock or deleting data. **Why:** Preserves strict prune dry-run semantics.
+- `cmd_prune._run_locked` / `_run_locked` (local function, line 357): Prepares helper paths, refreshes state metadata, and performs real prune inside the outer lock scope. **Why:** Keeps destructive retention work behind the command's lock and confirmation checks.
+- `cmd_restore._run` / `_run` (local function, line 380): Calls the shared restore engine with the parsed selection and danger flags. **Why:** Gives dry-run and real restore one identical restore implementation while the outer command controls locking.
+- `cmd_create_manual._run` / `_run` (local function, line 413): Tests the source, checks paths/identity, then requests one Timeshift on-demand snapshot. **Why:** Keeps manual creation behind the same logging/notification wrapper and source safety checks.
+- `cmd_clear_state._run` / `_run` (local function, line 445): Previews state removal or acquires the existing lock before real guarded deletion. **Why:** Prevents a maintenance command from racing sync/prune or creating backup helper paths as a side effect.
+- `cmd_delete_lock._run` / `_run` (local function, line 473): Invokes stale-lock validation/removal with dry-run and danger confirmation. **Why:** Keeps lock maintenance inside normal logging without weakening stale-lock checks.
+- `cmd_destroy_leftovers._run` / `_run` (local function, line 498): Executes the shared Btrfs-only destroy workflow for the selected roots. **Why:** Lets the command first relocate logs safely when the configured log directory is itself being destroyed.
+- `cmd_show_state._run` / `_run` (local function, line 513): Loads resolved state and prints either raw JSON or the human summary. **Why:** Reuses the common logging wrapper while keeping output formatting command-local.
+
 ## `timeshift_btrfs_sync/commands.py`
 
 **Module role:** Shared subprocess helpers. 
 
 **Why this module exists:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
-- `CommandError` (class, line 21): Raised when an external command exits with a non-zero status. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `CommandError` (class): Raised when an external command exits with a non-zero status; streaming failures may also carry per-stage send/buffer/receive return codes and stderr. **Why:** Lets sync distinguish a definitive local receive/storage failure from secondary upstream broken-pipe errors without changing ordinary command callers.
 
-- `CommandError.__init__` (method, line 24): Return or perform init. **Why:** Keeps this operation inside `CommandError` so callers use the class endpoint, state, and validation rules.
+- `CommandError.__init__` (method): Captures the normal command failure fields plus optional per-stage pipeline diagnostics. **Why:** Preserves backward compatibility for ordinary commands while exposing structured stream-stage failure data to sync/restore logic.
 
 - `Completed` (class, line 39): Captured exit status and text streams for one command. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
@@ -203,7 +222,7 @@ No runtime classes or functions are defined in this file.
 
 - `_log_failed_streams` (function, line 176): Copy captured failed pipeline streams to .err. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
-- `stream_pipeline` (function, line 188): Stream left command into optional middle command, then right command.  **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `stream_pipeline` (function): Streams send -> optional buffer -> receive and raises one structured failure containing each stage return code/stderr. **Why:** Prevents a downstream receive failure such as ENOSPC from being obscured by the sender/mbuffer broken pipes it causes.
 
 ## `timeshift_btrfs_sync/config.py`
 
@@ -223,7 +242,7 @@ No runtime classes or functions are defined in this file.
 
 - `StreamConfig.command` (method, line 154): Return mbuffer command argv or None when disabled. **Why:** Keeps this operation inside `StreamConfig` so callers use the class endpoint, state, and validation rules.
 
-- `RetentionConfig` (class, line 168): Destination retention counts by Timeshift tag. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `RetentionConfig` (class, line 171): Backup retention counts by Timeshift tag. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
 - `RetentionConfig.counts_by_tag` (method, line 187): Return retention counts keyed by Timeshift tag letters. **Why:** Keeps this operation inside `RetentionConfig` so callers use the class endpoint, state, and validation rules.
 
@@ -379,6 +398,12 @@ No runtime classes or functions are defined in this file.
 
 - `refresh_path` (function, line 877): Refresh one exact path through the shared Btrfs operation layer. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
+### Local parser/comparison helpers in `inventory.py`
+
+- `_parse_remote_btrfs_index_result.flush_list` / `flush_list` (local function, line 393): Flushes the currently framed remote Btrfs list block into the index and resets the parser buffer. **Why:** Keeps framed SSH output parsing state inside the one parser that owns it.
+- `_parse_remote_btrfs_index_result.flush_readonly` / `flush_readonly` (local function, line 401): Applies one framed read-only listing to the current index and resets that parser buffer. **Why:** Prevents read-only state from being mixed across root sections in the combined SSH response.
+- `describe_source_inventory_changes.compare_index` / `compare_index` (local function, line 838): Compares old/new Btrfs indexes and records added, removed, or identity-changed paths. **Why:** Centralizes per-index change reporting while the outer function handles Timeshift-name and metadata changes.
+
 ## `timeshift_btrfs_sync/lock.py`
 
 **Module role:** Local advisory file locking for coordinated operations.
@@ -466,6 +491,10 @@ No runtime classes or functions are defined in this file.
 - `create_run_logger` (function, line 380): Create a logger when log_dir is configured; otherwise return None.  **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
 - `tee_pipe_to_log` (function, line 402): Start a thread that reads bytes from a process pipe and logs them live.  **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+
+### Local stream-reader helper in `log.py`
+
+- `tee_pipe_to_log._reader` / `_reader` (local function, line 421): Reads raw pipe chunks with `os.read`, mirrors/captures carriage-return progress output, and exits when the stream closes. **Why:** `mbuffer` progress is not reliably newline-delimited, so chunk reading must stay tied to the pipe-tee operation.
 
 ## `timeshift_btrfs_sync/mail.py`
 
@@ -629,7 +658,7 @@ No runtime classes or functions are defined in this file.
 
 - `plan_snapshot_recovery` (function, line 79): Plan one whole-date recovery in cache, destination, then state order. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
-- `plan_prune_snapshot` (function, line 89): Return or perform plan prune snapshot. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `plan_prune_snapshot` (function, line 90): Plans one prune in source-Timeshift, destination, cache, then state order when source retirement is required. **Why:** Makes retry-safe destructive ordering explicit and shared with execution rather than embedding it ad hoc in CLI code.
 
 - `plan_destroy_targets` (function, line 102): Plan named endpoint/root destruction in the caller-provided order. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
@@ -777,7 +806,7 @@ No runtime classes or functions are defined in this file.
 
 ## `timeshift_btrfs_sync/retention.py`
 
-**Module role:** Destination retention/pruning logic.
+**Module role:** Paired backup retention plus guarded app-created source Timeshift retention.
 
 **Why this module exists:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
@@ -787,7 +816,9 @@ No runtime classes or functions are defined in this file.
 
 - `PrunePlan.add_delete` (method, line 46): Mark a snapshot as deletable only when it is not already protected. **Why:** Keeps this operation inside `PrunePlan` so callers use the class endpoint, state, and validation rules.
 
-- `_is_app_created_ondemand` (function, line 54): Return true when a state entry is a tag O snapshot with the app marker. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `_is_app_created_ondemand` (function, line 55): Returns true only when a state entry has tag `O` and the configured app marker. **Why:** Separates app-owned on-demand retention from normal/user-created Timeshift `O` snapshots.
+
+- `_is_current_source_app_created_ondemand` (function, line 66): Re-proves app ownership from the current source Timeshift list using tag `O` plus marker. **Why:** Destructive source cleanup must not trust stale state or a reused timestamp.
 
 - `_delete_reason_for_snapshot` (function, line 66): Explain why a snapshot is outside the active retention rules. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
@@ -803,17 +834,34 @@ No runtime classes or functions are defined in this file.
 
 - `initial_sync_keep_names` (function, line 222): Return source snapshot names that a fresh destination should seed.  **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
-- `_cleanup_source_cache_for_pruned_snapshot` (function, line 233): Delete one pruned snapshot's app-owned cache through the shared tree engine. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `_cleanup_source_cache_for_pruned_snapshot` (function, line 244): Deletes one pruned snapshot's app-owned cache through the shared Btrfs tree engine while explicitly excluding Timeshift originals. **Why:** Keeps raw Btrfs deletion scoped to `source.cache_root`; source Timeshift retirement uses a separate Timeshift-only path.
 
-- `build_prune_plan` (function, line 280): Build retention plan from state without deleting anything.  **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `_load_source_timeshift_index` (function, line 293): Loads one current Timeshift list into a name-indexed map for destructive retention checks. **Why:** One current source view is reused for ownership validation and legacy backlog decisions instead of repeated per-snapshot SSH calls.
 
-- `_delete_destination_snapshot_for_prune` (function, line 365): Delete one destination date through the shared tree engine. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `_delete_source_timeshift_snapshot_for_prune` (function, line 308): Retires one eligible app-created source snapshot through Timeshift and verifies it is gone. **Why:** Enforces complete-state proof for tracked snapshots, current tag `O` + marker ownership, and Timeshift-only deletion rather than raw Btrfs/rm.
 
-- `_delete_prune_item` (function, line 391): Execute one pure prune plan and remove state after both trees are gone. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `_destination_snapshot_is_proven_complete` (function, line 360): Requires state to mark every configured subvolume complete and the live destination Btrfs index to contain every exact stored payload path. **Why:** A source snapshot is never retired merely because state says it once transferred; the backup must still physically exist now.
 
-- `print_prune_plan` (function, line 451): Write an easy-to-read retention summary to terminal and .succes. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `_source_app_retention_delete_names` (function, line 377): Applies the normal retention planner to the current source Timeshift list and returns only app-created `O` snapshots outside the active keep rules. **Why:** Keeps source and destination app-snapshot count semantics aligned while respecting protection and additional retained tags.
 
-- `prune` (function, line 497): Apply destination retention rules. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `_authorized_source_timeshift_delete_names` (function, line 396): Authorizes tracked source deletes from direct live backup proof and guarded 0.1.73 legacy source-only deletes from a completely proven newest retained window. **Why:** Cleans the historical one-sided-retention backlog without deleting an old source snapshot when the intended retained backups are incomplete.
+
+- `build_prune_plan` (function, line 439): Builds retention decisions from state without deleting anything, keeping app-created and normal/user `O` rules independent.  **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+
+- `_delete_destination_snapshot_for_prune` (function, line 524): Deletes one destination date through the shared guarded Btrfs tree engine. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+
+- `_delete_prune_item` (function, line 550): Executes one paired prune workflow. For current app snapshots it requires authorization first, retires the source through Timeshift before destination/cache cleanup for retry safety, and removes state only after every required side is confirmed. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+
+- `print_prune_plan` (function, line 658): Writes the backup/cache/source retention plan and reasons to terminal and `.succes`. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+
+- `prune` (function, line 712): Applies backup retention plus guarded paired app-created source Timeshift retention, including safe migration cleanup of old source-only 0.1.73 leftovers. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+
+### Local prune action handlers in `retention.py`
+
+- `_delete_prune_item.delete_source_timeshift_action` / `delete_source_timeshift_action` (local function, line 599): Runs the guarded Timeshift source-retirement helper first after pre-authorization. **Why:** If Timeshift deletion fails, later handlers leave the proven backup untouched so a future prune can safely re-prove and retry.
+- `_delete_prune_item.delete_destination` / `delete_destination` (local function, line 614): Deletes the selected destination snapshot only when the required source-retention step succeeded or was unnecessary. **Why:** Prevents losing the live backup after a failed source-delete attempt.
+- `_delete_prune_item.delete_cache_action` / `delete_cache_action` (local function, line 623): Deletes the matching app-owned source cache only after source and destination retention steps are confirmed. **Why:** Keeps incremental-parent cache cleanup ordered and scoped to the current prune item.
+- `_delete_prune_item.remove_state` / `remove_state` (local function, line 639): Removes the state entry only after source Timeshift, destination, and cache actions are all confirmed successful. **Why:** Preserves retryability whenever any physical cleanup step remains incomplete.
 
 ## `timeshift_btrfs_sync/source.py`
 
@@ -959,6 +1007,8 @@ No runtime classes or functions are defined in this file.
 
 - `_human_rule` (function, line 87): Print a visual separator with blank lines around it. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
+- `_transfer_size_preflight` (function): When enabled, estimate or exactly measure the pending full/incremental send, read destination Btrfs `Free (estimated)`, add the configured safety margin, and refuse an undersized destination before creating its snapshot date. The feature defaults off and estimate mode is the default when enabled. **Why:** Offers optional capacity protection without imposing the slower exact send-generation pass on unattended/background backups by default.
+
 - `_record_sync_event` (function, line 96): Add one planned or completed transfer to the run summary. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
 - `_print_sync_summary` (function, line 125): Write a terminal-friendly transfer summary to terminal and .succes.  **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
@@ -971,7 +1021,11 @@ No runtime classes or functions are defined in this file.
 
 - `_snapshots_from_source_inventory` (function, line 218): Build Timeshift snapshot objects from one coherent source inventory. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
-- `_required_pipeline_source_changes` (function, line 236): Return identity changes to source paths required by current work.  **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `_required_pipeline_source_changes` (function): Returns identity changes to source paths required by the failed operation after any exact revalidation. **Why:** Automatic source-change recovery is allowed only for paths the current work actually depends on.
+
+- `_terminal_destination_receive_failure_reason` (function): Recognizes definitive destination-side receive/storage failures from the structured receive-stage stderr, including ENOSPC, quota exhaustion, and read-only filesystems. **Why:** These errors cannot be fixed by rebuilding source inventory/cache and must remain the primary failure rather than consuming source-change retries.
+
+- `_revalidate_missing_required_pipeline_paths` (function): Exact-probes required source/cache paths that disappeared only from the refreshed bulk inventory and puts confirmed paths back into the refreshed index. **Why:** A bulk-index omission is not strong enough evidence for destructive snapshot-version recovery; exact Btrfs existence/UUID proof prevents false source-change retries.
 
 - `confirm_source_identity_before_manual_snapshot` (function, line 275): Print and enforce the shared manual-snapshot source identity guard. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
@@ -1059,6 +1113,14 @@ No runtime classes or functions are defined in this file.
 
 - `sync_once` (function, line 1978): Run one sync pass.  **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
+### Local sync decision/recovery helpers in `sync.py`
+
+- `_select_verified_parent_send_path.add_candidate` / `add_candidate` (local function, line 1223): Adds a unique labelled parent path candidate while preserving candidate preference order. **Why:** Prevents duplicate path probes inside the one authoritative incremental-parent selector.
+- `_verify_sync_viability_before_manual_snapshot.verify_parent_for` / `verify_parent_for` (local function, line 1907): Attempts strict parent selection for an existing or future manual snapshot and converts failures into the pre-manual diagnostic path. **Why:** Reuses the real parent-selection rule before creating a new Timeshift snapshot.
+- `sync_once.load_source_inventory` / `load_source_inventory` (local function, line 2020): Builds one coherent Timeshift/snapshot/cache inventory generation and converts it into snapshot records. **Why:** Initial scan, post-manual refresh, and source-change recovery must rebuild through the same combined-inventory path.
+- `sync_once.build_snapshot_queue` / `build_snapshot_queue` (local function, line 2179): Selects the requested/initial/all source snapshots, feeds the pure planner, and returns the resulting oldest-to-newest snapshot queue. **Why:** Keeps queue reconstruction identical after source inventory changes.
+- `sync_once.recover_from_source_inventory_change` / `recover_from_source_inventory_change` (local function, line 2222): Performs snapshot-wide cleanup/accounting rollback after a proven source change, installs the refreshed indexes, and rebuilds the queue. **Why:** Ensures `@`/`@home` stay one coherent snapshot version and retries resume from a fresh authoritative inventory rather than stale paths.
+
 ## `timeshift_btrfs_sync/timeshift.py`
 
 **Module role:** Timeshift command wrappers and parser for `timeshift --list`.
@@ -1075,7 +1137,11 @@ No runtime classes or functions are defined in this file.
 
 - `create_remote_manual_snapshot_cmd` (function, line 107): Build the Timeshift manual/on-demand snapshot create command.  **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
-- `create_source_manual_snapshot` (function, line 126): Create a source Timeshift on-demand snapshot through SSH or locally. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+- `create_source_manual_snapshot` (function, line 127): Creates a source Timeshift on-demand snapshot through SSH or locally. **Why:** Centralizes source snapshot creation and verification.
+
+- `delete_remote_manual_snapshot_cmd` (function, line 133): Builds a source command that runs `timeshift --delete --snapshot ... --scripted --yes`, emits a private verification marker, then runs `timeshift --list`. **Why:** Keeps deletion and post-delete verification in one source/SSH command and never substitutes raw Btrfs or `rm`.
+
+- `delete_source_manual_snapshot` (function, line 157): Executes the Timeshift delete command and refuses success unless the post-delete list no longer contains the target timestamp. **Why:** A successful process exit alone is not enough evidence that destructive retention completed.
 
 ## `timeshift_btrfs_sync/topology.py`
 
@@ -1094,6 +1160,30 @@ No runtime classes or functions are defined in this file.
 - `describe_restore_topology` (function, line 57): Return the endpoints actually used by ``restore``. **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
 
 - `reject_pull_restore_profile_for_sync` (function, line 79): Refuse ``sync`` with a profile whose restore backup lives over SSH.  **Why:** Keeps this responsibility in one module so command paths reuse the same behavior and safety rules.
+
+## `timeshift_btrfs_sync/transfer_size.py`
+
+**Module role:** Btrfs send-stream measurement, size parsing, and destination free-space probing for transfer capacity preflight.
+
+**Why this module exists:** Keeps exact stream generation/counting and fast metadata-only changed-extent estimation separate from sync workflow policy, while reusing the existing `BtrfsOps` endpoint abstraction for local and SSH sources.
+
+- `TransferSizeError` (class): Raised when send-size measurement or destination-capacity probing cannot be completed safely. **Why:** Lets sync distinguish a capacity-preflight failure from the later transfer pipeline.
+
+- `TransferSizeMeasurement` (class): Immutable result containing byte count, mode, and a human-readable measurement basis. **Why:** Keeps terminal diagnostics explicit about whether a value is exact or estimated.
+
+- `parse_size_bytes` (function): Parse binary K/M/G/T/P/E configuration sizes such as `1G` into bytes. **Why:** Gives `transfer_size_safety_margin` deterministic Btrfs-style binary units.
+
+- `format_bytes` (function): Format byte counts as readable IEC units plus exact bytes. **Why:** Capacity refusals need both readable and unambiguous numeric values.
+
+- `parse_btrfs_usage_free_bytes` (function): Parse raw `btrfs filesystem usage -b` and prefer the reported `min` lower bound of `Free (estimated)` when present. **Why:** Uses the conservative Btrfs free-space estimate instead of ordinary `df` for the capacity gate.
+
+- `parse_estimate_changed_bytes` (function): Parse the single ASCII changed-byte marker produced by the source-side estimate reducer. **Why:** Keeps Python away from the potentially huge or non-UTF-8-safe raw dump path and validates that the remote/local source summarizer returned a usable total.
+
+- `exact_send_stream_size` (function): Generate the real send stream on the source endpoint and pipe it into source-side `wc -c`, returning only the byte count. A separate producer-status marker preserves the actual `btrfs send` exit code even though POSIX pipelines normally return the final command status. **Why:** Measures the same incremental/full stream that will later be transferred without storing it or sending it across SSH merely for measurement.
+
+- `estimated_send_stream_size` (function): Generate a metadata-only full/incremental `btrfs send --no-data` using the selected parent and send options, validate it with `btrfs receive --dump`, stream the dump through source-side `LC_ALL=C awk`, and return only one ASCII changed-byte marker while independently validating send and dump return codes. **Why:** Provides a parent-specific lower-cost estimate without reading file payload, transporting/capturing the full dump, or exposing Python's UTF-8 subprocess decoder to raw stream bytes.
+
+- `destination_free_bytes` (function): Read destination Btrfs `Free (estimated)` in raw bytes through the configured Btrfs endpoint. **Why:** Keeps capacity decisions based on Btrfs allocation-aware reporting rather than generic filesystem free-space output.
 
 ## `timeshift_btrfs_sync/tree_ops.py`
 

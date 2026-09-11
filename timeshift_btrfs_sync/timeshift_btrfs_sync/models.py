@@ -1,0 +1,55 @@
+"""Shared dataclasses for snapshots and subvolumes."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+
+@dataclass(slots=True)
+class SubvolumeMeta:
+    """Metadata for one Btrfs subvolume inside one Timeshift snapshot."""
+
+    name: str
+    path: str
+    uuid: str | None = None
+    parent_uuid: str | None = None
+    received_uuid: str | None = None
+    readonly: bool | None = None
+    subvolume_id: int | None = None
+
+
+def send_stream_uuid(meta: SubvolumeMeta | None) -> str | None:
+    """Return the UUID identity carried when ``meta`` is sent by Btrfs.
+
+    Native snapshots use their local UUID. A snapshot produced by
+    ``btrfs receive`` keeps the original stream identity in ``Received UUID``;
+    when that snapshot is sent again Btrfs uses the received identity.
+    """
+
+    if meta is None:
+        return None
+    return meta.received_uuid or meta.uuid
+
+
+@dataclass(slots=True)
+class SnapshotMeta:
+    """Metadata for one Timeshift snapshot."""
+
+    name: str
+    path: str
+    tags: list[str] = field(default_factory=list)
+    comment: str | None = None
+    created: str | None = None
+    subvolumes: dict[str, SubvolumeMeta] = field(default_factory=dict)
+
+    def sort_key(self) -> str:
+        """Timeshift timestamp names sort oldest-to-newest lexically."""
+
+        return self.name
+
+
+def tags_text(tags: list[str] | tuple[str, ...] | None) -> str:
+    """Return compact human text for Timeshift tags."""
+
+    return " ".join(tags or []) or "none"
+

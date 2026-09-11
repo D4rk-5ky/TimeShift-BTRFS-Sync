@@ -3,7 +3,7 @@
 Normal sync runs on the backup/destination machine. The Timeshift source is reached over SSH or selected locally. Restore may also run on the Timeshift machine and pull a backup repository over SSH when `[restore] mode = "ssh"` is selected. The selected endpoints need the commands and minimal permissions described in the README. `cat` and `id` are not run through sudo during normal discovery. The configured source account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
 
 
-The executable or Python install does **not** include system tools such as `btrfs`, `timeshift`, `ssh`, `sudo`, `mbuffer`, or `sshpass`. Those must be installed on the relevant machines.
+The executable or Python install does **not** include system tools such as `btrfs`, `timeshift`, `ssh`, `sudo`, `wc`, `mbuffer`, or `sshpass`. Those must be installed on the relevant machines.
 
 ## System packages
 
@@ -21,7 +21,7 @@ sudo apt install mbuffer
 sudo apt install sshpass
 ```
 
-Use `mbuffer` only if `[stream].use_mbuffer = true`. `sshpass` is required only for remote-account password authentication when no identity passphrase is configured. Encrypted private keys use the app-generated OpenSSH askpass helper and do not require a separate askpass package. Key-based SSH remains recommended.
+Transfer-size preflight is disabled by default. When enabled with the default `transfer_size_mode = "estimate"`, the source endpoint must support `btrfs send --no-data`, `btrfs receive --dump`, and a POSIX-compatible `awk`; estimate reduction runs there under `LC_ALL=C` and returns only an ASCII byte count. When explicitly enabled with `transfer_size_mode = "exact"`, exact measurement uses the standard `wc` utility on the source endpoint; it is normally provided by GNU coreutils. Use `mbuffer` only if `[stream].use_mbuffer = true`. `sshpass` is required only for remote-account password authentication when no identity passphrase is configured. Encrypted private keys use the app-generated OpenSSH askpass helper and do not require a separate askpass package. Key-based SSH remains recommended.
 
 ## Encrypted private-key passphrases
 
@@ -175,7 +175,9 @@ Do not use the same path interpretation blindly for scheduled sync. In the pull 
 
 PyInstaller can create a Linux executable for the machine/distro where the build is run. Build on the same OS family and CPU architecture where you expect to run the executable.
 
-PyInstaller bundles the Python app. It does **not** bundle external system commands. The destination still needs commands like `btrfs`, `ssh`, `sudo`, optional `mbuffer`, and optional `sshpass` installed. The source still needs `timeshift` and `btrfs`.
+PyInstaller bundles the Python app. It does **not** bundle external system commands. The destination still needs commands like `btrfs`, `ssh`, `sudo`, `wc`, optional `mbuffer`, and optional `sshpass` installed. The source still needs `timeshift` and `btrfs`.
+
+The project build helper also bundles the complete `timeshift_btrfs_sync/data/` directory. This is required so the frozen executable can generate all three packaged config profiles with `init-config`.
 
 ### Install PyInstaller build dependency
 
@@ -234,13 +236,13 @@ The helper script above is recommended, but these are the direct commands it wra
 Folder-style executable:
 
 ```bash
-python3 -m PyInstaller --clean --name ts-btrfs --console --paths . tools/pyinstaller_entry.py
+python3 -m PyInstaller --clean --name ts-btrfs --console --paths . --add-data "timeshift_btrfs_sync/data:timeshift_btrfs_sync/data" tools/pyinstaller_entry.py
 ```
 
 One-file executable:
 
 ```bash
-python3 -m PyInstaller --clean --onefile --name ts-btrfs --console --paths . tools/pyinstaller_entry.py
+python3 -m PyInstaller --clean --onefile --name ts-btrfs --console --paths . --add-data "timeshift_btrfs_sync/data:timeshift_btrfs_sync/data" tools/pyinstaller_entry.py
 ```
 
 With MQTT support, add:
@@ -265,6 +267,18 @@ One-file build:
 ```bash
 ./dist/ts-btrfs test-source --config ./config.toml
 ./dist/ts-btrfs sync --config ./config.toml --dry-run
+```
+
+Verify that the frozen executable contains every config profile:
+
+```bash
+tmpdir=$(mktemp -d)
+./dist/ts-btrfs init-config --profile sync --path "$tmpdir/sync.toml"
+./dist/ts-btrfs init-config --profile restore-pull --path "$tmpdir/restore-pull.toml"
+./dist/ts-btrfs init-config --profile remote-roundtrip --path "$tmpdir/remote-roundtrip.toml"
+ls -l "$tmpdir"/*.toml
+rm -f "$tmpdir"/*.toml
+rmdir "$tmpdir"
 ```
 
 ### Cleanup build artifacts

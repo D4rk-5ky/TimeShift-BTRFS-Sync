@@ -202,7 +202,7 @@ class BtrfsOps:
             mirror_stderr=mirror_stderr,
         )
 
-    def send_command(
+    def send_argv(
         self,
         current_path: str,
         *,
@@ -211,6 +211,8 @@ class BtrfsOps:
         proto: int | None = None,
         verbose: bool = False,
     ) -> list[str]:
+        """Return source-endpoint argv for one full or incremental Btrfs send."""
+
         args = ["send"]
         if verbose:
             args.append("-v")
@@ -221,7 +223,28 @@ class BtrfsOps:
         if parent_path:
             args += ["-p", parent_path]
         args.append(current_path)
-        return self.endpoint.command(self.argv(args))
+        return self.argv(args)
+
+    def send_command(
+        self,
+        current_path: str,
+        *,
+        parent_path: str | None = None,
+        compressed_data: bool = False,
+        proto: int | None = None,
+        verbose: bool = False,
+    ) -> list[str]:
+        """Return local process argv that executes one send on this endpoint."""
+
+        return self.endpoint.command(
+            self.send_argv(
+                current_path,
+                parent_path=parent_path,
+                compressed_data=compressed_data,
+                proto=proto,
+                verbose=verbose,
+            )
+        )
 
     def receive_command(self, destination_dir: str | Path, *, verbose: bool = False) -> list[str]:
         args = ["receive"]

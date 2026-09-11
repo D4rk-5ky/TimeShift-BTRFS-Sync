@@ -1,0 +1,8 @@
+[Unit]
+Description=Pull Timeshift Btrfs snapshots to backup storage
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ts-btrfs sync --config /etc/timeshift-btrfs-sync/kubuntu.toml --run --prune --yes-delete
