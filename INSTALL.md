@@ -1,5 +1,7 @@
 # Installation
 
+Current source release: **0.1.91**. Install from the project root. The included original `dist/ts-btrfs` reports **0.1.84** and has not been rebuilt; use `python3 -m timeshift_btrfs_sync` or rebuild the executable from this source before treating it as the current release. The active package is timeshift_btrfs_sync/; project documentation and helpers live at the project root.
+
 Normal sync runs on the backup/destination machine. The Timeshift source is reached over SSH or selected locally. Restore may also run on the Timeshift machine and pull a backup repository over SSH when `[restore] mode = "ssh"` is selected. The selected endpoints need the commands and minimal permissions described in the README. `cat` and `id` are not run through sudo during normal discovery. The configured source account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
 
 
@@ -45,20 +47,30 @@ The identity passphrase unlocks the local private key. It is separate from `pass
 
 ## Install from source in a virtual environment
 
-From the project folder:
+From the extracted project root, using Python 3.11 or newer:
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-python3 -m pip install -e .
+python -m pip install -r requirements.txt
+python -m pip check
 ts-btrfs --version
 ```
 
-With MQTT notification support:
+Run the install command from the directory containing `requirements.txt` and `pyproject.toml`. The requirements file uses `-e .[mqtt,pyinstaller]` to install this project, its `ts-btrfs` command, **paho-mqtt** for MQTT and **PyInstaller** for executable builds. Pip resolves their transitive dependencies and the build backend declared in `pyproject.toml`; there is no second dependency list to maintain. `python -m pip` uses the activated venv. Do not use sudo for these pip commands.
+
+Check that both modules are available and build an executable with MQTT included:
 
 ```bash
-python3 -m pip install -e '.[mqtt]'
+python -c "import paho.mqtt.client; import PyInstaller; print('MQTT and PyInstaller imports passed')"
+python3 scripts/build_pyinstaller.py --mode onefile --with-mqtt
 ```
+
+`--with-mqtt` is required to include the lazily imported MQTT module in the executable. The application config still controls whether notifications are enabled. Pip installs Python packages; external tools such as Btrfs, Timeshift and SSH must be installed separately using the system-package instructions above.
+
+To activate the same environment in another terminal or a later session, run `. .venv/bin/activate` from the project root. Run `deactivate` to leave it. You can also invoke `.venv/bin/ts-btrfs --version` without activating the environment. An editable installation refers to this source directory, so keep it in place or reinstall after moving it.
+
+For a smaller source-only environment, the alternative `python -m pip install -e .` installs the core application. `python -m pip install -e '.[mqtt]'` installs the core with MQTT only; `python -m pip install -e '.[pyinstaller]'` installs the core with the executable builder only. These alternatives are not required after installing the full `requirements.txt`.
 
 Email notifications use Python standard library modules, so they do not need an extra Python package.
 
@@ -84,6 +96,18 @@ For an SSH Timeshift source backed up locally and push-restored back to the same
 ts-btrfs init-config --profile remote-roundtrip --path ./config-remote-roundtrip.toml
 nano config-remote-roundtrip.toml
 ```
+
+The five explicitly named workflow profiles can also be generated directly:
+
+```bash
+ts-btrfs init-config --profile local-backup --path ./example-config-local-backup.toml
+ts-btrfs init-config --profile remote-pull --path ./example-config-remote-pull.toml
+ts-btrfs init-config --profile local-restore --path ./example-config-local-restore.toml
+ts-btrfs init-config --profile remote-push-restore --path ./example-config-remote-push-restore.toml
+ts-btrfs init-config --profile remote-pull-restore --path ./example-config-remote-pull-restore.toml
+```
+
+`local-backup` and `remote-pull` back up local and SSH Timeshift sources respectively. `local-restore` restores a local backup locally; `remote-push-restore` sends a local backup to SSH Timeshift; `remote-pull-restore` retrieves an SSH backup into local Timeshift. All eight profiles contain every supported setting. Adapt their paths, accounts and permissions before running them.
 
 The pull-restore profile is restore-only. The app refuses `sync` with `[restore] mode = "ssh"` because sync always writes `destination.target_root` locally while pull restore reads that path on the SSH host.
 
@@ -177,19 +201,19 @@ PyInstaller can create a Linux executable for the machine/distro where the build
 
 PyInstaller bundles the Python app. It does **not** bundle external system commands. The destination still needs commands like `btrfs`, `ssh`, `sudo`, `wc`, optional `mbuffer`, and optional `sshpass` installed. The source still needs `timeshift` and `btrfs`.
 
-The project build helper also bundles the complete `timeshift_btrfs_sync/data/` directory. This is required so the frozen executable can generate all three packaged config profiles with `init-config`.
+The project build helper also bundles the complete `timeshift_btrfs_sync/data/` directory. This is required so the frozen executable can generate all eight packaged config profiles with `init-config`.
 
-### Install PyInstaller build dependency
+### Prepare the complete executable build environment
 
 From the project folder:
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-python3 -m pip install -e '.[pyinstaller]'
+python -m pip install -r requirements.txt
 ```
 
-If MQTT support should work inside the executable, install both extras before building:
+The requirements file already includes both MQTT and PyInstaller. The equivalent direct installation is:
 
 ```bash
 python3 -m pip install -e '.[mqtt,pyinstaller]'
@@ -276,6 +300,11 @@ tmpdir=$(mktemp -d)
 ./dist/ts-btrfs init-config --profile sync --path "$tmpdir/sync.toml"
 ./dist/ts-btrfs init-config --profile restore-pull --path "$tmpdir/restore-pull.toml"
 ./dist/ts-btrfs init-config --profile remote-roundtrip --path "$tmpdir/remote-roundtrip.toml"
+./dist/ts-btrfs init-config --profile local-backup --path "$tmpdir/local-backup.toml"
+./dist/ts-btrfs init-config --profile remote-pull --path "$tmpdir/remote-pull.toml"
+./dist/ts-btrfs init-config --profile local-restore --path "$tmpdir/local-restore.toml"
+./dist/ts-btrfs init-config --profile remote-push-restore --path "$tmpdir/remote-push-restore.toml"
+./dist/ts-btrfs init-config --profile remote-pull-restore --path "$tmpdir/remote-pull-restore.toml"
 ls -l "$tmpdir"/*.toml
 rm -f "$tmpdir"/*.toml
 rmdir "$tmpdir"

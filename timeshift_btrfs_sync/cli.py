@@ -13,7 +13,7 @@ from . import __version__, timeshift
 from .commands import CommandError
 from .btrfs_ops import BtrfsOps
 from .endpoint import CommandEndpoint
-from .config import ConfigError, load_config
+from .config import CONFIG_PROFILES, ConfigError, load_config
 from .lock import FileLock
 from .log import active_logger, create_run_logger, emit_final_terminal_summary, stage_final_run_summary
 from .mail import send_status as send_mail_status
@@ -333,11 +333,7 @@ def cmd_init_config(args) -> int:
     if path.exists() and not args.force:
         print(f"Refusing to overwrite existing file: {path}", file=sys.stderr)
         return 2
-    template_name = {
-        "sync": "config.example.toml",
-        "restore-pull": "config.restore-pull.example.toml",
-        "remote-roundtrip": "config.remote-roundtrip.example.toml",
-    }[args.profile]
+    template_name = CONFIG_PROFILES[args.profile][0]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         files("timeshift_btrfs_sync").joinpath(f"data/{template_name}").read_text(encoding="utf-8"),
@@ -869,17 +865,13 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         cmd_init_config,
         epilog=(
-            "Profiles:\n"
-            "  sync              Normal local/SSH Timeshift source -> local backup profile.\n"
-            "                    Restore mode defaults to local.\n"
-            "  restore-pull      SSH backup repository -> local Timeshift restore profile.\n"
-            "                    This is restore-oriented and normal sync refuses it.\n"
-            "  remote-roundtrip  SSH Timeshift source -> local backup -> SSH Timeshift restore target.\n\n"
-            "Examples:\n"
-            "  ts-btrfs init-config --profile sync --path ./config.toml\n"
-            "  ts-btrfs init-config --profile remote-roundtrip --path ./config.toml\n"
+            "Profiles (backup direction and restore direction are independent):\n"
+            + "\n".join(f"  {name}: {description}" for name, (_, description) in CONFIG_PROFILES.items())
+            + "\n\nExamples:\n"
+            "  ts-btrfs init-config --profile local-backup --path ./local-backup.toml\n"
+            "  ts-btrfs init-config --profile remote-push-restore --path ./restore.toml\n"
             "  ts-btrfs init-config --profile sync --path ./config.toml --force\n\n"
-            "If the destination file already exists, init-config refuses to overwrite it unless --force is supplied."
+            "An existing file is preserved unless --force is supplied. Edit all host/path settings before use."
         ),
     )
     p.add_argument(
@@ -890,14 +882,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--profile",
-        choices=("sync", "restore-pull", "remote-roundtrip"),
+        choices=tuple(CONFIG_PROFILES),
         default="sync",
         metavar="PROFILE",
         help=(
-            "profile to write; default: sync.\n"
-            "  sync             = normal local/SSH source backup profile\n"
-            "  restore-pull     = SSH backup -> local Timeshift restore profile\n"
-            "  remote-roundtrip = SSH Timeshift source -> local backup -> SSH-target restore profile"
+            "complete configuration workflow to write; default: sync.\n"
+            + "\n".join(f"  {name} = {description}" for name, (_, description) in CONFIG_PROFILES.items())
         ),
     )
     p.add_argument(
@@ -1149,7 +1139,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  --delete-destination  destination.target_root only\n"
             "  --delete-both         both of the above; still never source.snapshot_root\n\n"
             "Real deletion requires ALL of: a delete selection, --run, --i-understand-this-destroys-data, and the command's typed confirmations.\n"
-            "--dry-run is optional because preview is already the default when --run is absent. Ordinary non-empty roots are refused; the app does not fall back to rm -rf.\n\n"
+            "--dry-run is optional because preview is already the default when --run is absent. Ordinary non-empty roots are refused; the app does not fall back to recursive ordinary-file removal.\n\n"
             "Examples:\n"
             "  ts-btrfs destroy-leftovers --config ./config.toml --delete-destination --dry-run\n"
             "  ts-btrfs destroy-leftovers --config ./config.toml --delete-both --run --i-understand-this-destroys-data"

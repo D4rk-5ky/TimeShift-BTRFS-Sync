@@ -30,6 +30,12 @@ TEMPLATES = {
     "sync": DATA / "config.example.toml",
     "restore-pull": DATA / "config.restore-pull.example.toml",
     "remote-roundtrip": DATA / "config.remote-roundtrip.example.toml",
+    "local-backup": DATA / "example-config-local-backup.toml",
+    "remote-pull": DATA / "example-config-remote-pull.toml",
+    "local-restore": DATA / "example-config-local-restore.toml",
+    "remote-push-restore": DATA / "example-config-remote-push-restore.toml",
+    "remote-pull-restore": DATA / "example-config-remote-pull-restore.toml",
+
 }
 
 
@@ -48,7 +54,7 @@ class ConfigProfileTests(unittest.TestCase):
 
     def test_all_profiles_are_packaged_resources(self):
         data = files("timeshift_btrfs_sync").joinpath("data")
-        for name in ("config.example.toml", "config.restore-pull.example.toml", "config.remote-roundtrip.example.toml"):
+        for name in (path.name for path in TEMPLATES.values()):
             text = data.joinpath(name).read_text(encoding="utf-8")
             self.assertIn("[ssh]", text)
             self.assertIn("password_file", text)

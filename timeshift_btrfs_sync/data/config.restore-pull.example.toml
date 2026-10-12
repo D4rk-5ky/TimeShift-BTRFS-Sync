@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.1.84 remote-backup pull-restore config
+# timeshift-btrfs-sync v0.1.91 remote-backup pull-restore config
 # Run this config on the LOCAL Timeshift machine that will receive the restore.
 # This profile is for: SSH BACKUP HOST -> LOCAL TIMESHIFT RESTORE.
 # [restore] mode = "ssh" selects the remote backup transport directly.
@@ -273,9 +273,10 @@ extra_args = ["-o", "BatchMode=yes"]
 #
 # Interrupted-run safety: if a previous run created an app on-demand snapshot and
 # failed before it was fully synced, the next normal sync detects that pending
-# app snapshot by tag O plus marker and keeps it in normal oldest-to-newest
-# order. It still creates a fresh on-demand snapshot for the current run because
+# app snapshot by tag O plus marker and considers it in normal oldest-to-newest
+# order under the active retention selection. It still creates a fresh on-demand snapshot for the current run because
 # the older pending snapshot may no longer represent the current system state.
+# Both new and pending dates are subject to retention selection; --snapshot selects one date directly.
 # Dry-run only prints what would happen. If --snapshot is used, automatic
 # creation is skipped because that command is a targeted sync.
 enabled = false
@@ -603,6 +604,9 @@ cleanup_ondemand = false
 
 # Extra safety: always keep newest snapshot and latest likely incremental parent.
 keep_latest = true
+# Before prune deletes anything, require a complete live read-only UUID-matching parent.
+# Protect that actual date/cache pair even when newer unshared hourlies exist.
+# If no pair is proven, cleanup stops. Ordinary H/D/W/M/B source retention stays with Timeshift.
 keep_latest_common_parent = true
 
 # Names listed here are never pruned.

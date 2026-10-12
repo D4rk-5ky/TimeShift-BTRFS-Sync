@@ -1,22 +1,23 @@
-# timeshift-btrfs-sync v0.1.75 remote-roundtrip config
-# Run this config on the BACKUP/DESTINATION machine.
-# This profile is for: SSH TIMESHIFT SOURCE -> LOCAL BACKUP -> SSH TIMESHIFT RESTORE.
-# source.mode = "ssh" pulls normal sync/source operations from the [ssh] host.
-# Sync always writes destination.target_root locally on this backup machine.
-# restore.mode = "ssh-target" reads that local backup and pushes the restore
-# back to the same [ssh] Timeshift host. source.snapshot_root and source.cache_root
-# are therefore remote for both backup source access and the restore target.
-# Restore can import one snapshot or a safely confirmed complete chain. For --all,
-# it intersects physical dates and accepts the newest date proven by exact Btrfs
-# lineage or matching same-date info.json sys-uuid/type identity.
-# Timeshift date directories are ordinary folders containing info.json and Btrfs
-# @/@home payload subvolumes. The SSH account needs the narrowly documented sudo
-# permissions for Btrfs/Timeshift plus the restore filesystem commands. The app
-# never invokes a privileged shell. Restored H/D/W/M tags remain subject to
+# timeshift-btrfs-sync v0.1.91 config
+# Workflow: remote-push-restore. Run this on the local backup host; the SSH host is the original Timeshift machine being restored.
+# Edit all paths/hosts before use. Restore imports into source.snapshot_root on the Timeshift side.
+# Native restore needs @, optionally @home, under one snapshot_root/filesystem.
+# It imports snapshot dates for Timeshift; it does not replace the running OS.
+# source.mode controls only normal source-side sync/list/prune/manual commands.
+# Sync always writes destination.target_root locally; it never sends the backup destination over SSH.
+# Restore uses [restore] mode independently:
+#   local      = local backup -> local Timeshift
+#   ssh        = SSH backup -> local Timeshift
+#   ssh-target = local backup -> SSH Timeshift
+# Restore can import one snapshot or a safely confirmed complete chain. For --all, it intersects physical dates and accepts the newest date proven by exact Btrfs lineage or matching same-date info.json sys-uuid/type identity.
+# Timeshift date directories are ordinary folders containing info.json and
+# Btrfs @/@home payload subvolumes. Unprivileged restore additionally needs
+# read-only test, ls, and base64 through the relevant source/destination sudo
+# prefixes; the app never invokes a privileged shell. Restored H/D/W/M tags remain subject to
 # Timeshift retention and require the explicit typed retention warning.
 
 # Human-readable job name. This is only for identification.
-name = "kubuntu-timeshift-remote-roundtrip"
+name = "remote-push-restore"
 
 # Safe default: commands preview changes unless --run is passed.
 default_dry_run = true
@@ -33,8 +34,8 @@ prune_after_sync = false
 #   *.err = real command/pipeline error output
 #   *.btrfs = btrfs send/receive status/verbose output and commands
 #   *.mbuffer = mbuffer progress/summary and transfer command header
-#   *.succes = readable sync/retention statistics and success mail body
-log_dir = "/Backups/Kubuntu/timeshift-btrfs/.ts-btrfs-sync/logs"
+#   *.succes = final mail body: run name, sync summary, cleanup summary, transfer list
+log_dir = "/mnt/backup/timeshift-btrfs/.ts-btrfs-sync/logs"
 
 
 # Optional internal metadata paths. Omit these to use defaults under target_root:
@@ -63,8 +64,10 @@ log_dir = "/Backups/Kubuntu/timeshift-btrfs/.ts-btrfs-sync/logs"
 # In real sync/prune, the lock-file parent is prepared before other sync/prune
 # paths are checked. Missing lock/helper folders try Btrfs subvolume creation
 # first, then mkdir fallback if Btrfs creation is not possible.
-# state_file = "/Backups/Kubuntu/timeshift-btrfs/.ts-btrfs-sync/state.json"
-# lock_file = "/Backups/Kubuntu/timeshift-btrfs/.ts-btrfs-sync/lock"
+# state_file = "/mnt/backup/timeshift-btrfs/.ts-btrfs-sync/state.json"
+# This lock stays on the machine RUNNING restore, independently of its SSH direction.
+# Its parent must already exist before restore.
+lock_file = "/mnt/backup/timeshift-btrfs/.ts-btrfs-sync/restore.lock"
 
 [restore]
 # Restore transport is independent from source.mode.
@@ -141,7 +144,7 @@ include_json = true
 # Attach split run logs to the email when top-level log_dir is enabled.
 # The app attaches only non-empty files that exist for this run, in this order:
 #   .log, .err, .btrfs, .mbuffer, .succes
-# When .succes exists and has content, its text becomes the email body.
+# When .succes exists and has content, its text becomes the email body. Sync finalization rewrites it so the configured run name, SYNC SUMMARY, and CLEANUP SUMMARY are at the top.
 attach_logs = true
 
 # Optional safety cap for each attachment in bytes. 0 means no size cap.
@@ -255,7 +258,7 @@ extra_args = ["-o", "BatchMode=yes"]
 # creates a snapshot on the backup repository and uses a separate fixed comment.
 #
 # Optional source-side Timeshift on-demand snapshot creation before a normal sync.
-# When enabled = true, `sync` may create a source-side on-demand snapshot before
+# When enabled = false, `sync` may create a source-side on-demand snapshot before
 # normal syncing. This is a source-side change, so the app first checks that the
 # current source/destination chain can actually continue. Existing destinations
 # must have a UUID-confirmed sync floor and a usable incremental parent for the
@@ -274,9 +277,10 @@ extra_args = ["-o", "BatchMode=yes"]
 #
 # Interrupted-run safety: if a previous run created an app on-demand snapshot and
 # failed before it was fully synced, the next normal sync detects that pending
-# app snapshot by tag O plus marker and keeps it in normal oldest-to-newest
-# order. It still creates a fresh on-demand snapshot for the current run because
+# app snapshot by tag O plus marker and considers it in normal oldest-to-newest
+# order under the active retention selection. It still creates a fresh on-demand snapshot for the current run because
 # the older pending snapshot may no longer represent the current system state.
+# Both new and pending dates are subject to retention selection; --snapshot selects one date directly.
 # Dry-run only prints what would happen. If --snapshot is used, automatic
 # creation is skipped because that command is a targeted sync.
 enabled = true
@@ -370,7 +374,7 @@ timeshift_command = "timeshift"
 # SSH-target restore inspect the same actual timestamp directories even when the
 # ordinary account cannot read them or Timeshift omits them from --list. Prefer a
 # stable /etc/fstab mount and grant the narrowest suitable permissions.
-snapshot_root = "/timeshift-btrfs/snapshots"
+snapshot_root = "/mnt/system/timeshift-btrfs/snapshots"
 
 # Subvolumes expected inside each Timeshift snapshot. Both the usual pair and a
 # single-subvolume transfer such as ["@"] or ["@home"] are supported. The one
@@ -432,7 +436,7 @@ source_change_retry_count = 5
 # destroy-leftovers checks cache_root with configured sudo+Btrfs before relying
 # on source-shell `test -e`, so the source user does not need ordinary directory
 # traversal permission just to prove the app-owned cache subvolume exists.
-cache_root = "/timeshift-btrfs/.ts-btrfs-sync/send-cache"
+cache_root = "/mnt/system/timeshift-btrfs/.ts-btrfs-sync/send-cache"
 create_readonly_cache = true
 
 # Source send-cache cleanup. `sync` keeps every read-only cache snapshot it
@@ -467,7 +471,6 @@ send_compressed_data = true
 # send_proto = 2
 
 [destination]
-# In this profile [destination] is always the LOCAL backup repository for both sync and restore.
 # Btrfs backup root. Normal sync/prune/destroy interpret this path locally on the
 # backup/destination machine. Restore pull mode interprets the same path
 # on the configured SSH backup host and streams it into local source.snapshot_root.
@@ -501,7 +504,7 @@ send_compressed_data = true
 #   ts-btrfs destroy-leftovers --config ./config.toml --delete-both --dry-run
 # Real deletion additionally requires --run, --i-understand-this-destroys-data,
 # and two typed confirmations.
-target_root = "/Backups/Kubuntu/timeshift-btrfs"
+target_root = "/mnt/backup/timeshift-btrfs"
 
 # Destination-side privilege prefix for Btrfs commands. Restore also uses it for read-only test, ls, and base64 while scanning backup date directories and reading state.json; it never runs a privileged shell.
 sudo = "sudo -n"
@@ -520,7 +523,35 @@ cleanup_incomplete_receive = true
 
 
 [stream]
+# Optional normal-sync capacity preflight before each full/incremental send.
+# Disabled by default so background syncs do not add extra preflight work.
+# Set true to measure/estimate the pending send and compare it with destination
+# Btrfs `Free (estimated)` before the destination snapshot date is created.
+transfer_size_check = false
+
+# "exact" generates the real btrfs send stream once on the source endpoint and
+# pipes it into `wc -c` there. The stream is not stored and, for SSH sources,
+# only the final byte count crosses SSH. The reported value is Btrfs stream bytes, not
+# SSH/TCP wire overhead. This adds an extra source read/send pass.
+# "estimate" is the default when the check is enabled. It runs a parent-specific
+# metadata-only `btrfs send --no-data`, validates it with `btrfs receive --dump`,
+# and streams that dump through source-side C-locale `awk` to total changed extent
+# lengths. Only one ASCII byte count returns to the app; file payload and the full
+# dump are not transferred/captured. This is faster than exact mode but remains
+# an estimate of destination needs.
+# Use "exact" only when the slower byte-for-byte stream measurement is wanted.
+transfer_size_mode = "estimate"
+
+# Extra Btrfs free space required above the calculated stream size. Binary suffixes
+# K/M/G/T/P/E are accepted; 1G means 1 GiB. This reduces, but cannot eliminate,
+# ENOSPC risk because final receive allocation is not guaranteed to equal stream bytes.
+transfer_size_safety_margin = "1G"
+
 # Optional mbuffer between source send and local receive.
+# On successful sends, mbuffer's measured stream total is also summed into
+# SYNC SUMMARY as the run's actual transferred MB/GB/TB value. The app runs
+# mbuffer without a controlling TTY and mirrors its captured stderr live, so
+# interactive runs cannot lose the final byte total through mbuffer's /dev/tty behavior.
 # SSH mode false pipeline:
 #   ssh source 'btrfs send ...' | btrfs receive ...
 # Local mode false pipeline:
@@ -536,7 +567,8 @@ mbuffer_size = "256M"
 # Optional mbuffer rate limit. Example: "100M" adds `mbuffer -R 100M`.
 # mbuffer_rate = "100M"
 
-# Optional extra mbuffer arguments as a TOML string list.
+# Optional extra mbuffer arguments as a TOML string list. Avoid `-q` if you
+# want mbuffer's final summary available for actual transferred-byte accounting.
 mbuffer_extra_args = []
 
 # Optional Btrfs verbose output.
@@ -576,6 +608,9 @@ cleanup_ondemand = false
 
 # Extra safety: always keep newest snapshot and latest likely incremental parent.
 keep_latest = true
+# Before prune deletes anything, require a complete live read-only UUID-matching parent.
+# Protect that actual date/cache pair even when newer unshared hourlies exist.
+# If no pair is proven, cleanup stops. Ordinary H/D/W/M/B source retention stays with Timeshift.
 keep_latest_common_parent = true
 
 # Names listed here are never pruned.

@@ -2,13 +2,49 @@
 
 `timeshift-btrfs-sync` backs up Timeshift Btrfs snapshots and can restore either one backup or a complete UUID-validated backup chain into the configured Timeshift repository. It can pull from or restore to another machine over SSH, or operate locally on the same machine. All restore directions use the same Btrfs, metadata, validation, and safety logic; only the selected backup and Timeshift endpoints change.
 
-> ⚠️ AI-assisted / vibe-coded experimental software. Use at your own risk.
+## ⚠️ Disclaimer / Liability
+
+**Use this script at your own risk.**
+
+The author takes **no responsibility or liability** for any data loss, service disruption, misconfiguration, service outage, missed backups, credential exposure, or other damage that may occur from using this script.
+
+Before running it in production, you **must**:
+
+- Read the entire source code
+- Understand exactly what it does (and what it does *not* do)
+- Review and adapt it to your own environment
+- Test it carefully in a non‑production setup
+
+By using this script, **you accept full responsibility** for its effects.
+
+⚠️ AI-assisted / vibe-coded experimental software. Use at your own risk.
 
 ## Disclaimer
 
 This project is AI-assisted / vibe-coded software created as a hobby project. It has not been professionally audited and may contain bugs, unsafe behavior, data-loss issues, security problems, or incorrect assumptions.
 
 You are responsible for reviewing the code, testing it in a safe environment, making backups, and understanding what it does before using it on real data. The author is not responsible for damage, data loss, broken systems, security issues, or other problems caused by using this software.
+
+---
+
+## Choose the current source application
+
+This source release is **0.1.91**. Run it from the project root with Python 3.11 or newer:
+
+```bash
+python3 -m timeshift_btrfs_sync --version
+python3 -m timeshift_btrfs_sync --help
+python3 -m timeshift_btrfs_sync init-config --profile remote-roundtrip --path ./config.toml
+# Edit every path, host and retention setting before contacting a machine.
+python3 -m timeshift_btrfs_sync sync --config ./config.toml --dry-run
+```
+
+After installation, `ts-btrfs` exposes the same commands. See [INSTALL.md](INSTALL.md) for installation and building an executable.
+
+The preserved `dist/ts-btrfs` executable reports **0.1.84**. It is the original binary and does not include the current source behavior. Rebuild it before using this release's fixes. Use the source commands above or rebuild with `python3 scripts/build_pyinstaller.py --mode onefile` before using an executable for this release.
+
+The application package is `timeshift_btrfs_sync/` directly under the project root. Run source commands from that root, where this README, tests, build helpers and integration examples live. Current configuration examples are in `timeshift_btrfs_sync/data/`.
+
 
 ## Data Loss Warning
 
@@ -55,7 +91,27 @@ host = "the-timeshift-source.example.lan"
 
 This means: pull Timeshift snapshots from that SSH host into the local backup, then push the local backup back to that same SSH Timeshift host. For pull restore, use a separate `restore-pull` profile on the Timeshift machine; its SSH host is the backup machine.
 
-Three complete commented config profiles are packaged: `config.example.toml` for normal sync/local restore, `config.restore-pull.example.toml` for SSH-backup-to-local-Timeshift restore, and `config.remote-roundtrip.example.toml` for SSH Timeshift source → local backup → push restore back to the same SSH Timeshift host. Generate one with `ts-btrfs init-config --profile ...`.
+Eight complete commented profiles are supplied under `timeshift_btrfs_sync/data/`. Each includes every available config option. The five explicit workflow examples are:
+
+| Profile for `init-config --profile` | Example file | Run on | Direction |
+|---|---|---|---|
+| `local-backup` | `example-config-local-backup.toml` | Timeshift host with backup filesystem mounted | Local Timeshift → local backup |
+| `remote-pull` | `example-config-remote-pull.toml` | Backup host | SSH Timeshift → local backup |
+| `local-restore` | `example-config-local-restore.toml` | Timeshift host with backup filesystem mounted | Local backup → local Timeshift |
+| `remote-push-restore` | `example-config-remote-push-restore.toml` | Backup host | Local backup → SSH Timeshift |
+| `remote-pull-restore` | `example-config-remote-pull-restore.toml` | Timeshift host | SSH backup → local Timeshift |
+
+The existing `sync`, `restore-pull`, and `remote-roundtrip` profiles remain available, using `config.example.toml`, `config.restore-pull.example.toml`, and `config.remote-roundtrip.example.toml`. `remote-pull` is a backup profile; choose the separate `remote-push-restore` profile to send that backup back to its SSH Timeshift host.
+
+```bash
+python3 -m timeshift_btrfs_sync init-config --profile local-backup --path ./local-backup.toml
+python3 -m timeshift_btrfs_sync init-config --profile remote-pull --path ./remote-pull.toml
+python3 -m timeshift_btrfs_sync init-config --profile local-restore --path ./local-restore.toml
+python3 -m timeshift_btrfs_sync init-config --profile remote-push-restore --path ./remote-push-restore.toml
+python3 -m timeshift_btrfs_sync init-config --profile remote-pull-restore --path ./remote-pull-restore.toml
+```
+
+Edit mount paths, SSH host/account, privileges and retention before use. The new examples use `/mnt/system/timeshift-btrfs/snapshots` on the Timeshift side and `/mnt/backup/timeshift-btrfs` on the backup side. For pull restore the backup path and optional state file are remote, while `lock_file` and `log_dir` stay local. Restore requires the local lock parent to exist; prepare the explicitly configured local directory before running it. Native Timeshift restore requires `@`, optionally `@home`, under one snapshot root on one filesystem. A home-only/custom backup is not a Timeshift system snapshot, and split-filesystem root/home restore is outside the supported layout.
 
 ## Safety model
 
@@ -439,10 +495,25 @@ btrfs send -p <parent> <current>
 The parent must represent the same Btrfs snapshot on both source and destination. Before using a destination snapshot as an incremental parent, the app compares:
 
 ```text
-source parent UUID == destination parent Received UUID
+source parent send-stream UUID == destination parent Received UUID
 ```
 
 This protects the backup from mixing snapshots from another OS, another source host, or a reset backup chain. Parent paths from previous runs are always checked before use. The app first checks whether the indexed source send-cache already contains a read-only snapshot whose UUID exactly matches the destination parent's `Received UUID`. This lets a local run reuse read-only cache snapshots that were created earlier by an SSH pull. If no indexed cache UUID match exists, the app resolves the saved root-relative `send_path` against the current configured source root, then tries any indexed cache path for the UUIDs recorded in state, and finally the original Timeshift source snapshot. It never creates a replacement cache snapshot while choosing an existing parent, because a recreated cache snapshot gets a new UUID and cannot match the destination parent.
+
+### Changing tags, missing hourly snapshots and older daily parents
+
+O/B/H/D/W/M are Timeshift retention labels. Incremental-parent identity uses the send-stream UUID (`Received UUID` for an already received source, otherwise its local UUID), matched to the receiver's `Received UUID`. Both parent payloads must be confirmed read-only. State UUIDs are hints and cannot override a different live receiver identity.
+
+All candidate dates are searched newest-first. If a newer hourly is gone from Timeshift but its exact read-only send-cache still exists, that hourly can remain the parent. If both original and cache are gone, or the destination parent is missing/unusable, the app tries the next older matching date, including a daily. Changing only the tags does not invalidate a matching parent. A recreated cache has a new UUID and cannot substitute for the old streamed cache.
+
+With a matching daily available, retained newer snapshots are sent incrementally from that daily and then from each successful newer snapshot. `sync --run --prune --yes-delete` applies retention after successful transfer. Tracked extra destination hourlies outside all retention/protection rules are deleted, followed by their eligible app-owned cache copies. Scheduled source H/D/W/M/B snapshots remain managed by Timeshift. App-created on-demand source cleanup requires current O tag/marker and complete backup proof. Unknown/untracked destination trees are left for explicit inspection; normal prune does not infer deletion ownership from a date name alone.
+
+```bash
+python3 -m timeshift_btrfs_sync sync --config ./remote-pull.toml --dry-run --prune
+python3 -m timeshift_btrfs_sync sync --config ./remote-pull.toml --run --prune --yes-delete
+```
+
+Continuation restarts a failed snapshot date from a verified parent; it does not resume a byte offset in an interrupted Btrfs stream. Required source-path changes trigger bounded inventory rebuilds and retries. Network/buffer failures and destination storage errors still stop the run. If a nonempty backup has no proven common parent, the app refuses a full-send fallback; repair its exact cache/state or select a separate empty target. Dry-run parent paths are provisional previews; the real transfer verifies the selected parent.
 
 ## Transfer-size capacity preflight
 
@@ -507,12 +578,12 @@ At the beginning of a sync run, the app builds one coherent source inventory and
 The index is deliberately per-run only. Successful cache preparation performs an exact target probe, optional snapshot creation, and metadata verification in one source command, then inserts or refreshes the result in the cache index. Successful receive refreshes the new destination path, and prune removes deleted source-cache paths from the index. The exact target probe is a safety fallback when a bulk list could not map a remounted filesystem-relative path; it does not add a separate SSH request. Normal discovery and parent comparison still use the bulk inventory without per-parent SSH metadata reads. Safety-critical incremental matching still requires the same identity rule:
 
 ```text
-source parent UUID == destination parent Received UUID
+source parent send-stream UUID == destination parent Received UUID
 ```
 
 This reduces the overhead from many small SSH calls, especially when the SSH identity file is password-protected with high key-derivation iterations. The actual `btrfs send`/`receive` stream still uses one SSH pipeline per snapshot/subvolume that must be transferred.
 
-On a fresh/full sync into a destination that was empty at run start, the app first applies the active retention rules to the source Timeshift list and sends only the snapshots that would be kept. For example, if retention keeps the newest 6 hourly, 5 daily, 2 weekly, and 6 monthly snapshots, the first seed starts at the oldest snapshot in that kept set and then sends the kept snapshots in date order. Existing safe read-only cache children for those selected dates are reused; only missing cache children are created. Deleting only the destination therefore does not require rebuilding every surviving source-cache snapshot. Existing non-empty destinations still use the normal UUID-confirmed parent/floor safety logic.
+For both an empty destination and an existing incremental backup, normal sync applies the active retention rules to the current source Timeshift list and transfers the selected snapshots oldest-to-newest. Completed destination copies still have their changed tags, comments and `info.json` refreshed before pruning, even when they fall outside the current retention set. An explicit `sync --snapshot DATE` selects that date directly. For example, if retention keeps the newest 6 hourly, 5 daily, 2 weekly, and 6 monthly snapshots, the first seed starts at the oldest snapshot in that kept set and then sends the kept snapshots in date order. Existing safe read-only cache children for those selected dates are reused; only missing cache children are created. Deleting only the destination therefore does not require rebuilding every surviving source-cache snapshot. Existing non-empty destinations still use the normal UUID-confirmed parent/floor safety logic.
 
 ## Optional automatic on-demand snapshots
 
@@ -524,7 +595,7 @@ The create command intentionally omits `--tags O` because Timeshift creates on-d
 
 After creating the snapshot, the app re-reads `timeshift --list`. The new snapshot is not sent directly or prioritized. It is sent only when the normal oldest-to-newest snapshot loop reaches its timestamp, using the same full/incremental parent logic as every other snapshot.
 
-Interrupted-run behavior: if a previous run created an app on-demand snapshot and then failed before that snapshot was fully synced, the next normal `sync` detects the existing app-created pending snapshot by tag `O` plus `manual_snapshot.marker`. It keeps that older pending snapshot in the normal oldest-to-newest order, but it still creates a fresh on-demand snapshot for the current run because the older pending snapshot may no longer represent the current system state. Both the older pending snapshot and the new snapshot are sent only when the normal oldest-to-newest loop reaches their timestamps.
+Interrupted-run behavior: if a previous run created an app on-demand snapshot and then failed before that snapshot was fully synced, the next normal `sync` detects the existing app-created pending snapshot by tag `O` plus `manual_snapshot.marker`. It considers that older pending snapshot under the configured retention rules in normal oldest-to-newest order, and it still creates a fresh on-demand snapshot for the current run because the older pending snapshot may no longer represent the current system state. Pending app-created snapshots are considered in normal chronological order, subject to the current retention selection; an explicit `--snapshot` can select an otherwise excluded date.
 
 Automatic creation is skipped when `--snapshot <name>` is used, because that command targets one existing snapshot.
 
@@ -624,18 +695,32 @@ For example, configure the receiving mount outside this app with a Btrfs mount o
 
 Install instructions, editable install steps, and PyInstaller executable build commands are kept in [`INSTALL.md`](INSTALL.md).
 
-For a normal source install:
+From the extracted project root, create and activate a Python 3.11+ virtual environment, then install from `requirements.txt`:
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-python3 -m pip install -e .
+python -m pip install -r requirements.txt
+python -m pip check
 ts-btrfs --version
 ```
 
+`python -m pip` uses the activated environment. The requirements file installs this project in editable mode, creates `.venv/bin/ts-btrfs`, and installs both **paho-mqtt** and **PyInstaller** with their dependencies through the existing `pyproject.toml` extras. Run from the project root so `-e .[mqtt,pyinstaller]` resolves correctly. Installing MQTT support does not enable notifications; `[mqtt].enabled` still controls that behavior.
+
+Verify both modules and build with MQTT support:
+
+```bash
+python -c "import paho.mqtt.client; import PyInstaller; print('MQTT and PyInstaller imports passed')"
+python3 scripts/build_pyinstaller.py --mode onefile --with-mqtt
+```
+
+For a smaller source-only installation, use `python -m pip install -e .` instead of the full requirements file. That core application uses Python's standard library.
+
+External tools such as Btrfs, Timeshift and SSH are system packages; pip does not install them. Run `deactivate` when finished, and `. .venv/bin/activate` to reactivate this environment later. No sudo is needed for pip inside the venv. If `python3 -m venv` is unavailable, install your distribution's venv package as described in INSTALL.md.
+
 For PyInstaller builds, see the dedicated `INSTALL.md` section for both folder-style and one-file executables.
 
-The PyInstaller helper bundles the complete `timeshift_btrfs_sync/data/` directory, so executable builds include all three `init-config` profiles (`sync`, `restore-pull`, and `remote-roundtrip`). After building, verify them with the commands shown in `INSTALL.md`.
+The PyInstaller helper bundles the complete `timeshift_btrfs_sync/data/` directory, so executable builds include all eight current `init-config` profiles. After building, verify them with the commands shown in `INSTALL.md`.
 
 ## Usual test flow
 
@@ -1025,5 +1110,190 @@ Timeshift's native timestamp path remains an ordinary directory. Restore mode ch
 | `ondemand` | Number of newest normal/user-created Timeshift `O` snapshots to keep when `cleanup_ondemand = true`. | Ignored unless normal on-demand cleanup is explicitly enabled. |
 | `cleanup_ondemand` | Allows pruning normal/user-created Timeshift `O` snapshots. | Default false protects manually created Timeshift snapshots. |
 | `keep_latest` | Always keeps the newest synced snapshot. | Extra safety so retention does not remove the newest backup. |
-| `keep_latest_common_parent` | Keeps the newest likely common parent for incremental safety. | Reduces risk of pruning the parent needed for future incrementals. |
+| `keep_latest_common_parent` | Before retention deletion, prove and protect the newest complete live UUID-matching read-only source/destination pair. | An older matching daily remains protected when newer hourly copies lack a matching source/cache. If no usable pair is proven, cleanup stops. Metadata-only first-seed selection provisionally includes its newest date. |
 | `protected_snapshots` | Snapshot names that are never pruned. | Use for important snapshots you want retention to ignore. |
+
+## Additional supplied commands and integrations
+
+### `scripts/build_pyinstaller.py`
+
+Build an executable from this source after installing the optional build dependency described in INSTALL.md. `--help` and `--version` exit without starting a build. The helper uses the existing CLI entry point and includes the entire current config-data directory, including all eight profiles.
+
+```bash
+python3 scripts/build_pyinstaller.py --help
+python3 scripts/build_pyinstaller.py --version
+python3 scripts/build_pyinstaller.py --mode onefile
+```
+
+### `delete-btrfs-tree.sh`
+
+This preserved standalone helper has broader deletion behavior than `ts-btrfs destroy-leftovers`: it deletes every subvolume and then ordinary files below a supplied destination while preserving the destination itself. It is independent of application state, retention and configured protected roots. Review its source before using it. It rejects `/`, requires root and a writable Btrfs filesystem, and refuses nested mounts. Default mode is a preview; both mode flags are accepted and the last supplied mode wins.
+
+```bash
+bash delete-btrfs-tree.sh --help
+bash delete-btrfs-tree.sh --version
+sudo bash delete-btrfs-tree.sh --dry-run /path/to/destination
+```
+
+| Argument | Meaning |
+|---|---|
+| `DESTINATION` | One existing destination directory on writable Btrfs; not `/`. |
+| `--dry-run` | Validate candidates and preview Btrfs deletion; default. |
+| `--yes-delete` | Permanently delete every subvolume and ordinary leftover below the destination. |
+| `-h`, `--help` | Show usage without checking privileges or paths. |
+| `--version` | Print this helper's release version without checking privileges or paths. |
+
+### systemd and sudoers examples
+
+Adapt `systemd/ts-btrfs-sync.service` and `systemd/ts-btrfs-sync.timer` to your installed executable and config paths before enabling them. The supplied service requests a real sync and authorized retention (`--run --prune --yes-delete`); the timer runs hourly with up to ten minutes of randomized delay and catches up missed runs. Validate permissions with the supplied `sudoers/source-minimal.example` and `visudo`. Restore needs additional narrowly scoped permissions documented above.
+
+### Home Assistant queue example
+
+The supplied file named `TimeShift-BTRFS-Sync - Sequential Backup Queue - With continue on failure` is a Home Assistant automation example. It powers on each configured machine, waits for connectivity, starts a backup through MQTT, waits for its result, reports status through Pushover, and continues the queue after failure or timeout. Adapt all machine names, entity/device IDs, topics, scripts and notification services before importing it. It is not run by the Python CLI.
+
+## Complete command flag help
+
+The tables below reproduce the current parser help. `--help` and `--version` work both globally and after every application command. Required combinations and examples are available with `ts-btrfs COMMAND --help`.
+
+### Global flags
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+
+### Flags for `init-config`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--path` | output TOML path; parent directories are created as needed; default: ./ts-btrfs.toml |
+| `--profile` | complete configuration workflow to write; default: sync.<br>  sync = SSH Timeshift source -> local backup; local restore default<br>  restore-pull = SSH backup -> local Timeshift restore<br>  remote-roundtrip = SSH Timeshift -> local backup -> SSH Timeshift restore<br>  local-backup = local Timeshift -> local backup<br>  remote-pull = SSH Timeshift -> local backup<br>  local-restore = local backup -> local Timeshift restore<br>  remote-push-restore = local backup -> SSH Timeshift restore<br>  remote-pull-restore = SSH backup -> local Timeshift restore Allowed values: `sync`, `restore-pull`, `remote-roundtrip`, `local-backup`, `remote-pull`, `local-restore`, `remote-push-restore`, `remote-pull-restore`. |
+| `--force` | overwrite FILE if it already exists; without this flag an existing file is left untouched and the command exits with code 2 |
+
+### Flags for `test-source`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+
+### Flags for `list-source`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--verify-btrfs` | slow verification mode: probe every configured source payload with Btrfs instead of only trusting the fast Timeshift inventory/expected paths |
+
+### Flags for `sync`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--dry-run` | force strict preview mode even when default_dry_run=false: no destination preparation, lock creation, receive, state write, automatic manual snapshot, or deletion |
+| `--run` | force real backup mode even when default_dry_run=true: prepare paths/lock and perform send/receive; pruning still cannot delete without --yes-delete |
+| `--limit` | transfer at most N individual configured subvolume payloads in this run (for example one @ or @home); useful for a first real test; does not mean N snapshot dates |
+| `--snapshot` | consider only this Timeshift timestamp (for example 2026-08-14_16-33-59); useful for a targeted retry/test; does not bypass normal safety checks |
+| `--resend` | do not skip a payload merely because state.json marks it complete; all UUID/lineage/path/conflict checks still apply, so this is not a force-overwrite option |
+| `--prune` | run retention after sync regardless of prune_after_sync=false; if prune_after_sync=true, pruning runs even without this flag; actual deletion also requires real-run mode and --yes-delete |
+| `--yes-delete` | authorize actual retention deletion during a real sync when --prune or prune_after_sync=true requests pruning; has no force/override effect on non-retention safety checks |
+
+### Flags for `prune`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--dry-run` | force preview mode: refresh/read metadata and show retention decisions, but do not create a lock, save state changes, or delete anything |
+| `--run` | force real prune mode: acquire the lock and apply retention; actual deletion still requires --yes-delete |
+| `--yes-delete` | explicit authorization for real retention deletes; required in addition to real-run mode whenever the plan contains destination/source deletions |
+
+### Flags for `restore`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--dry-run` | force restore preview: validate physical overlap, Btrfs/state/cache lineage, same-date info.json identity fallback, target collisions, and the receive plan without modifying Timeshift |
+| `--run` | force real restore: acquire the local configured lock and execute receive/commit work; also requires --i-understand-this-modifies-timeshift and typed confirmations |
+| `--snapshot` | restore exactly one backup timestamp with a full receive; mutually exclusive with --all; example DATE: 2026-08-14_16-33-59 |
+| `--all` | restore the complete safe chain newer than the newest confirmed timestamp physically present in both repositories; mutually exclusive with --snapshot |
+| `--create-pre-restore-snapshot` | before any receive in a real run, create and verify one on-demand/tag O Timeshift safety snapshot on the restore target; dry-run reports the action; never snapshots the backup repository |
+| `--allow-no-common-parent` | danger override valid only with --all: permit a full oldest-to-newest chain when no shared timestamp can be proven; real execution requires stronger typed confirmations and does not bypass OS-identity checks |
+| `--allow-os-identity-mismatch` | danger override when backup identity cannot be matched to the current Timeshift repository and exact Btrfs proof does not resolve it; real execution requires an additional exact typed acknowledgement |
+| `--i-understand-this-modifies-timeshift` | mandatory acknowledgement for --run; permits direct Timeshift modification but does not replace the later typed retention-risk confirmation or any no-common-parent/OS-identity confirmations |
+
+### Flags for `create-manual`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--comment` | required Timeshift comment passed to `timeshift --create --comments`; quote TEXT when it contains spaces; this does not automatically append manual_snapshot.marker |
+
+### Flags for `destroy-leftovers`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--delete-source` | select source.cache_root for recursive Btrfs-subvolume cleanup; never selects or deletes source.snapshot_root |
+| `--delete-destination` | select destination.target_root for destructive cleanup, including its received snapshots and app metadata; does not select source.cache_root |
+| `--delete-both` | select both source.cache_root and destination.target_root for cleanup; equivalent target set to the two individual selections together; source.snapshot_root remains protected |
+| `--dry-run` | force/express preview mode; show the selected destructive tree plan and validation results without deleting anything (also the default when --run is absent) |
+| `--run` | perform the selected destructive cleanup; also requires --i-understand-this-destroys-data and the command's typed confirmations |
+| `--i-understand-this-destroys-data` | mandatory acknowledgement for --run; confirms that selected configured app-owned trees will be permanently destroyed; does not bypass path/layout safety checks or typed confirmations |
+
+### Flags for `clear-state`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--dry-run` | force/express preview mode; show the exact configured state_file that would be removed without changing it (also the default when --run is absent) |
+| `--run` | remove the configured state_file after acquiring the existing app lock; also requires --i-understand-this-clears-state and typed confirmations |
+| `--i-understand-this-clears-state` | mandatory acknowledgement for --run; confirms that removing state may break incremental continuity unless later recovery can prove exact UUID matches; does not delete any snapshot |
+
+### Flags for `delete-lock`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--dry-run` | force/express preview mode; show the exact configured lock_file that would be removed without changing it (also the default when --run is absent) |
+| `--run` | remove the configured lock_file only if it is stale/not held; also requires --i-understand-this-deletes-lock and typed confirmations |
+| `--i-understand-this-deletes-lock` | mandatory acknowledgement for --run; confirms that deleting a stale file must never be used to bypass a currently running process or held lock |
+
+### Flags for `show-state`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--json` | print the complete parsed state.json as formatted JSON instead of the compact snapshot/tag/subvolume table; useful for UUID/parent-path diagnosis and machine parsing |
+
+### Build helper flags
+
+| Flag | Meaning |
+|---|---|
+| `--version` | Print the source release version and exit without building. |
+| `--mode` | Build folder-style executable, one-file executable, or both. Default: onedir. |
+| `--name` | Executable name. Default: ts-btrfs. |
+| `--with-mqtt` | Include optional paho-mqtt support in the executable. |
+| `--no-clean` | Do not pass --clean to PyInstaller. |
+| `--extra-pyinstaller-arg` | Extra raw argument passed to PyInstaller. Can be used more than once. |
+
+Project documentation: `VERSIONING.md` records release changes; `COMMENTED_CODE_MAP.md` explains the current functions and commands. These original capitalized filenames are the canonical documents.

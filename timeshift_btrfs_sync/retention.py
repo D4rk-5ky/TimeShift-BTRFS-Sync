@@ -262,9 +262,9 @@ def source_snapshot_state(snapshots: Iterable[SnapshotMeta]) -> dict:
 
 
 def initial_sync_keep_names(config: AppConfig, snapshots: Iterable[SnapshotMeta]) -> set[str]:
-    """Return source snapshot names that a fresh destination should seed.
+    """Return retention-selected source names for a fresh or incremental backup.
 
-    This uses the same retention planner as prune so a new/full sync does not
+    This uses the same retention planner as prune so normal sync does not
     waste time sending snapshots that the post-sync retention step would delete
     immediately.
     """
@@ -467,7 +467,7 @@ def _authorized_source_timeshift_delete_names(
     return authorized, retained_window_proven
 
 
-def build_prune_plan(config: AppConfig, state: dict) -> PrunePlan:
+def build_prune_plan(config: AppConfig, state: dict, *, common_parent_name: str | None = None) -> PrunePlan:
     """Build retention plan from state without deleting anything.
 
     On-demand cleanup is intentionally split into two independent decisions:
@@ -534,7 +534,9 @@ def build_prune_plan(config: AppConfig, state: dict) -> PrunePlan:
             plan.add_keep(name, f"tag {tag} retention count {count}")
 
     if config.retention.keep_latest_common_parent:
-        plan.add_keep(names[-1], "latest common parent safety")
+        # Metadata-only selection uses the newest name as a provisional seed.
+        # Actual pruning supplies the newest live UUID-confirmed complete pair.
+        plan.add_keep(common_parent_name or names[-1], "latest common parent safety")
 
     for name in names:
         if name not in plan.keep:
@@ -740,6 +742,48 @@ def print_prune_plan(config: AppConfig, plan: PrunePlan, state: dict, *, dry_run
     emit_success_summary("\n".join(lines))
 
 
+def _confirmed_prune_parent(config: AppConfig, state: dict) -> str:
+    """Prove a complete live send/receive anchor before pruning its siblings.
+
+    Reuse sync's UUID/read-only proof so retention cannot keep an unusable newer
+    hourly while deleting the last matching daily. The local import avoids the
+    existing sync-to-retention module dependency during initialization.
+    """
+
+    from .sync import _find_confirmed_sync_floor, _snapshots_from_source_inventory
+
+    source = SourceRunner.from_config(config)
+    source_inventory = inventory.build_source_inventory(
+        source,
+        snapshot_root=config.source.snapshot_root,
+        cache_root=config.source.cache_root,
+        sudo=config.source.sudo,
+        btrfs_command=config.source.btrfs_command,
+        timeshift_command=config.source.timeshift_command,
+        required=True,
+    )
+    destination_index = inventory.build_local_btrfs_index(
+        config.destination.target_root / "snapshots",
+        sudo=config.destination.sudo,
+        btrfs_command=config.destination.btrfs_command,
+        include_root=True,
+    )
+    name, reason = _find_confirmed_sync_floor(
+        config, source, state,
+        _snapshots_from_source_inventory(config, source, source_inventory),
+        source_cache_index=source_inventory.cache_index,
+        source_snapshot_index=source_inventory.snapshot_index,
+        destination_index=destination_index,
+    )
+    if name is None:
+        raise RuntimeError(
+            "Refusing retention cleanup: keep_latest_common_parent is enabled, "
+            "but no complete read-only UUID-matching source/destination parent is proven. "
+            + reason
+        )
+    return name
+
+
 def prune(
     config: AppConfig,
     state: dict,
@@ -751,6 +795,9 @@ def prune(
     """Apply backup retention plus paired app-created source O retention."""
 
     plan = build_prune_plan(config, state)
+    if plan.delete and config.retention.keep_latest_common_parent:
+        common_parent_name = _confirmed_prune_parent(config, state)
+        plan = build_prune_plan(config, state, common_parent_name=common_parent_name)
     state_names_before_prune = set(state.get("snapshots", {}))
 
     source_runner: SourceRunner | None = None

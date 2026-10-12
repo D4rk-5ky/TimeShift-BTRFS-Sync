@@ -58,6 +58,7 @@ class StaticRuntimeSymbolTests(unittest.TestCase):
         builtin_names = set(dir(builtins)) | {
             "__file__", "__name__", "__package__", "__spec__", "__loader__",
             "__cached__", "__doc__", "__annotations__",
+            "__conditional_annotations__",  # Python 3.14 compiler-generated annotation bookkeeping.
         }
         problems: list[str] = []
         for path in sorted(Path("timeshift_btrfs_sync").glob("*.py")):

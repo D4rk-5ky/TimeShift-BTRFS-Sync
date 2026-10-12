@@ -314,6 +314,10 @@ class SyncContinuationTests(unittest.TestCase):
                 def environment(self):
                     return None
 
+                def run(self, shell_command, **kwargs):
+                    # Exact re-probe confirms the disappeared source without real Btrfs.
+                    return Completed(1, "", "No such file or directory")
+
             recovered: list[str] = []
             pipeline_error = CommandError(["btrfs", "send"], 1, "", "source vanished")
             empty_destination_index = inventory.BtrfsIndex(str(config.destination.target_root), "local")
@@ -336,7 +340,7 @@ class SyncContinuationTests(unittest.TestCase):
             ):
                 transferred = sync.sync_once(config, {}, dry_run=False)
 
-            self.assertEqual(transferred, 0)
+            self.assertEqual(transferred.transferred, 0)
             self.assertEqual(len(recovered), 1)
             self.assertIn("current send path disappeared", recovered[0])
 

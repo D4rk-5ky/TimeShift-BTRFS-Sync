@@ -19,15 +19,27 @@ PROFILE_FILES = {
     "sync": "config.example.toml",
     "restore-pull": "config.restore-pull.example.toml",
     "remote-roundtrip": "config.remote-roundtrip.example.toml",
+    "local-backup": "example-config-local-backup.toml",
+    "remote-pull": "example-config-remote-pull.toml",
+    "local-restore": "example-config-local-restore.toml",
+    "remote-push-restore": "example-config-remote-push-restore.toml",
+    "remote-pull-restore": "example-config-remote-pull-restore.toml",
+
 }
 
 
 class ConfigProfileTests(unittest.TestCase):
-    def test_all_three_packaged_profiles_exist_and_load(self) -> None:
+    def test_all_packaged_profiles_exist_and_load(self) -> None:
         expected_modes = {
             "sync": ("ssh", "local"),
             "restore-pull": ("local", "ssh"),
             "remote-roundtrip": ("ssh", "ssh-target"),
+            "local-backup": ("local", "local"),
+            "remote-pull": ("ssh", "local"),
+            "local-restore": ("local", "local"),
+            "remote-push-restore": ("ssh", "ssh-target"),
+            "remote-pull-restore": ("local", "ssh"),
+
         }
         for profile, filename in PROFILE_FILES.items():
             with self.subTest(profile=profile):

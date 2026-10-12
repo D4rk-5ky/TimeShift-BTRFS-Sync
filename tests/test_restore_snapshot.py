@@ -918,6 +918,8 @@ class RestoreSnapshotTests(unittest.TestCase):
             content = info(S2)
             (date / "info.json").write_text(content, encoding="utf-8")
             config = self.make_config(target, remote=False)
+            # Read-only directory scans use our temporary fixture without sudo.
+            config.destination.sudo = ""
 
             def meta(_ops, path, **_kwargs):
                 text = str(path)
@@ -943,6 +945,8 @@ class RestoreSnapshotTests(unittest.TestCase):
                 (date / "@home").mkdir()
                 (date / "info.json").write_text(info(name), encoding="utf-8")
             config = self.make_config(target, remote=False)
+            # Read-only directory scans use our temporary fixture without sudo.
+            config.destination.sudo = ""
 
             def meta(_ops, path, **_kwargs):
                 text = str(path)

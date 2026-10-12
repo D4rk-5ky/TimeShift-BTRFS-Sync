@@ -1078,6 +1078,12 @@ def _build_restore_plan(
 ) -> tuple[RestorePlan, dict[str, SnapshotMeta], str]:
     """Build a single or complete-chain restore plan without changing either side."""
 
+    if "@" not in config.source.subvolumes or not set(config.source.subvolumes) <= {"@", "@home"}:
+        raise RestoreError(
+            "Native Timeshift restore requires source.subvolumes to contain @, "
+            "with optional @home. Home-only or custom payloads are not usable "
+            "Timeshift system snapshots."
+        )
     if bool(snapshot_name) == bool(restore_all):
         raise RestoreError("Choose exactly one restore selection: --snapshot <date> or --all")
     if timeshift_ops is None:

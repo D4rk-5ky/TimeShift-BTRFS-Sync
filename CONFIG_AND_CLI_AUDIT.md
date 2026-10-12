@@ -1,6 +1,18 @@
+# Current audit — source 0.1.91
+
+The root requirements.txt installs the full project/MQTT/PyInstaller environment using the existing pyproject.toml extras and their transitive dependencies. README.md and INSTALL.md document venv setup, import checks and executable builds with --with-mqtt.
+
+All eight active config profiles are generated through the shared CONFIG_PROFILES registry. Every supported option is documented in each profile and checked by tests. See README.md for current commands/flags/directions and BTRFS_TIMESHIFT_AUDIT.md for confirmed parent/retention defects and restore findings. Active runtime changes are recorded in VERSIONING.md. The original binary remains 0.1.84; run the current Python source or rebuild it.
+
+Root documents are canonical; there are no duplicate documentation/license/ignore files inside the active package. A comparison against all seven nested originals is recorded in NESTED_DOCUMENT_AUDIT.md. The complete nested version history is preserved in root VERSIONING.md.
+
+The nested older project copy was removed as requested; see REMOVED_NESTED_SOURCES.md for its former locations. Current runtime behavior remains the audited behavior of 0.1.86. The previous audit notes below are historical project material and may describe earlier versions.
+
 # Configuration and CLI audit
 
-This file lists the current public interface. The loader rejects any key not listed here.
+Historical audit snapshot for **0.1.85**: the following notes describe the three profiles and interface available then. For the current eight profiles, commands, flags and schema, use the current summary above and README.md. The README includes full parser-derived flag descriptions; every application subcommand supports --help and --version. Original nested examples and source copies are preserved separately.
+
+The notes below preserve earlier audit findings. The current loader validates its supported key sets in timeshift_btrfs_sync/config.py; README.md and all eight current config examples document that interface.
 
 ## Commands
 

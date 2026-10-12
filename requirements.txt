@@ -1,0 +1,8 @@
+# TimeShift-BTRFS-Sync: full build and MQTT environment, Python >=3.11.
+# Run from the project root: python -m pip install -r requirements.txt
+# Reuse pyproject.toml's dependency metadata instead of duplicating it here.
+# mqtt -> paho-mqtt>=1.6; pyinstaller -> pyinstaller>=6.0.
+# pip also installs their transitive dependencies and the project's declared
+# setuptools build backend in its isolated build environment.
+# Installing MQTT support does not enable MQTT notifications in the config.
+-e .[mqtt,pyinstaller]

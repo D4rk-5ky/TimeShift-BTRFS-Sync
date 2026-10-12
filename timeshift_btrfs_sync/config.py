@@ -13,6 +13,19 @@ from .mqtt import MQTTConfig
 from .mail import MailConfig
 from .transfer_size import parse_size_bytes
 
+# One registry drives packaged template selection and CLI help. Keep the three
+# original profile names as supported aliases alongside the explicit workflows.
+CONFIG_PROFILES = {
+    "sync": ("config.example.toml", "SSH Timeshift source -> local backup; local restore default"),
+    "restore-pull": ("config.restore-pull.example.toml", "SSH backup -> local Timeshift restore"),
+    "remote-roundtrip": ("config.remote-roundtrip.example.toml", "SSH Timeshift -> local backup -> SSH Timeshift restore"),
+    "local-backup": ("example-config-local-backup.toml", "local Timeshift -> local backup"),
+    "remote-pull": ("example-config-remote-pull.toml", "SSH Timeshift -> local backup"),
+    "local-restore": ("example-config-local-restore.toml", "local backup -> local Timeshift restore"),
+    "remote-push-restore": ("example-config-remote-push-restore.toml", "local backup -> SSH Timeshift restore"),
+    "remote-pull-restore": ("example-config-remote-pull-restore.toml", "SSH backup -> local Timeshift restore"),
+}
+
 TOP_LEVEL_KEYS = {
     "name", "default_dry_run", "prune_after_sync", "log_dir", "state_file", "lock_file",
     "source", "destination", "stream", "retention", "manual_snapshot", "mqtt", "mail", "ssh", "restore",

@@ -1,3 +1,93 @@
+# Versioning
+
+Current source version: **0.1.91**. Each newly created release increments the patch component by one. At patch 99, roll over into the next minor component: `0.0.99 → 0.1.0` and `0.1.99 → 0.2.0`; never create patch 100. Preserved original copies and binaries retain their original versions.
+
+## 0.1.91 — 2026-10-12
+
+- Changed requirements.txt from the core-only -e . entry to -e .[mqtt,pyinstaller], as explicitly requested. A normal requirements-file install now installs the project, paho-mqtt, PyInstaller and their resolved dependencies. The project's existing pyproject.toml extras and build-system declarations remain authoritative; no duplicated dependency list or invented runtime module was added.
+- Updated INSTALL.md and README.md to describe the full venv, verify imports for both modules and build the executable with --with-mqtt so the lazily imported MQTT library is included. Updated the executable-build preparation section to use the requirements file. Smaller core/MQTT-only/build-only installs remain documented alternatives. Installing MQTT does not change its configuration enablement or application safety behavior.
+- Updated the canonical COMMENTED_CODE_MAP.md with full environment/install/build commands and purposes, and the current config/CLI audit summary. Incremented package/pyproject/helper metadata, all config headers, existing version expectation and current documentation references by 0.0.1 from 0.1.90 to 0.1.91.
+- Preserved every prior release file and the original necessary files. No duplicate lowercase/package-local documents were reintroduced. All runtime Python modules other than version metadata are unchanged; backup, restore, retention, UUID/read-only, deletion and locking logic are unchanged.
+- Checked requirements parsing, extra/dependency metadata and both-MQTT executable argument construction, plus tests, compilation, CLI/config and ZIP manifest checks. Dependency downloads, full dependency installation and executable construction were not performed in this environment; precise results and limitations are recorded in RELEASE_VERIFICATION.md. No live snapshot or notification operation is claimed.
+
+---
+
+## 0.1.90 — 2026-10-12
+
+- Added root requirements.txt for virtual-environment installation. Its -e . entry installs the existing project and ts-btrfs command using pyproject.toml as the authoritative metadata; no duplicate dependency list or new mandatory dependency was introduced. The core app uses Python's standard library, and MQTT/PyInstaller extras remain optional.
+- Updated root README.md and INSTALL.md with Python 3.11+ venv creation/activation, python -m pip install -r requirements.txt, pip check, optional MQTT/build extras, reactivation/deactivation, project-root requirements resolution and editable-install path behavior. Clarified that pip does not install required external system commands. Corrected a stale README PyInstaller statement from three profiles to all eight current profiles.
+- Updated the root COMMENTED_CODE_MAP.md with environment/setup commands and their purpose, and the current CONFIG_AND_CLI_AUDIT.md summary with installation metadata. Canonical capitalized documents remain at the root; lowercased and package-local duplicates remain absent.
+- Incremented package/pyproject/helper metadata, all config example headers, existing release-hygiene version expectation and current documentation references by 0.0.1 from 0.1.89 to 0.1.90. All backup, restore, retention, parent-selection and safety logic is unchanged; original required files remain present.
+- Verified the requirements file in a temporary venv using available local build tools, and ran compile, tests, CLI/config and manifest/archive checks. Precise installation checks and limitations are recorded in RELEASE_VERIFICATION.md. No live Btrfs/Timeshift/SSH operation or newly built executable is claimed.
+
+---
+
+## 0.1.89 — 2026-10-12
+
+- Compared the original package-local COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, INSTALL.md, LICENSE, README.md, VERSIONING.md and .gitignore against their root counterparts. All seven nested files were already removed by the authorized 0.1.87 cleanup; verified they remain absent. Root documents are canonical and lowercase ledger/map duplicates remain absent.
+- Confirmed the entire original nested VERSIONING.md is present verbatim within the root history, with no missing entries or change descriptions. LICENSE is byte-identical. All nested audit nonblank lines are retained in root audit notes. Reviewed changed README/INSTALL passages: they reflect newer profiles, transfer accounting, capacity checks, lineage/retention checks, current help and the supplied disclaimers rather than lost guidance. The root code map covers all current functions, methods and commands instead of restoring obsolete line references.
+- Added NESTED_DOCUMENT_AUDIT.md with per-file comparison results and package-layout verification. Updated CONFIG_AND_CLI_AUDIT.md's current summary and clearly labeled its preserved historical notes so earlier versions are not mistaken for current behavior.
+- Updated root .gitignore to allow pyproject.toml and all five newer example-config-*.toml files, retaining the original example exceptions and runtime/cache exclusions. Expanded root INSTALL.md with generation commands and frozen-package verification for all eight supported profiles.
+- Incremented source package, pyproject/helper metadata, config example headers, existing release-hygiene version expectation and current README/INSTALL/code-map references by 0.0.1 from 0.1.88 to 0.1.89. Backup, restore, retention and safety logic are unchanged. LICENSE remains unchanged.
+- Packaged and verified the full project against the original archive and 0.1.88, retaining every prior file and allowing only previously authorized original omissions. No new deletion was necessary because the specified nested files were already absent. Compile, tests, CLI/config, Git ignore checks and archive results are recorded in RELEASE_VERIFICATION.md and the external manifest. Live Btrfs/Timeshift/SSH operations remain untested.
+
+---
+
+## 0.1.88 — 2026-10-12
+
+- Retained the original capitalized VERSIONING.md and COMMENTED_CODE_MAP.md as the sole version ledger and code map. Verified that lowercase versioning.md and commented_code_map.md were byte-identical before removing them at the user's explicit request; no history or function explanations were lost. Checked the complete project for other filenames differing only by capitalization; no other duplicate pairs existed.
+- Updated the canonical VERSIONING.md with all changes in this release and the canonical COMMENTED_CODE_MAP.md with the current version and document ownership. README identifies the canonical documentation filenames and continues to describe current usage only. Previous historical entries remain intact.
+- Incremented the source package, pyproject metadata, standalone shell helper, all eight config example headers and existing release-hygiene version expectation by 0.0.1 from 0.1.87 to 0.1.88. Updated README/INSTALL current-version references. The Python build helper and CLI use the shared package version.
+- Backup, restore, retention, parent selection, deletion and locking logic are unchanged. All other necessary original files are preserved, including the original 0.1.84 executable. No live snapshot operation or rebuilt executable is claimed.
+- Packaged the full project without the two lowercase document duplicates or caches/temporary files. Verified the manifest against the uploaded original and 0.1.87; the earlier authorized nested-source removals and temporary marker exclusion remain recorded. Compile, basic CLI/config and test results are in RELEASE_VERIFICATION.md and the external manifest.
+
+---
+
+## 0.1.87 — 2026-10-12
+
+- Removed the older nested 0.1.75 application at timeshift_btrfs_sync/timeshift_btrfs_sync/ at the user's explicit request. Removed its duplicate package-local docs, tests, build/support helpers, integration copies, LICENSE and .gitignore: 52 files total. Every removed item is listed in REMOVED_NESTED_SOURCES.md and the release manifest.
+- Retained the active first-level package, all eight current config examples, root-level tests/docs/helpers/license/systemd/sudoers files, Home Assistant example and original executable. Previous release ZIPs and the uploaded archive are unchanged. Backup/restore/retention/safety implementations are byte-identical to 0.1.86.
+- Incremented active package/pyproject/helper metadata and all config example headers by 0.0.1 to 0.1.87. Updated the release-hygiene version expectation; CLI --help and --version keep using the shared current version.
+- Updated root README and INSTALL for the single current package layout, retained both user disclaimers verbatim, updated current audit pointers, and regenerated both identical code maps for the remaining functions/commands. Both version ledgers remain identical and retain previous history.
+- Added the complete removal/location report. Packaged and verified the full cleaned project against both the original upload and 0.1.86, allowing only the explicitly requested duplicate removals and the previously excluded empty runtime marker. Compile/basic CLI/config/tests and archive hygiene results are in RELEASE_VERIFICATION.md and the external manifest. The original binary remains 0.1.84; no new executable or live snapshot operation is claimed.
+
+---
+
+## 0.1.86 — 2026-10-12
+
+- Created one audit/fix release after reviewing the whole uploaded project and upstream Btrfs send/receive/kernel behavior and Timeshift snapshot creation, tagging, loading and native restore layout. Incremented active package/pyproject/example headers and the standalone helper version by 0.0.1 from 0.1.85; the preserved original binary/nested copies retain their original versions.
+- Fixed incremental parent ordering across state and filesystem candidates: search the complete candidate set newest-first. The older behavior already supported a saved hourly cache after its original disappeared; the corrected ordering concerns newer matching filesystem dates absent from state.
+- Treat missing/unreadable destination parent metadata as a rejected candidate rather than aborting the search. Try older matching dates without recreating immutable parent caches or allowing a full fallback into a pre-existing backup.
+- Removed saved-state UUID authority over live receiver identity. Matching now requires the actual destination Received UUID; parent source and receiver must have confirmed read-only status. Tightened cache lookup/state adoption to the same read-only requirement.
+- Reused the existing verified-parent selector to prove the sync floor. It now finds matching cache payloads by UUID even if the saved path is stale or the Timeshift original disappeared; whole configured snapshot pairs remain required.
+- Applied the existing shared retention selector to existing incremental destinations as well as fresh seeds. Avoid transfers of unneeded old hourlies, while retaining completed copies in the queue for current tags/comments/info.json refresh. Explicit --snapshot remains a direct selection. Recovery rebuilds use the same selection.
+- Extended build_prune_plan with an optional actual common-parent date. Before retention with deletion candidates, keep_latest_common_parent proves a complete live read-only UUID-matching pair through existing inventory and sync-floor code. Protect that pair instead of assuming the newest state date is shared; refuse cleanup when no pair can be proven. Ordinary source H/D/W/M/B retention remains under Timeshift, as requested. Existing app-created O authorization, delete confirmations and cleanup order are preserved.
+- Added an early native-restore layout guard requiring @ with optional @home. Home-only/custom payloads are refused before restore commands. Preserved hidden readonly full-seed/incremental receive, writable CoW Timeshift payloads, original info.json, collision/OS checks, typed confirmations and final Timeshift-list validation. No root/home split-filesystem support is claimed.
+- Added complete example-config-local-backup.toml, example-config-remote-pull.toml, example-config-local-restore.toml, example-config-remote-push-restore.toml and example-config-remote-pull-restore.toml under active data/. Kept all three original profiles. One CONFIG_PROFILES registry drives template selection and --help; package data includes all eight examples. Restore examples use an explicit local lock and describe endpoint/path ownership.
+- Added focused regression coverage for missing/absent hourly parents, newest filesystem vs state ordering, immutable cache reuse, relocated cache-floor recovery, stale state UUIDs, read-only proof, full-seed restrictions, actual retention-anchor protection, cleanup refusal, retained queue selection and completed metadata refresh. Added native restore guard coverage and expanded all existing profile/config-option packaging tests. Cache-specific prune fixtures explicitly disable the separate common-parent protection they do not simulate.
+- Updated current README usage/flags and all workflow examples, preserving both user disclaimer sections verbatim. Regenerated uppercase/lowercase code maps explaining all functions/commands; updated INSTALL.md and the audit notes. Added BTRFS_TIMESHIFT_AUDIT.md with research, confirmed findings, expected daily/hourly behavior and integration limitations. Uppercase/lowercase version ledgers and maps remain identical.
+- Packaged the full preserved project with cache/temp exclusions and verified archive content/permissions against the original upload and prior release. The original dist/ts-btrfs remains 0.1.84 because PyInstaller is unavailable; the current fixes must be run through Python source or a rebuilt executable. Actual Btrfs/Timeshift/SSH operations remain untested in this environment; verification details and manifests accompany the release.
+
+---
+
+## 0.1.85 — 2026-10-12
+
+- Created one maintenance release from the uploaded 0.1.84 project after inspecting its archive layout, runtime modules, shared workflows, configuration schema, CLI, test suite, build/integration helpers and nested original copies.
+- Restored the missing first-level `data/config.remote-roundtrip.example.toml` from the current sync template, using source.mode=ssh and restore.mode=ssh-target with the same SSH Timeshift endpoint. It contains every current supported config option, including transfer-size preflight and encrypted-key authentication; all three active profile headers now identify 0.1.85.
+- Updated `pyproject.toml` and the active package `__version__` to 0.1.85. Existing top-level/subcommand --version and self-contained --help remain in place.
+- Added --version to the root PyInstaller build helper using the existing package version. Added --version and explicit help descriptions to the preserved standalone deletion helper; its default preview, destination validation, privilege checks, nested-mount refusal, Btrfs deletion and ordinary-leftover cleanup behavior are unchanged.
+- Reworded one destroy-leftovers help sentence to describe recursive ordinary-file removal without embedding executable-looking shell syntax. Backup/restore/prune/cache/state/lock logic, dry-run gates, UUID checks, protected paths, confirmation requirements and retention policy were not changed.
+- Updated root README.md with both supplied disclaimer sections verbatim, current source usage, every CLI/build/helper flag, command examples, integration instructions and the distinction between active source and preserved older material. README describes current use; release history stays here.
+- Replaced the root code map with explanations of every Python class/function/method/nested callback, all application commands, standalone shell functions and integration commands. Added lowercase commented_code_map.md with identical content for the requested filename, preserving uppercase COMMENTED_CODE_MAP.md for existing references.
+- Added lowercase versioning.md with the same complete version ledger as VERSIONING.md. Existing historical entries are preserved; this entry lists all code, test, config and documentation changes for the new release. Updated root INSTALL.md and CONFIG_AND_CLI_AUDIT.md for source/binary selection and the complete active profile surface.
+- Updated root regression fixtures to the current API: transfer_size is a current module; SyncRunSummary.transferred carries the count; cache-mode tests isolate the separate manual-snapshot cleanup and pass its current deletion-handler arguments; physical restore scans use unprivileged temporary fixtures; disappearing-source tests provide an exact metadata probe. These corrections prevent unintended real SSH/sudo/Btrfs calls in the affected tests.
+- Updated the static symbol check for Python 3.14's compiler-generated __conditional_annotations__. Updated hygiene expectations to retain the independent original deletion helper and the original dist executable while continuing to reject Python/build/test caches and runtime success logs.
+- Preserved all four historical remote-lock test cases with an explicit skip when their removed API is absent. Current restore uses the configured local lock; no new remote lock or privilege requirement was introduced.
+- Kept original nested source, package-local documents/tests/helpers, systemd/sudoers files, Home Assistant example, license and original executable. The original executable reports 0.1.84 and is preserved byte-for-byte; PyInstaller is unavailable here, so it was not rebuilt and is not advertised as a 0.1.85 executable. Source invocation is the current release entry point.
+- Excluded the original empty `.succes` runtime marker as temporary run output. No other original file was omitted. Final packaging restores executable permission bits and verifies file paths, contents/hashes, archive integrity and forbidden-cache exclusions against the original archive; detailed checks and live-integration limitations are in RELEASE_VERIFICATION.md and the accompanying manifest.
+
+---
+
 ## 0.1.49
 
 - Fixed shared Btrfs tree discovery after the 0.1.47 refactor. The previous one-root `btrfs subvolume list -o` plan could contain only direct date/container subvolumes and omit nested `@`/`@home` payloads, causing parent deletion to fail with `Directory not empty`.
