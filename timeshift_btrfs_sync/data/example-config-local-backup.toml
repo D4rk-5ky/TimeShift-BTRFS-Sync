@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.1.92 config
+# timeshift-btrfs-sync v0.1.93 config
 # Workflow: local-backup. Run this on the local Timeshift host; the backup filesystem is mounted locally.
 # Edit all paths/hosts before use. Restore imports into source.snapshot_root on the Timeshift side.
 # Native restore needs @, optionally @home, under one snapshot_root/filesystem.

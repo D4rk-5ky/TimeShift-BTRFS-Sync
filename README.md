@@ -29,7 +29,7 @@ You are responsible for reviewing the code, testing it in a safe environment, ma
 
 ## Choose the current source application
 
-This source release is **0.1.92**. Run it from the project root with Python 3.11 or newer:
+This source release is **0.1.93**. Run it from the project root with Python 3.11 or newer:
 
 ```bash
 python3 -m timeshift_btrfs_sync --version
@@ -832,6 +832,46 @@ Lists source Timeshift snapshots.
 |---|---|---|
 | `--config`, `-c` | Loads the chosen TOML config. | Needed for source mode and source snapshot settings. |
 | `--verify-btrfs` | Runs slower Btrfs checks for every configured source subvolume during listing. | Useful when validating a new `snapshot_root` or subvolume layout. Omit it for faster normal listing. |
+
+### `list-snapshots`
+
+Prints Timeshift-style tables for **source send-cache** and **destination backup** snapshots, with each endpoint's device, mounted path, filesystem type, total/used/available space and status. It reads physical date directories and verifies each payload with `btrfs property get -ts PATH ro`; it does not infer presence from state.json. `--include-timeshift` adds ordinary Timeshift snapshots as a third table.
+
+```bash
+ts-btrfs list-snapshots --config ./config.toml
+# Explicitly inspect the hosts used by restore, plus original Timeshift snapshots:
+ts-btrfs list-snapshots --config ./restore.toml --workflow restore --include-timeshift
+# Source checkout, without an installed executable:
+python3 -m timeshift_btrfs_sync list-snapshots --config ./config.toml
+```
+
+| Flag | What it does | Why it may be needed |
+|---|---|---|
+| `--config`, `-c` | Required TOML file selecting paths, Btrfs commands and SSH settings. | Uses the same config as backup or restore. |
+| `--workflow auto` | Default: restore endpoint rules when `restore.mode` is `ssh` or `ssh-target`; otherwise backup rules. | Automatically covers all eight example profiles. |
+| `--workflow backup` | Timeshift/cache follows `source.mode`; backup destination is local. | Inspect backup hosts explicitly when the config also defines restore. |
+| `--workflow restore` | Timeshift/cache and backup hosts follow `restore.mode`, exactly as `restore` does. | With local restore, inspect local Timeshift even if `source.mode` selects SSH for backup. |
+| `--include-timeshift` | Also list `source.snapshot_root` with its own filesystem report. | Compare original Timeshift snapshots against cached and backed-up dates. |
+| `--help`, `-h` | Explain endpoint rules, flags, permissions, status and examples. | Check usage before contacting hosts. |
+| `--version` | Show the installed source version without loading config or contacting hosts. | Confirm that the new command is available in the executable being used. |
+
+| Workflow | Timeshift/cache side | Backup repository side |
+|---|---|---|
+| backup, `source.mode = "local"` | local | local |
+| backup, `source.mode = "ssh"` | configured SSH host | local |
+| restore, `restore.mode = "local"` | local | local |
+| restore, `restore.mode = "ssh"` (pull restore) | local | configured SSH host |
+| restore, `restore.mode = "ssh-target"` (push restore) | configured SSH host | local |
+
+Source/destination headings keep their configuration meanings during restore: source is Timeshift/cache, destination is the backup repository, even though restored data flows from backup to Timeshift. Endpoint labels and paths are printed for each table.
+
+**This command adds no sudo prefix**, ignoring both configured sudo settings. It uses existing mounts and the invoking local/SSH account's permissions. Ordinary read-only `sh`, `test`, `ls` and `base64` commands read directories and `info.json`; Btrfs property probes run in bounded batches per repository, and GNU `df -h -P -T` reports space in the C locale. It does not invoke `timeshift --list`, which can mount its backup device. It does not mount devices, create snapshots, prune, acquire app locks, load/save state, create app logs or send notifications. SSH authentication uses the existing transport. Choose a non-root local/SSH account; the command never elevates the account it is given. Existing Btrfs, mounted-directory and metadata permissions must allow the reads; it does not change permissions or retry as root.
+
+Cache tags/descriptions come from the current same-date original Timeshift `info.json`. Missing originals (including expired hourly snapshots) leave the cache date visible with `?` tags and a note; no old state tag is substituted. Destination tags/descriptions come from its stored `info.json` and may differ from current source tags. Named `ondemand/hourly/daily/weekly/monthly/boot` tags appear as `O/H/D/W/M/B` letters. Descriptions retain printable text while control characters and line breaks are removed for safe terminal output. UUID lineage and exact per-snapshot space are not queried. `btrfs property get -ts PATH ro` reads the subvolume flag without the privileged B-tree searches needed by `btrfs subvolume show/list` on some systems; an ordinary non-subvolume directory fails this property read. See the [Btrfs property documentation](https://btrfs.readthedocs.io/en/latest/btrfs-property.html).
+
+Each physical timestamp gets one row even with both `@` and `@home`. The Payloads column identifies observed read-only (`ro`), writable (`rw`) or unknown (`?`) status. Counts distinguish dates with at least one verified Btrfs payload from unverified entries. **Complete** means all configured payloads were observed; it does not establish UUID lineage, metadata identity, send eligibility or restore safety. Missing payloads, denied/failed Btrfs probes and date/payload symlinks stay visible as incomplete/unverified rows; symlink entries are not followed. Hidden receive chains and non-date helper files are excluded. Unknown tags or descriptions alone do not fail an otherwise verified listing.
+
+Missing/inaccessible configured roots, wrong filesystem types, directory reads, Btrfs/tool failures and unavailable free-space reports make that section incomplete/unavailable. The command still reports the other side, then exits **1** if a required section failed; **0** means requested inventory/space probes completed, including legitimately empty repositories or a disabled cache. Invalid configuration/arguments exit **2**. A disabled cache shows the source snapshot-root filesystem space instead. `df` availability is filesystem-wide, can be shared between sections on one device, and is not a guarantee of sufficient Btrfs receive allocation. Concurrent Timeshift/backup changes can make observations differ; use the normal guarded transfer/restore commands for actual operations.
 
 ### `sync`
 

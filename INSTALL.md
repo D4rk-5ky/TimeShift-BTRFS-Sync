@@ -1,6 +1,6 @@
 # Installation
 
-Current source release: **0.1.92**. Install from the project root. The included original `dist/ts-btrfs` reports **0.1.84** and has not been rebuilt; use `python3 -m timeshift_btrfs_sync` or rebuild the executable from this source before treating it as the current release. The active package is timeshift_btrfs_sync/; project documentation and helpers live at the project root.
+Current source release: **0.1.93**. Install from the project root. The included original `dist/ts-btrfs` reports **0.1.84** and has not been rebuilt; use `python3 -m timeshift_btrfs_sync` or rebuild the executable from this source before treating it as the current release. The active package is timeshift_btrfs_sync/; project documentation and helpers live at the project root.
 
 Normal sync runs on the backup/destination machine. The Timeshift source is reached over SSH or selected locally. Restore may also run on the Timeshift machine and pull a backup repository over SSH when `[restore] mode = "ssh"` is selected. The selected endpoints need the commands and minimal permissions described in the README. `cat` and `id` are not run through sudo during normal discovery. The configured source account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
 
@@ -124,6 +124,24 @@ ts-btrfs restore --config ./config.toml --snapshot 2026-07-15_05-00-02 --dry-run
 ts-btrfs restore --config ./config.toml --all --dry-run
 ```
 
+
+## Non-root snapshot and space inventory
+
+After installing the current source into the venv, run as your normal account:
+
+```bash
+. .venv/bin/activate
+ts-btrfs list-snapshots --config ./config.toml
+# Inspect restore endpoints and include ordinary Timeshift snapshots:
+ts-btrfs list-snapshots --config ./restore.toml --workflow restore --include-timeshift
+ts-btrfs list-snapshots --help
+```
+
+This prints source-cache and destination-backup Timeshift-style tables with separate device and free-space summaries. `--include-timeshift` adds the original snapshot table. Without a venv install, run `python3 -m timeshift_btrfs_sync list-snapshots --config ./config.toml` from the project root. The preserved original executable does not contain this command; install current source or rebuild it using the requirements/venv instructions below.
+
+The default `--workflow auto` uses restore hosts for `restore.mode = "ssh"` or `"ssh-target"`, otherwise backup hosts. Explicit `--workflow backup` follows `source.mode` and a local backup destination; `--workflow restore` follows both restore hosts. Source/cache and destination/backup headings retain their configuration meanings even during restore.
+
+The local/SSH accounts need read/search access to the already mounted paths and readable Timeshift `info.json` files. Install Btrfs tools and GNU coreutils (`df`, `ls`, `base64`, shell `test`) on each inspected host. Configured Btrfs executable paths are used; both sudo prefixes are ignored. The command does not mount, repair permissions, create snapshots, write app state/logs, notify or clean up. No new sudoers rule is needed or used. If directory/Btrfs permissions deny access, the report shows that side as unavailable and still tries the other side, then exits 1. Expired source originals only leave their cached tags/descriptions unknown; the Btrfs cache rows remain listed. `df` space is device/filesystem availability and can be shared by source originals/cache or other sections on the same filesystem. See README.md for row/count semantics and all flags.
 
 ## Restore permissions
 

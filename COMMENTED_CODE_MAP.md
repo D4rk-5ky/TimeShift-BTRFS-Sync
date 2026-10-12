@@ -1,4 +1,4 @@
-# Commented code map — TimeShift-BTRFS-Sync 0.1.92
+# Commented code map — TimeShift-BTRFS-Sync 0.1.93
 
 This file explains every Python class, function, method and nested callback in the current project, plus application commands and supplied shell/integration commands. Line numbers refer to this release. COMMENTED_CODE_MAP.md is the canonical code map; VERSIONING.md is the canonical version ledger.
 
@@ -470,23 +470,23 @@ Runtime layers reuse CommandEndpoint, BtrfsOps, CacheManager, inventory, Workflo
 
 **Why:** Keeps test fixtures and assertions close to the behavior they verify so regressions can be reproduced without production data.
 
-- `ReleaseHygieneTests` (class, line 30): Groups ReleaseHygiene regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+- `ReleaseHygieneTests` (class, line 31): Groups ReleaseHygiene regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
 
-- `ReleaseHygieneTests.test_preserved_helper_is_separate_from_runtime` (function/method, line 31): Regression assertion: preserved helper is separate from runtime. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ReleaseHygieneTests` to use its existing endpoint, state or callback context.
+- `ReleaseHygieneTests.test_preserved_helper_is_separate_from_runtime` (function/method, line 32): Regression assertion: preserved helper is separate from runtime. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ReleaseHygieneTests` to use its existing endpoint, state or callback context.
 
-- `ReleaseHygieneTests.test_runtime_success_logs_are_ignored_and_not_shipped` (function/method, line 36): Regression assertion: runtime success logs are ignored and not shipped. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ReleaseHygieneTests` to use its existing endpoint, state or callback context.
+- `ReleaseHygieneTests.test_runtime_success_logs_are_ignored_and_not_shipped` (function/method, line 37): Regression assertion: runtime success logs are ignored and not shipped. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ReleaseHygieneTests` to use its existing endpoint, state or callback context.
 
-- `ReleaseHygieneTests.test_version_metadata_is_consistent` (function/method, line 52): Regression assertion: version metadata is consistent. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ReleaseHygieneTests` to use its existing endpoint, state or callback context.
+- `ReleaseHygieneTests.test_version_metadata_is_consistent` (function/method, line 53): Regression assertion: version metadata is consistent. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ReleaseHygieneTests` to use its existing endpoint, state or callback context.
 
-- `ReleaseHygieneTests.test_readme_documents_every_cli_command` (function/method, line 58): Regression assertion: readme documents every cli command. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ReleaseHygieneTests` to use its existing endpoint, state or callback context.
+- `ReleaseHygieneTests.test_readme_documents_every_cli_command` (function/method, line 59): Regression assertion: readme documents every cli command. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ReleaseHygieneTests` to use its existing endpoint, state or callback context.
 
-- `ReleaseHygieneTests.test_parser_command_set_matches_documented_command_set` (function/method, line 64): Regression assertion: parser command set matches documented command set. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ReleaseHygieneTests` to use its existing endpoint, state or callback context.
+- `ReleaseHygieneTests.test_parser_command_set_matches_documented_command_set` (function/method, line 65): Regression assertion: parser command set matches documented command set. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ReleaseHygieneTests` to use its existing endpoint, state or callback context.
 
-- `ReleaseHygieneTests.test_readme_mentions_every_public_parser_option` (function/method, line 74): Regression assertion: readme mentions every public parser option. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ReleaseHygieneTests` to use its existing endpoint, state or callback context.
+- `ReleaseHygieneTests.test_readme_mentions_every_public_parser_option` (function/method, line 75): Regression assertion: readme mentions every public parser option. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ReleaseHygieneTests` to use its existing endpoint, state or callback context.
 
-- `ReleaseHygieneTests.test_code_map_names_every_runtime_and_build_symbol` (function/method, line 90): Regression assertion: code map names every runtime and build symbol. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ReleaseHygieneTests` to use its existing endpoint, state or callback context.
+- `ReleaseHygieneTests.test_code_map_names_every_runtime_and_build_symbol` (function/method, line 91): Regression assertion: code map names every runtime and build symbol. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ReleaseHygieneTests` to use its existing endpoint, state or callback context.
 
-- `ReleaseHygieneTests.test_no_python_cache_or_build_cache_is_present_in_source_tree` (function/method, line 106): Regression assertion: no python cache or build cache is present in source tree. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ReleaseHygieneTests` to use its existing endpoint, state or callback context.
+- `ReleaseHygieneTests.test_no_python_cache_or_build_cache_is_present_in_source_tree` (function/method, line 107): Regression assertion: no python cache or build cache is present in source tree. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ReleaseHygieneTests` to use its existing endpoint, state or callback context.
 
 ## `tests/test_remote_file_lock.py`
 
@@ -918,6 +918,64 @@ Runtime layers reuse CommandEndpoint, BtrfsOps, CacheManager, inventory, Workflo
 
 - `DestinationInfoJsonTests.test_prune_refuses_ordinary_date_folder` (function/method, line 205): Regression assertion: prune refuses ordinary date folder. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `DestinationInfoJsonTests` to use its existing endpoint, state or callback context.
 
+## `tests/test_snapshot_listing.py`
+
+**Role:** Regression tests. Non-root inventory tests with physical local fixtures and simulated Btrfs/SSH.
+
+**Why:** Keeps test fixtures and assertions close to the behavior they verify so regressions can be reproduced without production data.
+
+- `_record` (function/method, line 27): Create a discovered physical date with native Timeshift metadata. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `SnapshotListingTests` (class, line 33): Verify truthful reports and transport/privilege boundaries across every profile. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `SnapshotListingTests._section` (function/method, line 36): Reuse the shared config fixture and isolate only external discovery/probes. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_named_tags_do_not_invent_ondemand_or_boot` (function/method, line 45): Regression assertion: named tags do not invent ondemand or boot. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_compact_tags_and_unknown_metadata` (function/method, line 49): Regression assertion: compact tags and unknown metadata. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_remote_comments_cannot_inject_terminal_controls` (function/method, line 57): Regression assertion: remote comments cannot inject terminal controls. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_pair_counts_once_and_readonly_is_visible` (function/method, line 64): Regression assertion: pair counts once and readonly is visible. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_incomplete_and_unverified_dates_stay_visible` (function/method, line 78): Regression assertion: incomplete and unverified dates stay visible. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_permission_denied_is_visible_without_fallback` (function/method, line 88): Regression assertion: permission denied is visible without fallback. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_symlink_date_and_payload_not_probed` (function/method, line 94): Regression assertion: symlink date and payload not probed. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_cache_metadata_is_live_source_not_cache_or_state` (function/method, line 106): Regression assertion: cache metadata is live source not cache or state. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_disabled_cache_reports_source_filesystem` (function/method, line 114): Regression assertion: disabled cache reports source filesystem. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_empty_repository_is_distinct_from_unavailable` (function/method, line 122): Regression assertion: empty repository is distinct from unavailable. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_wrong_filesystem_is_reported_even_for_empty_repository` (function/method, line 130): Regression assertion: wrong filesystem is reported even for empty repository. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_real_batch_execution_quotes_paths_and_preserves_failures` (function/method, line 136): Regression assertion: real batch execution quotes paths and preserves failures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_all_eight_profiles_choose_actual_hosts_in_auto` (function/method, line 148): Regression assertion: all eight profiles choose actual hosts in auto. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_explicit_restore_local_ignores_sync_ssh_source` (function/method, line 165): Regression assertion: explicit restore local ignores sync ssh source. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_source_failure_does_not_hide_destination` (function/method, line 173): Regression assertion: source failure does not hide destination. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_source_failure_does_not_hide_destination.scan` (function/method, line 174): Simulate inaccessible source and a readable backup date. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests.test_source_failure_does_not_hide_destination` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_cli_returns_failure_after_printing_all_sections_without_run_logging` (function/method, line 189): Regression assertion: cli returns failure after printing all sections without run logging. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_df_parses_localized_environment_and_spaced_mount` (function/method, line 198): Regression assertion: df parses localized environment and spaced mount. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_actual_local_scan_and_df_need_no_privilege` (function/method, line 211): Regression assertion: actual local scan and df need no privilege. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_batch_probes_reuse_btrfs_argv_and_do_not_inject_sudo` (function/method, line 223): Regression assertion: batch probes reuse btrfs argv and do not inject sudo. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_truncated_or_duplicate_batch_response_fails` (function/method, line 238): Regression assertion: truncated or duplicate batch response fails. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_large_repository_uses_bounded_batches_without_losing_rows` (function/method, line 245): Regression assertion: large repository uses bounded batches without losing rows. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotListingTests.test_large_repository_uses_bounded_batches_without_losing_rows.respond` (function/method, line 248): Return one flag frame per request in each bounded transport batch. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests.test_large_repository_uses_bounded_batches_without_losing_rows` to use its existing endpoint, state or callback context.
+
 ## `tests/test_source_inventory.py`
 
 **Role:** Regression tests. Keeps test fixtures and assertions close to the behavior they verify so regressions can be reproduced without production data.
@@ -1296,101 +1354,103 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `add_version_arg` (function/method, line 38): Expose the installed package version from the top level and every subcommand. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `add_version_arg` (function/method, line 39): Expose the installed package version from the top level and every subcommand. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `new_subparser` (function/method, line 49): Create one self-contained command parser with version and troubleshooting help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `new_subparser` (function/method, line 50): Create one self-contained command parser with version and troubleshooting help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `add_config_arg` (function/method, line 72): Add the required TOML --config/-c option consistently to config-based commands. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `add_config_arg` (function/method, line 73): Add the required TOML --config/-c option consistently to config-based commands. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `add_run_mode_args` (function/method, line 86): Add mutually exclusive --dry-run and --run options with command-specific help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `add_run_mode_args` (function/method, line 87): Add mutually exclusive --dry-run and --run options with command-specific help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `add_yes_delete_arg` (function/method, line 92): Add the separate retention deletion authorization flag. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `add_yes_delete_arg` (function/method, line 93): Add the separate retention deletion authorization flag. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_load_config_state` (function/method, line 96): Load state and resolve all root-relative paths against this config. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_load_config_state` (function/method, line 97): Load state and resolve all root-relative paths against this config. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_failure_exit_code` (function/method, line 102): Return a stable CLI exit code for failure notifications. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_failure_exit_code` (function/method, line 103): Return a stable CLI exit code for failure notifications. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_stderr_tail_for_exception` (function/method, line 118): Return the best available recent stderr text for failure notifications. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_stderr_tail_for_exception` (function/method, line 119): Return the best available recent stderr text for failure notifications. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_send_notifications` (function/method, line 128): Send optional MQTT/email status without changing the command exit code. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_send_notifications` (function/method, line 129): Send optional MQTT/email status without changing the command exit code. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_mail_attachment_paths` (function/method, line 168): Return current run log paths for optional email attachment. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_mail_attachment_paths` (function/method, line 169): Return current run log paths for optional email attachment. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_safe_destroy_log_dir` (function/method, line 178): Return a log directory that will survive a destructive cleanup. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_safe_destroy_log_dir` (function/method, line 179): Return a log directory that will survive a destructive cleanup. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_with_logging` (function/method, line 219): Run a command with optional logging, notifications, and final summary. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_with_logging` (function/method, line 220): Run a command with optional logging, notifications, and final summary. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_with_logging._summary_text` (function/method, line 240): Call the terminal finalizer safely and report formatting failures without hiding the original outcome. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `_with_logging` to use its existing endpoint, state or callback context.
+- `_with_logging._summary_text` (function/method, line 241): Call the terminal finalizer safely and report formatting failures without hiding the original outcome. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `_with_logging` to use its existing endpoint, state or callback context.
 
-- `_with_logging._mail_summary_text` (function/method, line 249): Call the mail finalizer safely, falling back to the normal summary. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `_with_logging` to use its existing endpoint, state or callback context.
+- `_with_logging._mail_summary_text` (function/method, line 250): Call the mail finalizer safely, falling back to the normal summary. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `_with_logging` to use its existing endpoint, state or callback context.
 
-- `_with_logging._stage` (function/method, line 258): Stage nonempty final summaries in the log and success-mail streams. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `_with_logging` to use its existing endpoint, state or callback context.
+- `_with_logging._stage` (function/method, line 259): Stage nonempty final summaries in the log and success-mail streams. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `_with_logging` to use its existing endpoint, state or callback context.
 
-- `_with_logging._emit_terminal` (function/method, line 262): Emit the final terminal summary after notification handling. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `_with_logging` to use its existing endpoint, state or callback context.
+- `_with_logging._emit_terminal` (function/method, line 263): Emit the final terminal summary after notification handling. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `_with_logging` to use its existing endpoint, state or callback context.
 
-- `_resolve_dry_run` (function/method, line 323): Prefer explicit --dry-run or --run and otherwise use config.default_dry_run. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_resolve_dry_run` (function/method, line 324): Prefer explicit --dry-run or --run and otherwise use config.default_dry_run. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_init_config` (function/method, line 331): Write the selected packaged config profile; refuse overwriting an existing file without --force. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_init_config` (function/method, line 332): Write the selected packaged config profile; refuse overwriting an existing file without --force. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_test_source` (function/method, line 346): Load config and run source connectivity, Timeshift listing and Btrfs version checks with logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_test_source` (function/method, line 347): Load config and run source connectivity, Timeshift listing and Btrfs version checks with logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_test_source._run` (function/method, line 349): Test SSH when selected, then run source Timeshift listing and Btrfs version through configured privilege. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_test_source` to use its existing endpoint, state or callback context.
+- `cmd_test_source._run` (function/method, line 350): Test SSH when selected, then run source Timeshift listing and Btrfs version through configured privilege. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_test_source` to use its existing endpoint, state or callback context.
 
-- `_refresh_state_metadata_from_timeshift` (function/method, line 367): Refresh mutable state metadata and return the same current Timeshift index. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_refresh_state_metadata_from_timeshift` (function/method, line 368): Refresh mutable state metadata and return the same current Timeshift index. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_list_source` (function/method, line 376): List snapshots on the source machine. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_list_snapshots` (function/method, line 377): Report both physical repositories without sudo, state writes or notifications. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_list_source._run` (function/method, line 386): Discover and print source snapshots with the requested optional Btrfs verification. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_list_source` to use its existing endpoint, state or callback context.
+- `cmd_list_source` (function/method, line 388): List snapshots on the source machine. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_format_cleanup_summary` (function/method, line 399): Return overall retention and separate destination/cache cleanup summaries. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_list_source._run` (function/method, line 398): Discover and print source snapshots with the requested optional Btrfs verification. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_list_source` to use its existing endpoint, state or callback context.
 
-- `_format_failed_sync_summary` (function/method, line 467): Return a final sync block when sync failed before a normal summary existed. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_format_cleanup_summary` (function/method, line 411): Return overall retention and separate destination/cache cleanup summaries. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_sync` (function/method, line 484): Reject invalid sync topology, resolve run mode, coordinate the local lock and run shared sync/optional retention with final summaries. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_format_failed_sync_summary` (function/method, line 479): Return a final sync block when sync failed before a normal summary existed. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_sync._final_blocks` (function/method, line 505): Finalize elapsed time and produce transfer, sync and cleanup blocks, including early failures. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync` (function/method, line 496): Reject invalid sync topology, resolve run mode, coordinate the local lock and run shared sync/optional retention with final summaries. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_sync._finalize` (function/method, line 531): Join final terminal blocks in transfer-list, sync-summary, cleanup-summary order. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._final_blocks` (function/method, line 517): Finalize elapsed time and produce transfer, sync and cleanup blocks, including early failures. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_sync._mail_finalize` (function/method, line 535): Place the configured job name and sync/cleanup summaries before the transfer list in mail. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._finalize` (function/method, line 543): Join final terminal blocks in transfer-list, sync-summary, cleanup-summary order. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_sync._run_dry` (function/method, line 549): Run sync and optional retention previews using in-memory state without acquiring a mutation lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._mail_finalize` (function/method, line 547): Place the configured job name and sync/cleanup summaries before the transfer list in mail. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_sync._run_locked` (function/method, line 565): Run real sync and requested retention against state while the caller holds the local lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._run_dry` (function/method, line 561): Run sync and optional retention previews using in-memory state without acquiring a mutation lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_prune` (function/method, line 594): Refresh current source metadata and apply shared retention under the real-run lock or in preview. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_sync._run_locked` (function/method, line 577): Run real sync and requested retention against state while the caller holds the local lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_prune._run_dry` (function/method, line 598): Refresh state metadata in memory and preview retention without saving or deleting. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_prune` to use its existing endpoint, state or callback context.
+- `cmd_prune` (function/method, line 606): Refresh current source metadata and apply shared retention under the real-run lock or in preview. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_prune._run_locked` (function/method, line 612): Prepare helper paths, refresh state metadata and execute authorized retention under the local lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_prune` to use its existing endpoint, state or callback context.
+- `cmd_prune._run_dry` (function/method, line 610): Refresh state metadata in memory and preview retention without saving or deleting. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_prune` to use its existing endpoint, state or callback context.
 
-- `cmd_restore` (function/method, line 635): Restore one snapshot or the complete post-common backup chain into Timeshift. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_prune._run_locked` (function/method, line 624): Prepare helper paths, refresh state metadata and execute authorized retention under the local lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_prune` to use its existing endpoint, state or callback context.
 
-- `cmd_restore._run` (function/method, line 641): Pass selection, direction and explicit safety choices to the shared restore_backups workflow. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_restore` to use its existing endpoint, state or callback context.
+- `cmd_restore` (function/method, line 647): Restore one snapshot or the complete post-common backup chain into Timeshift. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_create_manual` (function/method, line 671): Verify source paths, identity and parent viability before requesting an on-demand Timeshift snapshot. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_restore._run` (function/method, line 653): Pass selection, direction and explicit safety choices to the shared restore_backups workflow. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_restore` to use its existing endpoint, state or callback context.
 
-- `cmd_create_manual._run` (function/method, line 674): Check source connectivity/paths and identity, then call the existing manual-snapshot creator. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_create_manual` to use its existing endpoint, state or callback context.
+- `cmd_create_manual` (function/method, line 683): Verify source paths, identity and parent viability before requesting an on-demand Timeshift snapshot. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_clear_state` (function/method, line 700): Guardedly remove the configured state_file with normal run logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_create_manual._run` (function/method, line 686): Check source connectivity/paths and identity, then call the existing manual-snapshot creator. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_create_manual` to use its existing endpoint, state or callback context.
 
-- `cmd_clear_state._run` (function/method, line 706): Preview state removal, or hold the existing lock while confirmed state-file removal runs. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_clear_state` to use its existing endpoint, state or callback context.
+- `cmd_clear_state` (function/method, line 712): Guardedly remove the configured state_file with normal run logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_delete_lock` (function/method, line 728): Guardedly remove the configured lock_file if it is stale, with logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_clear_state._run` (function/method, line 718): Preview state removal, or hold the existing lock while confirmed state-file removal runs. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_clear_state` to use its existing endpoint, state or callback context.
 
-- `cmd_delete_lock._run` (function/method, line 734): Call guarded stale-lock removal with the selected preview and danger confirmation. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_delete_lock` to use its existing endpoint, state or callback context.
+- `cmd_delete_lock` (function/method, line 740): Guardedly remove the configured lock_file if it is stale, with logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_destroy_leftovers` (function/method, line 745): Destroy configured leftovers with normal run logging enabled. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_delete_lock._run` (function/method, line 746): Call guarded stale-lock removal with the selected preview and danger confirmation. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_delete_lock` to use its existing endpoint, state or callback context.
 
-- `cmd_destroy_leftovers._run` (function/method, line 759): Call the shared retirement workflow for only the selected source-cache/destination roots. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_destroy_leftovers` to use its existing endpoint, state or callback context.
+- `cmd_destroy_leftovers` (function/method, line 757): Destroy configured leftovers with normal run logging enabled. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_show_state` (function/method, line 771): Print validated state as JSON or a compact snapshot/tag/subvolume table. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_destroy_leftovers._run` (function/method, line 771): Call the shared retirement workflow for only the selected source-cache/destination roots. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_destroy_leftovers` to use its existing endpoint, state or callback context.
 
-- `cmd_show_state._run` (function/method, line 774): Load validated state and print JSON, a compact table or an empty-state message. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_show_state` to use its existing endpoint, state or callback context.
+- `cmd_show_state` (function/method, line 783): Print validated state as JSON or a compact snapshot/tag/subvolume table. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `build_parser` (function/method, line 839): Create the argparse parser and complete command-specific flag help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_show_state._run` (function/method, line 786): Load validated state and print JSON, a compact table or an empty-state message. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_show_state` to use its existing endpoint, state or callback context.
 
-- `main` (function/method, line 1263): Parse and dispatch CLI arguments; translate configuration, lock, runtime and interruption errors to documented exit codes. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `build_parser` (function/method, line 852): Create the argparse parser and complete command-specific flag help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+
+- `main` (function/method, line 1311): Parse and dispatch CLI arguments; translate configuration, lock, runtime and interruption errors to documented exit codes. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
 ## `timeshift_btrfs_sync/commands.py`
 
@@ -1611,6 +1671,32 @@ No function or class definitions. The module exposes metadata or invokes the exi
 - `describe_source_inventory_changes.compare_index` (function/method, line 838): Compare old/new paths and UUID identities and append labeled inventory differences. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `describe_source_inventory_changes` to use its existing endpoint, state or callback context.
 
 - `refresh_path` (function/method, line 877): Refresh one exact path through the shared Btrfs operation layer. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+
+## `timeshift_btrfs_sync/listing.py`
+
+**Role:** Current source/build entry. Read-only, unprivileged snapshot and filesystem reports for both endpoints.
+
+**Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+
+- `SnapshotListingRow` (class, line 23): One physical date, retaining incomplete or inaccessible payloads visibly. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+
+- `SnapshotListingSection` (class, line 36): Independent endpoint outcome so one failed side cannot hide the other. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+
+- `_terminal_text` (function/method, line 48): Remove terminal controls and collapse lines in untrusted remote metadata. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+
+- `_snapshot_description` (function/method, line 54): Decode Timeshift's named retention tags without misreading 'hourly' as O/H. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+
+- `_filesystem_space` (function/method, line 87): Read GNU df's available filesystem space without mounting or using sudo. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+
+- `_scan_unprivileged` (function/method, line 105): Reuse physical repository discovery with an explicitly empty privilege prefix. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+
+- `_probe_payloads` (function/method, line 111): Batch Btrfs subvolume read-only property reads without privileged tree searches. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+
+- `_collect_section` (function/method, line 156): Probe physical payloads with Btrfs and keep errors visible instead of inferring state. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+
+- `collect_snapshot_listings` (function/method, line 245): Resolve backup/restore hosts once and independently inventory both configured repositories. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+
+- `format_snapshot_listings` (function/method, line 292): Render Timeshift-style name/tag/description tables and independent df summaries. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
 
 ## `timeshift_btrfs_sync/lock.py`
 
@@ -2484,6 +2570,29 @@ Examples:
 
 An existing file is preserved unless --force is supplied. Edit all host/path settings before use.
 
+### `list-snapshots` → `cli.cmd_list_snapshots`
+
+Read both physical repositories and print Timeshift-style tables plus df free space.
+Uses unprivileged directory/info.json reads, btrfs property get -ts PATH ro and df on each endpoint.
+Configured source/destination sudo prefixes are ignored; no mounts, locks, state/log writes,
+notifications, transfers, snapshot creation or cleanup are performed.
+Paths must already be mounted and readable by the local or SSH login account.
+Permission/tool failures remain visible and exit 1 after reporting the other side.
+
+Auto uses restore rules if restore.mode is ssh or ssh-target, otherwise backup rules.
+Backup: source.mode chooses the Timeshift/cache host; destination is always local.
+Restore: restore.mode chooses both hosts exactly as the restore command does.
+Source/destination headings always identify Timeshift/cache and backup repositories,
+even when data would flow from backup to Timeshift during restore.
+
+Examples:
+  ts-btrfs list-snapshots --config ./config.toml
+  ts-btrfs list-snapshots --config ./restore.toml --workflow restore --include-timeshift
+
+Rows are date directories; configured payloads are verified individually with Btrfs.
+Unverified/incomplete rows stay visible. Missing info.json shows unknown tags, never
+invented state metadata. df availability is not guaranteed receive capacity.
+
 ### `test-source` → `cli.cmd_test_source`
 
 Test the configured source command endpoint without sending or deleting snapshots.
@@ -2665,7 +2774,7 @@ Use --json when you need the complete stored structure for diagnosis or automati
 - `dist/ts-btrfs`: original executable, independently verified to report 0.1.84. Kept unchanged; rebuild to obtain an executable for the source release.
 - The older nested project and its duplicate docs/tests/helpers were removed. Root documents describe current usage; REMOVED_NESTED_SOURCES.md lists every former path.
 
-Coverage: 530 current source/build symbols; 490 root test symbols.
+Coverage: 541 current source/build symbols; 516 root test symbols.
 
 ## Python environment installation
 

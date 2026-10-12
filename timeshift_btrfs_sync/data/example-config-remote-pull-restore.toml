@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.1.92 config
+# timeshift-btrfs-sync v0.1.93 config
 # Workflow: remote-pull-restore. Run this on the local Timeshift host; the SSH host contains the backup repository.
 # Edit all paths/hosts before use. Restore imports into source.snapshot_root on the Timeshift side.
 # Native restore needs @, optionally @home, under one snapshot_root/filesystem.

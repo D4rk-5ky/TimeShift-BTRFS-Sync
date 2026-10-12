@@ -13,6 +13,7 @@ from . import __version__, timeshift
 from .commands import CommandError
 from .btrfs_ops import BtrfsOps
 from .endpoint import CommandEndpoint
+from .listing import collect_snapshot_listings, format_snapshot_listings
 from .config import CONFIG_PROFILES, ConfigError, load_config
 from .lock import FileLock
 from .log import active_logger, create_run_logger, emit_final_terminal_summary, stage_final_run_summary
@@ -372,6 +373,17 @@ def _refresh_state_metadata_from_timeshift(config, state: dict, *, dry_run: bool
     source_by_name = source_snapshot_index(list_source_snapshots(config, source, include_btrfs_info=False))
     refresh_state_metadata_and_report(state, source_by_name.values(), config.state_file, dry_run=dry_run)
     return source_by_name
+
+def cmd_list_snapshots(args) -> int:
+    """Report both physical repositories without sudo, state writes or notifications."""
+
+    config = load_config(args.config)
+    workflow, sections = collect_snapshot_listings(
+        config, workflow=args.workflow, include_timeshift=args.include_timeshift,
+    )
+    print(format_snapshot_listings(workflow, sections))
+    return int(any(section.failed for section in sections))
+
 
 def cmd_list_source(args) -> int:
     """List snapshots on the source machine.
@@ -829,6 +841,7 @@ Exit codes:
 
 Typical diagnosis flow:
   ts-btrfs --version
+  ts-btrfs list-snapshots --config ./config.toml
   ts-btrfs test-source --config ./config.toml
   ts-btrfs list-source --config ./config.toml
   ts-btrfs sync --config ./config.toml --dry-run
@@ -898,6 +911,41 @@ def build_parser() -> argparse.ArgumentParser:
         "--force",
         action="store_true",
         help="overwrite FILE if it already exists; without this flag an existing file is left untouched and the command exits with code 2",
+    )
+
+    p = new_subparser(
+        sub, "list-snapshots", "list source cache and destination snapshots without sudo",
+        (
+            "Read both physical repositories and print Timeshift-style tables plus df free space.\n"
+            "Uses unprivileged directory/info.json reads, btrfs property get -ts PATH ro and df on each endpoint.\n"
+            "Configured source/destination sudo prefixes are ignored; no mounts, locks, state/log writes,\n"
+            "notifications, transfers, snapshot creation or cleanup are performed.\n"
+            "Paths must already be mounted and readable by the local or SSH login account.\n"
+            "Permission/tool failures remain visible and exit 1 after reporting the other side."
+        ),
+        cmd_list_snapshots,
+        epilog=(
+            "Auto uses restore rules if restore.mode is ssh or ssh-target, otherwise backup rules.\n"
+            "Backup: source.mode chooses the Timeshift/cache host; destination is always local.\n"
+            "Restore: restore.mode chooses both hosts exactly as the restore command does.\n"
+            "Source/destination headings always identify Timeshift/cache and backup repositories,\n"
+            "even when data would flow from backup to Timeshift during restore.\n\n"
+            "Examples:\n"
+            "  ts-btrfs list-snapshots --config ./config.toml\n"
+            "  ts-btrfs list-snapshots --config ./restore.toml --workflow restore --include-timeshift\n\n"
+            "Rows are date directories; configured payloads are verified individually with Btrfs.\n"
+            "Unverified/incomplete rows stay visible. Missing info.json shows unknown tags, never\n"
+            "invented state metadata. df availability is not guaranteed receive capacity."
+        ),
+    )
+    add_config_arg(p)
+    p.add_argument(
+        "--workflow", choices=("auto", "backup", "restore"), default="auto",
+        help="endpoint interpretation; auto (default) follows non-local restore.mode, otherwise backup; backup follows source.mode with local destination; restore follows restore.mode for both hosts",
+    )
+    p.add_argument(
+        "--include-timeshift", action="store_true",
+        help="also print source.snapshot_root as a third table, using the same Timeshift endpoint; ordinary snapshots are only read",
     )
 
     p = new_subparser(
