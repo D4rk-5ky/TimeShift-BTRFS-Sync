@@ -1,4 +1,4 @@
-# Commented code map — TimeShift-BTRFS-Sync 0.1.91
+# Commented code map — TimeShift-BTRFS-Sync 0.1.92
 
 This file explains every Python class, function, method and nested callback in the current project, plus application commands and supplied shell/integration commands. Line numbers refer to this release. COMMENTED_CODE_MAP.md is the canonical code map; VERSIONING.md is the canonical version ledger.
 
@@ -778,6 +778,40 @@ Runtime layers reuse CommandEndpoint, BtrfsOps, CacheManager, inventory, Workflo
 
 - `RestoreTopologyRegressionTests.test_privileged_physical_scanner_prefixes_individual_read_only_commands` (function/method, line 193): Regression assertion: privileged physical scanner prefixes individual read only commands. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestoreTopologyRegressionTests` to use its existing endpoint, state or callback context.
 
+## `tests/test_retention_cleanup_accounting.py`
+
+**Role:** Regression tests. Verify each retention side is counted without changing deletion safety.
+
+**Why:** Keeps test fixtures and assertions close to the behavior they verify so regressions can be reproduced without production data.
+
+- `RetentionCleanupAccountingTests` (class, line 13): Groups RetentionCleanupAccounting regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `RetentionCleanupAccountingTests._execute` (function/method, line 14): Reuse existing fixtures and mocked deletion endpoints for one date. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RetentionCleanupAccountingTests` to use its existing endpoint, state or callback context.
+
+- `RetentionCleanupAccountingTests.test_two_payload_subvolumes_count_as_one_snapshot_date_per_side` (function/method, line 40): Regression assertion: two payload subvolumes count as one snapshot date per side. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RetentionCleanupAccountingTests` to use its existing endpoint, state or callback context.
+
+- `RetentionCleanupAccountingTests.test_cache_failure_preserves_destination_success_and_state_for_retry` (function/method, line 48): Regression assertion: cache failure preserves destination success and state for retry. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RetentionCleanupAccountingTests` to use its existing endpoint, state or callback context.
+
+- `RetentionCleanupAccountingTests.test_destination_failure_does_not_attempt_cache_cleanup` (function/method, line 60): Regression assertion: destination failure does not attempt cache cleanup. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RetentionCleanupAccountingTests` to use its existing endpoint, state or callback context.
+
+- `RetentionCleanupAccountingTests.test_disabled_cache_is_not_counted_or_deleted` (function/method, line 67): Regression assertion: disabled cache is not counted or deleted. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RetentionCleanupAccountingTests` to use its existing endpoint, state or callback context.
+
+- `RetentionCleanupAccountingTests.test_direct_timeshift_send_is_not_counted_as_a_cache_snapshot` (function/method, line 76): Regression assertion: direct timeshift send is not counted as a cache snapshot. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RetentionCleanupAccountingTests` to use its existing endpoint, state or callback context.
+
+- `RetentionCleanupAccountingTests.test_blocked_source_authorization_keeps_both_sides_untouched` (function/method, line 82): Regression assertion: blocked source authorization keeps both sides untouched. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RetentionCleanupAccountingTests` to use its existing endpoint, state or callback context.
+
+- `RetentionCleanupAccountingTests.test_prune_returns_side_counts_when_cache_failure_prevents_state_removal` (function/method, line 102): Regression assertion: prune returns side counts when cache failure prevents state removal. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RetentionCleanupAccountingTests` to use its existing endpoint, state or callback context.
+
+- `RetentionCleanupAccountingTests.test_dry_run_uses_candidates_and_never_claims_real_deletion` (function/method, line 122): Regression assertion: dry run uses candidates and never claims real deletion. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RetentionCleanupAccountingTests` to use its existing endpoint, state or callback context.
+
+- `RetentionCleanupAccountingTests.test_missing_result_labels_both_sides_unknown_instead_of_zero` (function/method, line 140): Regression assertion: missing result labels both sides unknown instead of zero. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RetentionCleanupAccountingTests` to use its existing endpoint, state or callback context.
+
+- `RetentionCleanupAccountingTests.test_not_requested_still_has_both_side_summaries` (function/method, line 145): Regression assertion: not requested still has both side summaries. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RetentionCleanupAccountingTests` to use its existing endpoint, state or callback context.
+
+- `RetentionCleanupAccountingTests.test_original_timeshift_cleanup_is_labeled_separately_from_cache` (function/method, line 151): Regression assertion: original timeshift cleanup is labeled separately from cache. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RetentionCleanupAccountingTests` to use its existing endpoint, state or callback context.
+
+- `RetentionCleanupAccountingTests.test_source_app_success_is_counted_before_later_destination_failure` (function/method, line 157): Regression assertion: source app success is counted before later destination failure. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RetentionCleanupAccountingTests` to use its existing endpoint, state or callback context.
+
 ## `tests/test_runtime_safety.py`
 
 **Role:** Regression tests. Keeps test fixtures and assertions close to the behavior they verify so regressions can be reproduced without production data.
@@ -1052,15 +1086,15 @@ Runtime layers reuse CommandEndpoint, BtrfsOps, CacheManager, inventory, Workflo
 
 - `SyncCleanupSummaryTests.test_final_terminal_log_order_is_transfers_sync_cleanup` (function/method, line 70): Regression assertion: final terminal log order is transfers sync cleanup. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncCleanupSummaryTests` to use its existing endpoint, state or callback context.
 
-- `SyncCleanupSummaryTests.test_mail_success_text_replaces_intermediate_success_output_and_starts_with_name` (function/method, line 94): Regression assertion: mail success text replaces intermediate success output and starts with name. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncCleanupSummaryTests` to use its existing endpoint, state or callback context.
+- `SyncCleanupSummaryTests.test_mail_success_text_replaces_intermediate_success_output_and_starts_with_name` (function/method, line 97): Regression assertion: mail success text replaces intermediate success output and starts with name. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncCleanupSummaryTests` to use its existing endpoint, state or callback context.
 
-- `SyncCleanupSummaryTests.test_sync_summary_includes_total_backup_time` (function/method, line 123): Regression assertion: sync summary includes total backup time. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncCleanupSummaryTests` to use its existing endpoint, state or callback context.
+- `SyncCleanupSummaryTests.test_sync_summary_includes_total_backup_time` (function/method, line 128): Regression assertion: sync summary includes total backup time. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncCleanupSummaryTests` to use its existing endpoint, state or callback context.
 
-- `SyncCleanupSummaryTests.test_duration_supports_days` (function/method, line 127): Regression assertion: duration supports days. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncCleanupSummaryTests` to use its existing endpoint, state or callback context.
+- `SyncCleanupSummaryTests.test_duration_supports_days` (function/method, line 132): Regression assertion: duration supports days. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncCleanupSummaryTests` to use its existing endpoint, state or callback context.
 
-- `SyncCleanupSummaryTests.test_transfer_section_explains_what_is_listed` (function/method, line 130): Regression assertion: transfer section explains what is listed. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncCleanupSummaryTests` to use its existing endpoint, state or callback context.
+- `SyncCleanupSummaryTests.test_transfer_section_explains_what_is_listed` (function/method, line 135): Regression assertion: transfer section explains what is listed. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncCleanupSummaryTests` to use its existing endpoint, state or callback context.
 
-- `SyncCleanupSummaryTests.test_failed_sync_summary_format_is_not_used_for_completed_sync` (function/method, line 136): Regression assertion: failed sync summary format is not used for completed sync. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncCleanupSummaryTests` to use its existing endpoint, state or callback context.
+- `SyncCleanupSummaryTests.test_failed_sync_summary_format_is_not_used_for_completed_sync` (function/method, line 141): Regression assertion: failed sync summary format is not used for completed sync. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncCleanupSummaryTests` to use its existing endpoint, state or callback context.
 
 ## `tests/test_topology_safety.py`
 
@@ -1308,55 +1342,55 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 - `cmd_list_source._run` (function/method, line 386): Discover and print source snapshots with the requested optional Btrfs verification. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_list_source` to use its existing endpoint, state or callback context.
 
-- `_format_cleanup_summary` (function/method, line 399): Return the mandatory final cleanup summary for a sync command. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_format_cleanup_summary` (function/method, line 399): Return overall retention and separate destination/cache cleanup summaries. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_format_failed_sync_summary` (function/method, line 463): Return a final sync block when sync failed before a normal summary existed. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_format_failed_sync_summary` (function/method, line 467): Return a final sync block when sync failed before a normal summary existed. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_sync` (function/method, line 480): Reject invalid sync topology, resolve run mode, coordinate the local lock and run shared sync/optional retention with final summaries. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_sync` (function/method, line 484): Reject invalid sync topology, resolve run mode, coordinate the local lock and run shared sync/optional retention with final summaries. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_sync._final_blocks` (function/method, line 501): Finalize elapsed time and produce transfer, sync and cleanup blocks, including early failures. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._final_blocks` (function/method, line 505): Finalize elapsed time and produce transfer, sync and cleanup blocks, including early failures. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_sync._finalize` (function/method, line 527): Join final terminal blocks in transfer-list, sync-summary, cleanup-summary order. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._finalize` (function/method, line 531): Join final terminal blocks in transfer-list, sync-summary, cleanup-summary order. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_sync._mail_finalize` (function/method, line 531): Place the configured job name and sync/cleanup summaries before the transfer list in mail. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._mail_finalize` (function/method, line 535): Place the configured job name and sync/cleanup summaries before the transfer list in mail. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_sync._run_dry` (function/method, line 545): Run sync and optional retention previews using in-memory state without acquiring a mutation lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._run_dry` (function/method, line 549): Run sync and optional retention previews using in-memory state without acquiring a mutation lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_sync._run_locked` (function/method, line 561): Run real sync and requested retention against state while the caller holds the local lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._run_locked` (function/method, line 565): Run real sync and requested retention against state while the caller holds the local lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_prune` (function/method, line 590): Refresh current source metadata and apply shared retention under the real-run lock or in preview. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_prune` (function/method, line 594): Refresh current source metadata and apply shared retention under the real-run lock or in preview. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_prune._run_dry` (function/method, line 594): Refresh state metadata in memory and preview retention without saving or deleting. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_prune` to use its existing endpoint, state or callback context.
+- `cmd_prune._run_dry` (function/method, line 598): Refresh state metadata in memory and preview retention without saving or deleting. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_prune` to use its existing endpoint, state or callback context.
 
-- `cmd_prune._run_locked` (function/method, line 608): Prepare helper paths, refresh state metadata and execute authorized retention under the local lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_prune` to use its existing endpoint, state or callback context.
+- `cmd_prune._run_locked` (function/method, line 612): Prepare helper paths, refresh state metadata and execute authorized retention under the local lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_prune` to use its existing endpoint, state or callback context.
 
-- `cmd_restore` (function/method, line 631): Restore one snapshot or the complete post-common backup chain into Timeshift. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_restore` (function/method, line 635): Restore one snapshot or the complete post-common backup chain into Timeshift. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_restore._run` (function/method, line 637): Pass selection, direction and explicit safety choices to the shared restore_backups workflow. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_restore` to use its existing endpoint, state or callback context.
+- `cmd_restore._run` (function/method, line 641): Pass selection, direction and explicit safety choices to the shared restore_backups workflow. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_restore` to use its existing endpoint, state or callback context.
 
-- `cmd_create_manual` (function/method, line 667): Verify source paths, identity and parent viability before requesting an on-demand Timeshift snapshot. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_create_manual` (function/method, line 671): Verify source paths, identity and parent viability before requesting an on-demand Timeshift snapshot. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_create_manual._run` (function/method, line 670): Check source connectivity/paths and identity, then call the existing manual-snapshot creator. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_create_manual` to use its existing endpoint, state or callback context.
+- `cmd_create_manual._run` (function/method, line 674): Check source connectivity/paths and identity, then call the existing manual-snapshot creator. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_create_manual` to use its existing endpoint, state or callback context.
 
-- `cmd_clear_state` (function/method, line 696): Guardedly remove the configured state_file with normal run logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_clear_state` (function/method, line 700): Guardedly remove the configured state_file with normal run logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_clear_state._run` (function/method, line 702): Preview state removal, or hold the existing lock while confirmed state-file removal runs. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_clear_state` to use its existing endpoint, state or callback context.
+- `cmd_clear_state._run` (function/method, line 706): Preview state removal, or hold the existing lock while confirmed state-file removal runs. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_clear_state` to use its existing endpoint, state or callback context.
 
-- `cmd_delete_lock` (function/method, line 724): Guardedly remove the configured lock_file if it is stale, with logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_delete_lock` (function/method, line 728): Guardedly remove the configured lock_file if it is stale, with logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_delete_lock._run` (function/method, line 730): Call guarded stale-lock removal with the selected preview and danger confirmation. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_delete_lock` to use its existing endpoint, state or callback context.
+- `cmd_delete_lock._run` (function/method, line 734): Call guarded stale-lock removal with the selected preview and danger confirmation. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_delete_lock` to use its existing endpoint, state or callback context.
 
-- `cmd_destroy_leftovers` (function/method, line 741): Destroy configured leftovers with normal run logging enabled. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_destroy_leftovers` (function/method, line 745): Destroy configured leftovers with normal run logging enabled. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_destroy_leftovers._run` (function/method, line 755): Call the shared retirement workflow for only the selected source-cache/destination roots. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_destroy_leftovers` to use its existing endpoint, state or callback context.
+- `cmd_destroy_leftovers._run` (function/method, line 759): Call the shared retirement workflow for only the selected source-cache/destination roots. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_destroy_leftovers` to use its existing endpoint, state or callback context.
 
-- `cmd_show_state` (function/method, line 767): Print validated state as JSON or a compact snapshot/tag/subvolume table. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_show_state` (function/method, line 771): Print validated state as JSON or a compact snapshot/tag/subvolume table. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_show_state._run` (function/method, line 770): Load validated state and print JSON, a compact table or an empty-state message. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_show_state` to use its existing endpoint, state or callback context.
+- `cmd_show_state._run` (function/method, line 774): Load validated state and print JSON, a compact table or an empty-state message. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_show_state` to use its existing endpoint, state or callback context.
 
-- `build_parser` (function/method, line 835): Create the argparse parser and complete command-specific flag help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `build_parser` (function/method, line 839): Create the argparse parser and complete command-specific flag help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `main` (function/method, line 1259): Parse and dispatch CLI arguments; translate configuration, lock, runtime and interruption errors to documented exit codes. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `main` (function/method, line 1263): Parse and dispatch CLI arguments; translate configuration, lock, runtime and interruption errors to documented exit codes. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
 ## `timeshift_btrfs_sync/commands.py`
 
@@ -2000,61 +2034,65 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 - `PruneResult` (class, line 56): Retention outcome used by the final sync cleanup summary. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `PruneResult.cleaned_snapshots` (property, line 68): Return snapshot-level cleanup successes, not subvolume delete count. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `PruneResult` to use its existing endpoint, state or callback context.
+- `PruneResult.cleaned_snapshots` (property, line 75): Return snapshot-level cleanup successes, not subvolume delete count. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `PruneResult` to use its existing endpoint, state or callback context.
 
-- `PruneResult.retry_destination_state_items` (property, line 74): Return paired/state candidates that could not complete cleanup. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `PruneResult` to use its existing endpoint, state or callback context.
+- `PruneResult.retry_destination_state_items` (property, line 81): Return paired/state candidates that could not complete cleanup. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `PruneResult` to use its existing endpoint, state or callback context.
 
-- `PruneResult.blocked_source_candidates` (property, line 80): Return current source app-snapshot candidates not authorized now. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `PruneResult` to use its existing endpoint, state or callback context.
+- `PruneResult.blocked_source_candidates` (property, line 87): Return current source app-snapshot candidates not authorized now. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `PruneResult` to use its existing endpoint, state or callback context.
 
-- `_is_app_created_ondemand` (function/method, line 86): Return true when a state entry is a tag O snapshot with the app marker. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `format_prune_cleanup_summaries` (function/method, line 93): Report retention outcomes separately for destination and app-owned cache. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_is_current_source_app_created_ondemand` (function/method, line 97): Re-prove app ownership from the current Timeshift listing before deletion. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `format_prune_cleanup_summaries.block` (function/method, line 105): Render one cleanup side without inferring success from paired state. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `format_prune_cleanup_summaries` to use its existing endpoint, state or callback context.
 
-- `_delete_reason_for_snapshot` (function/method, line 107): Explain why a snapshot is outside the active retention rules. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_is_app_created_ondemand` (function/method, line 161): Return true when a state entry is a tag O snapshot with the app marker. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_delete_reasons` (function/method, line 143): Return delete reasons without the internal prefix. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_is_current_source_app_created_ondemand` (function/method, line 172): Re-prove app ownership from the current Timeshift listing before deletion. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_source_cache_delete_paths` (function/method, line 152): Return app-owned source send-cache paths for a prune decision. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_delete_reason_for_snapshot` (function/method, line 182): Explain why a snapshot is outside the active retention rules. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_protected_timeshift_send_paths` (function/method, line 198): Return direct Timeshift send paths that prune must never delete. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_delete_reasons` (function/method, line 218): Return delete reasons without the internal prefix. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_destination_delete_paths` (function/method, line 228): Return tracked destination subvolume paths for a prune decision. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_source_cache_delete_paths` (function/method, line 227): Return app-owned source send-cache paths for a prune decision. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `source_snapshot_state` (function/method, line 239): Return temporary state-like data from source Timeshift snapshots. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_protected_timeshift_send_paths` (function/method, line 273): Return direct Timeshift send paths that prune must never delete. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `initial_sync_keep_names` (function/method, line 264): Return retention-selected source names for a fresh or incremental backup. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_destination_delete_paths` (function/method, line 303): Return tracked destination subvolume paths for a prune decision. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_cleanup_source_cache_for_pruned_snapshot` (function/method, line 275): Delete one pruned snapshot's app-owned cache through the shared tree engine. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `source_snapshot_state` (function/method, line 314): Return temporary state-like data from source Timeshift snapshots. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_load_source_timeshift_index` (function/method, line 324): Read one current Timeshift list for destructive source-retention checks. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `initial_sync_keep_names` (function/method, line 339): Return retention-selected source names for a fresh or incremental backup. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_delete_source_timeshift_snapshot_for_prune` (function/method, line 339): Delete one old app-created source O snapshot through Timeshift only. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_cleanup_source_cache_for_pruned_snapshot` (function/method, line 350): Delete one pruned snapshot's app-owned cache through the shared tree engine. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_destination_snapshot_is_proven_complete` (function/method, line 391): Prove that state and the live destination contain every configured payload. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_load_source_timeshift_index` (function/method, line 399): Read one current Timeshift list for destructive source-retention checks. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_source_app_retention_delete_names` (function/method, line 408): Return current app-created source O snapshots outside the same retention rules. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_delete_source_timeshift_snapshot_for_prune` (function/method, line 414): Delete one old app-created source O snapshot through Timeshift only. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_authorized_source_timeshift_delete_names` (function/method, line 427): Authorize source deletion from direct backup proof or a backed retained window. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_destination_snapshot_is_proven_complete` (function/method, line 466): Prove that state and the live destination contain every configured payload. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `build_prune_plan` (function/method, line 470): Build retention plan from state without deleting anything. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_source_app_retention_delete_names` (function/method, line 483): Return current app-created source O snapshots outside the same retention rules. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_delete_destination_snapshot_for_prune` (function/method, line 557): Delete one destination date through the shared tree engine. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_authorized_source_timeshift_delete_names` (function/method, line 502): Authorize source deletion from direct backup proof or a backed retained window. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_delete_prune_item` (function/method, line 583): Execute one prune item and remove state only after every required side is gone. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `build_prune_plan` (function/method, line 545): Build retention plan from state without deleting anything. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_delete_prune_item.delete_source_timeshift_action` (function/method, line 632): Delete only freshly authorized app-created Timeshift snapshots before removing their proven backups. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `_delete_prune_item` to use its existing endpoint, state or callback context.
+- `_delete_destination_snapshot_for_prune` (function/method, line 632): Delete one destination date through the shared tree engine. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_delete_prune_item.delete_destination` (function/method, line 647): Delete the exact managed backup date using the shared Btrfs-only tree workflow. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `_delete_prune_item` to use its existing endpoint, state or callback context.
+- `_delete_prune_item` (function/method, line 658): Execute one prune item and remove state only after every required side is gone. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_delete_prune_item.delete_cache_action` (function/method, line 656): Delete the matching app-owned cache date after destination removal succeeds. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `_delete_prune_item` to use its existing endpoint, state or callback context.
+- `_delete_prune_item.delete_source_timeshift_action` (function/method, line 708): Delete only freshly authorized app-created Timeshift snapshots before removing their proven backups. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `_delete_prune_item` to use its existing endpoint, state or callback context.
 
-- `_delete_prune_item.remove_state` (function/method, line 672): Remove the state record only after preceding required deletion actions complete. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `_delete_prune_item` to use its existing endpoint, state or callback context.
+- `_delete_prune_item.delete_destination` (function/method, line 725): Delete the exact managed backup date using the shared Btrfs-only tree workflow. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `_delete_prune_item` to use its existing endpoint, state or callback context.
 
-- `print_prune_plan` (function/method, line 691): Write an easy-to-read retention summary to terminal and .succes. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_delete_prune_item.delete_cache_action` (function/method, line 738): Delete the matching app-owned cache date after destination removal succeeds. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `_delete_prune_item` to use its existing endpoint, state or callback context.
 
-- `_confirmed_prune_parent` (function/method, line 745): Prove a complete live send/receive anchor before pruning its siblings. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_delete_prune_item.remove_state` (function/method, line 759): Remove the state record only after preceding required deletion actions complete. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `_delete_prune_item` to use its existing endpoint, state or callback context.
 
-- `prune` (function/method, line 787): Apply backup retention plus paired app-created source O retention. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `print_prune_plan` (function/method, line 778): Write an easy-to-read retention summary to terminal and .succes. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+
+- `_confirmed_prune_parent` (function/method, line 832): Prove a complete live send/receive anchor before pruning its siblings. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+
+- `prune` (function/method, line 874): Apply backup retention plus paired app-created source O retention. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
 ## `timeshift_btrfs_sync/source.py`
 
@@ -2627,7 +2665,7 @@ Use --json when you need the complete stored structure for diagnosis or automati
 - `dist/ts-btrfs`: original executable, independently verified to report 0.1.84. Kept unchanged; rebuild to obtain an executable for the source release.
 - The older nested project and its duplicate docs/tests/helpers were removed. Root documents describe current usage; REMOVED_NESTED_SOURCES.md lists every former path.
 
-Coverage: 528 current source/build symbols; 476 root test symbols.
+Coverage: 530 current source/build symbols; 490 root test symbols.
 
 ## Python environment installation
 

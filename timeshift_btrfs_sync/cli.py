@@ -20,7 +20,7 @@ from .mail import send_status as send_mail_status
 from .mqtt import publish_status
 from .models import SnapshotMeta
 from .notify import build_notification_payload
-from .retention import PruneResult, prune
+from .retention import PruneResult, format_prune_cleanup_summaries, prune
 from .restore import restore_backups
 from .destroy import destroy_leftovers
 from .maintenance import clear_state_file, delete_lock_file
@@ -403,12 +403,13 @@ def _format_cleanup_summary(
     dry_run: bool,
     error: BaseException | None = None,
 ) -> str:
-    """Return the mandatory final cleanup summary for a sync command."""
+    """Return overall retention and separate destination/cache cleanup summaries."""
 
     lines = [
         "CLEANUP SUMMARY",
         "===============",
     ]
+    side_summaries = format_prune_cleanup_summaries(result, requested=requested, dry_run=dry_run)
 
     if not requested:
         lines += [
@@ -418,7 +419,7 @@ def _format_cleanup_summary(
             "  reason:             neither --prune nor prune_after_sync=true requested retention",
             "  result:             SUCCESS - cleanup skipped; cleaned 0 snapshots",
         ]
-        return "\n".join(lines)
+        return "\n".join(lines) + "\n\n" + side_summaries
 
     lines.append("  requested:          yes")
     lines.append(f"  mode:               {'dry-run' if dry_run else 'real run'}")
@@ -431,16 +432,19 @@ def _format_cleanup_summary(
             f"  reason:             {reason}",
             "  result:             FAILED",
         ]
-        return "\n".join(lines)
+        return "\n".join(lines) + "\n\n" + side_summaries
 
     lines += [
         f"  retention candidates:{len(result.plan.delete):>5}",
-        f"  source candidates:   {result.source_delete_candidates:>5}",
-        f"  source authorized:   {result.source_delete_authorized:>5}",
+        f"  Timeshift app candidates:     {result.source_delete_candidates:>5}",
+        f"  Timeshift app authorized:     {result.source_delete_authorized:>5}",
+        f"  Timeshift app confirmed gone: {result.source_timeshift_cleanup_completed:>5}",
         f"  cleaned snapshots:   {result.cleaned_snapshots:>5}",
         f"  retry paired items:  {result.retry_destination_state_items:>5}",
-        f"  blocked source:      {result.blocked_source_candidates:>5}",
+        f"  blocked Timeshift app:{result.blocked_source_candidates:>5}",
         f"  remaining in state:  {result.remaining_state:>5}",
+        "  count basis:        completed paired/state items plus source-only app items",
+        "  ordinary source snapshots: retention managed by Timeshift",
     ]
     if result.dry_run:
         lines += [
@@ -457,7 +461,7 @@ def _format_cleanup_summary(
             "  status:             completed",
             f"  result:             SUCCESS - cleaned {result.cleaned_snapshots} snapshot(s)",
         ]
-    return "\n".join(lines)
+    return "\n".join(lines) + "\n\n" + side_summaries
 
 
 def _format_failed_sync_summary(exc: BaseException, *, elapsed_seconds: float | None = None) -> str:

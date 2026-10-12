@@ -1,6 +1,18 @@
 # Versioning
 
-Current source version: **0.1.91**. Each newly created release increments the patch component by one. At patch 99, roll over into the next minor component: `0.0.99 → 0.1.0` and `0.1.99 → 0.2.0`; never create patch 100. Preserved original copies and binaries retain their original versions.
+Current source version: **0.1.92**. Each newly created release increments the patch component by one. At patch 99, roll over into the next minor component: `0.0.99 → 0.1.0` and `0.1.99 → 0.2.0`; never create patch 100. Preserved original copies and binaries retain their original versions.
+
+## 0.1.92 — 2026-10-12
+
+- Extended PruneResult with independent destination and app-owned source-cache attempted/completed counters, cache enablement/candidate counts and a separately labeled Timeshift app-original completion count. Updated existing prune action handlers to record a side's confirmed success even when a later phase fails and state must remain for retry. Count units are snapshot dates, not payload subvolume counts; already-absent paths can be confirmed gone.
+- Added the shared format_prune_cleanup_summaries renderer. Both sync's final overall cleanup output and standalone prune reuse it to show DESTINATION CLEANUP SUMMARY and SOURCE SEND-CACHE CLEANUP SUMMARY with candidates, attempts, confirmed absence, pending/skipped and status. Disabled cache cleanup, direct Timeshift sends, dry-run, unrequested cleanup and missing/failed results are labeled accurately. Cache statistics cover the retention pass only.
+- Renamed ambiguous overall source labels to Timeshift app candidates/authorized/confirmed gone and stated that ordinary source snapshots remain managed by Timeshift. Kept existing completed paired/state and source-only item accounting and all state-removal safety gates. Destination/cache/source Timeshift deletion ordering, confirmations, ownership checks, read-only/UUID protection, retry behavior and permissions are unchanged.
+- Updated current README output/log/mail ordering and count semantics, root code-map function/command explanations and the current config/CLI audit. Documented Git ignore diagnosis and force-staging only the five example configs in INSTALL.md after the user's report. Confirmed an obsolete nested .gitignore reproduces the issue and normal git add -A includes the examples in the clean project; no new nested ignore file was introduced.
+- Added regression coverage using existing fixtures for independent side accounting, @/@home counting once, later cache/destination failures, disabled cache cleanup, protected direct sends, blocked source authorization, app-original counts, prune aggregation, dry-run, unknown results and unrequested cleanup. Extended final log/mail ordering assertions to include the destination and source-cache blocks.
+- Incremented source/pyproject/helper metadata, all config example headers, current documentation and the existing version expectation by 0.0.1 from 0.1.91 to 0.1.92. Full MQTT/PyInstaller requirements and all original necessary files remain present. Canonical documents remain at the root without lowercase/package-local duplicates.
+- Ran tests, compile, CLI/config/helper, actual Git staging and archive/manifest verification. Precise counts and limits are in RELEASE_VERIFICATION.md. No live Btrfs/Timeshift/SSH operations or new executable build is claimed.
+
+---
 
 ## 0.1.91 — 2026-10-12
 

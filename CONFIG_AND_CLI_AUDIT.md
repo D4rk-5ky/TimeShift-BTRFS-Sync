@@ -1,6 +1,8 @@
-# Current audit — source 0.1.91
+# Current audit — source 0.1.92
 
 The root requirements.txt installs the full project/MQTT/PyInstaller environment using the existing pyproject.toml extras and their transitive dependencies. README.md and INSTALL.md document venv setup, import checks and executable builds with --with-mqtt.
+
+Final sync and standalone prune now report destination and app-owned source send-cache retention independently. Snapshot-date counters preserve side successes when a later phase needs retry. Timeshift app-original cleanup remains labeled separately; ordinary source retention stays managed by Timeshift. See README.md for count semantics and unknown/disabled/dry-run states.
 
 All eight active config profiles are generated through the shared CONFIG_PROFILES registry. Every supported option is documented in each profile and checked by tests. See README.md for current commands/flags/directions and BTRFS_TIMESHIFT_AUDIT.md for confirmed parent/retention defects and restore findings. Active runtime changes are recorded in VERSIONING.md. The original binary remains 0.1.84; run the current Python source or rebuild it.
 

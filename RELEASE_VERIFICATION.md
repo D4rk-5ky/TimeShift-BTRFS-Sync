@@ -1,24 +1,28 @@
-# Release verification — TimeShift-BTRFS-Sync 0.1.91
+# Release verification — TimeShift-BTRFS-Sync 0.1.92
 
-Created on 2026-10-12, incrementing 0.1.90 by 0.0.1.
+Created on 2026-10-12, incrementing 0.1.91 by 0.0.1.
 
 ## Changes
 
-- requirements.txt now uses -e .[mqtt,pyinstaller], installing the existing project, paho-mqtt and PyInstaller through the declared extras, with their resolved dependencies. The setuptools build backend remains declared in pyproject.toml. No duplicate dependency list was introduced.
-- INSTALL.md and README.md describe the full venv workflow, both-module import verification and one-file executable building with --with-mqtt. Smaller installs are documented alternatives; MQTT notifications still require config enablement.
-- Updated VERSIONING.md, COMMENTED_CODE_MAP.md, the current config/CLI audit summary, all version metadata/config headers and the existing version expectation. Runtime Python modules except version metadata are byte-identical to 0.1.90. Backup, restore, retention and safety behavior are unchanged.
+- Added separate DESTINATION CLEANUP SUMMARY and SOURCE SEND-CACHE CLEANUP SUMMARY blocks, shared by final sync output and standalone prune. Counts show snapshot-date candidates, attempted dates, confirmed absence and pending/skipped work independently for each side.
+- Extended PruneResult and the existing prune action handlers to record each side's outcome. Destination success is preserved in the summary if later cache cleanup fails and state remains for retry. Protected direct Timeshift originals are not counted as cache cleanup. No deletion command, ordering, authorization, state-removal condition, UUID/read-only guard or source-retention policy was changed.
+- Labeled app-created Timeshift original cleanup separately in the overall block and explained the overall completed paired/state/source-only count. Ordinary source retention remains managed by Timeshift.
+- Updated README with final terminal/log/mail ordering, scope and count semantics. Regenerated the canonical code map: 530 current source/build symbols and 490 test symbols. Updated VERSIONING, current audit, installation/Git guidance and shared version metadata/config headers. The full MQTT/PyInstaller requirements remain unchanged.
+- Added 12 regression tests reusing existing retention fixtures, and extended final log/mail order assertions. All prior project files are retained; the new test module brings the release to 95 files.
 
 ## Verification
 
-- Pip's own requirements parser accepts the editable project entry and selects exactly the mqtt and pyinstaller extras.
-- Existing metadata declares paho-mqtt>=1.6, pyinstaller>=6.0 and setuptools>=68 as the build backend. Static imports across the application/build entry points identify only paho and PyInstaller as external Python dependencies; both are covered.
-- Verified executable argument construction includes --onefile, the complete config data directory and --hidden-import paho.mqtt.client when --with-mqtt is selected.
-- Python 3.12 and 3.14 each ran 295 tests: 291 passed and four existing historical remote-lock cases skipped.
-- All 67 Python files compiled outside the release tree. Global and all 11 CLI commands passed 24 help/version checks; source reports 0.1.91. All eight config profiles load and generate exactly their packaged templates. Helper help/version checks and shell syntax validation passed.
-- Canonical document layout, nested version-history preservation and existing Git ignore checks passed. The full ZIP's CRC, safe unique paths, hashes, permissions and cache/temp exclusions were verified against the tree, 0.1.90 and the uploaded original. All 94 prior files are retained. Only the earlier authorized 52 nested-source removals and previously excluded empty runtime marker are absent relative to the upload.
+- Python 3.12 and 3.14 each ran 307 tests: 303 passed, four existing historical remote-lock cases skipped.
+- Regression coverage includes @/@home counted once, destination/cache partial failures, state retained for retry, disabled cache cleanup, direct protected sends, blocked source authorization, source-app completion, prune aggregation, dry-run, missing-result unknown counts and unrequested cleanup. Log/mail assertions cover both new blocks.
+- All 68 Python files compiled outside the release tree. Global and all 11 CLI commands passed 24 help/version checks; source reports 0.1.92. All eight config profiles load and generate their exact templates. Helper help/version and shell syntax checks passed.
+- Tested actual git add -A in a temporary repository: all eight example configs, pyproject.toml and requirements.txt were staged. Adding the old package-local .gitignore reproduced exclusion of all five new examples; removing it restored the root exceptions. This reproduces a possible cause, not an inspection of the user's Git index.
+- Canonical root documentation, absent nested/lowercase duplicates, no capitalization-only collisions and complete nested version-history preservation passed.
+- Full ZIP CRC, safe unique paths, SHA-256 contents, permissions and cache/temp exclusions were verified against the tree, 0.1.91 and the uploaded original. All 94 prior files are retained. The original omissions remain limited to the earlier authorized 52 nested-source removals and previously excluded empty runtime marker.
 
-## Limits
+## Count semantics and limits
 
-This release did not download/install the MQTT/PyInstaller dependency set or construct an executable. The prior core-only offline venv test does not establish a full dependency installation for this release. Live MQTT delivery, Btrfs/Timeshift/SSH operations and integration deployment remain untested. Python 3.11 was not exercised.
+These new counters cover retention cleanup, not earlier cache maintenance during transfer preparation. A successful existing cleanup routine proves the required paths absent, whether newly removed or already gone; counts do not measure freed space or guarantee prior existence. Cache counts include only tracked app-owned send-cache dates. Dry-run never claims real deletion. If prune aborts without returning a result, side counts are unknown rather than fabricated.
 
-The preserved original dist/ts-btrfs still reports 0.1.84; run the current Python source/installed command or build a new executable for current behavior. The original upload and previous releases are unchanged. Extract this complete project into a fresh directory to avoid carrying obsolete files from an older checkout.
+No live Btrfs/Timeshift/SSH deletion, backup, restore, notification or integration deployment was tested. Full MQTT/PyInstaller installation and executable building were not repeated. Python 3.11 was not exercised. The preserved original dist/ts-btrfs remains 0.1.84; use the current source/installed command or rebuild before expecting new summaries.
+
+The uploaded original and previous archives are unchanged. Extract this release into a fresh directory; copying it over an old checkout leaves obsolete nested files behind. INSTALL.md includes Git ignore diagnosis and staging guidance.

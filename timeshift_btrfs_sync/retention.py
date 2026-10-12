@@ -63,6 +63,13 @@ class PruneResult:
     source_delete_candidates: int = 0
     source_delete_authorized: int = 0
     remaining_state: int = 0
+    destination_cleanup_attempted: int = 0
+    destination_cleanup_completed: int = 0
+    cache_cleanup_enabled: bool = False
+    cache_delete_candidates: int = 0
+    cache_cleanup_attempted: int = 0
+    cache_cleanup_completed: int = 0
+    source_timeshift_cleanup_completed: int = 0
 
     @property
     def cleaned_snapshots(self) -> int:
@@ -81,6 +88,74 @@ class PruneResult:
         """Return current source app-snapshot candidates not authorized now."""
 
         return max(0, self.source_delete_candidates - self.source_delete_authorized)
+
+
+def format_prune_cleanup_summaries(
+    result: PruneResult | None,
+    *,
+    requested: bool = True,
+    dry_run: bool = False,
+) -> str:
+    """Report retention outcomes separately for destination and app-owned cache.
+
+    Counts refer to snapshot dates, not individual @/@home subvolumes. Confirmed
+    absence includes paths already gone. Unknown outcomes never imply success.
+    """
+
+    def block(title: str, *, cache: bool) -> str:
+        """Render one cleanup side without inferring success from paired state."""
+
+        lines = [title, "=" * len(title), "  scope:              retention cleanup"]
+        if cache:
+            lines.append("  contents:           app-owned send-cache only; Timeshift originals protected")
+        if not requested:
+            lines += [
+                "  candidates:         0",
+                "  attempted:          0",
+                "  confirmed gone:     0",
+                "  status:             not requested",
+            ]
+        elif result is None:
+            lines += [
+                f"  mode:               {'dry-run' if dry_run else 'real run'}",
+                "  candidates:         unknown",
+                "  attempted:          unknown",
+                "  confirmed gone:     unknown",
+                "  pending/skipped:    unknown",
+                "  status:             failed/not completed; counts unavailable",
+            ]
+        else:
+            enabled = not cache or result.cache_cleanup_enabled
+            candidates = result.cache_delete_candidates if cache else len(result.plan.delete)
+            attempted = result.cache_cleanup_attempted if cache else result.destination_cleanup_attempted
+            completed = result.cache_cleanup_completed if cache else result.destination_cleanup_completed
+            # Preview or disabled cleanup cannot claim real deletion, even if a
+            # caller supplied contradictory counters.
+            if result.dry_run or not enabled:
+                attempted = completed = 0
+            if not enabled:
+                candidates = 0
+            lines += [
+                f"  mode:               {'dry-run' if result.dry_run else 'real run'}",
+                f"  candidates:         {candidates}",
+                f"  attempted:          {attempted}",
+                f"  confirmed gone:     {completed}",
+                f"  pending/skipped:    {max(0, candidates - completed)}",
+            ]
+            if not enabled:
+                status = "disabled; source send-cache left unchanged"
+            elif result.dry_run:
+                status = "dry-run only; no deletion performed"
+            elif candidates > completed:
+                status = "incomplete/retained for retry"
+            else:
+                status = "completed"
+            lines.append(f"  status:             {status}")
+        return "\n".join(lines)
+
+    return block("DESTINATION CLEANUP SUMMARY", cache=False) + "\n\n" + block(
+        "SOURCE SEND-CACHE CLEANUP SUMMARY", cache=True
+    )
 
 
 def _is_app_created_ondemand(snapshot_state: dict, marker: str) -> bool:
@@ -590,6 +665,7 @@ def _delete_prune_item(
     name: str,
     *,
     source_cache_index: inventory.BtrfsIndex | None = None,
+    cleanup_result: PruneResult | None = None,
 ) -> bool:
     """Execute one prune item and remove state only after every required side is gone."""
 
@@ -642,6 +718,8 @@ def _delete_prune_item(
             source_timeshift_index,
             name,
         )
+        if cleanup_result is not None and status["source_timeshift"]:
+            cleanup_result.source_timeshift_cleanup_completed += 1
         return status["source_timeshift"]
 
     def delete_destination(_action):
@@ -650,7 +728,11 @@ def _delete_prune_item(
             print("  skipped: source Timeshift retention step was not confirmed")
             status["destination"] = False
             return False
+        if cleanup_result is not None:
+            cleanup_result.destination_cleanup_attempted += 1
         status["destination"] = _delete_destination_snapshot_for_prune(config, name)
+        if cleanup_result is not None and status["destination"]:
+            cleanup_result.destination_cleanup_completed += 1
         return status["destination"]
 
     def delete_cache_action(_action):
@@ -660,6 +742,9 @@ def _delete_prune_item(
             status["cache"] = False
             return False
         assert source_runner is not None
+        tracked_cache = bool(_source_cache_delete_paths(config, name, snapshot_state))
+        if cleanup_result is not None and tracked_cache:
+            cleanup_result.cache_cleanup_attempted += 1
         status["cache"] = _cleanup_source_cache_for_pruned_snapshot(
             config,
             source_runner,
@@ -667,6 +752,8 @@ def _delete_prune_item(
             snapshot_state,
             source_cache_index=source_cache_index,
         )
+        if cleanup_result is not None and tracked_cache and status["cache"]:
+            cleanup_result.cache_cleanup_completed += 1
         return status["cache"]
 
     def remove_state(_action):
@@ -857,15 +944,26 @@ def prune(
             print(f"  [{action}] {name}: {authorization}")
         print()
 
+    cleanup_result = PruneResult(
+        plan=plan,
+        dry_run=dry_run,
+        source_delete_candidates=len(source_delete_candidates),
+        source_delete_authorized=len(source_delete_allowed),
+        remaining_state=len(state.get("snapshots", {})),
+        cache_cleanup_enabled=bool(config.source.cleanup_superseded_cache and config.source.cache_root),
+        cache_delete_candidates=sum(
+            bool(_source_cache_delete_paths(config, name, state.get("snapshots", {}).get(name, {})))
+            for name in plan.delete
+        ),
+    )
     if dry_run:
         print("Dry-run: no retention deletes were performed.")
-        return PruneResult(
-            plan=plan,
-            dry_run=True,
-            source_delete_candidates=len(source_delete_candidates),
-            source_delete_authorized=len(source_delete_allowed),
-            remaining_state=len(state.get("snapshots", {})),
-        )
+        side_summary = format_prune_cleanup_summaries(cleanup_result)
+        print(side_summary)
+        logger = get_logger()
+        if logger:
+            logger.success_text(side_summary + "\n")
+        return cleanup_result
     if (plan.delete or source_delete_candidates) and not yes_delete:
         raise RuntimeError("Refusing to delete without --yes-delete")
 
@@ -901,6 +999,7 @@ def prune(
             source_delete_allowed,
             name,
             source_cache_index=source_cache_index,
+            cleanup_result=cleanup_result,
         ):
             deleted += 1
 
@@ -926,8 +1025,12 @@ def prune(
                 require_synced_state=False,
             ):
                 legacy_deleted += 1
+                cleanup_result.source_timeshift_cleanup_completed += 1
 
     save_state(config.state_file, state)
+    cleanup_result.destination_state_deleted = deleted
+    cleanup_result.legacy_source_deleted = legacy_deleted
+    cleanup_result.remaining_state = len(state.get("snapshots", {}))
     summary = "\n".join(
         [
             "",
@@ -941,17 +1044,9 @@ def prune(
             "",
         ]
     )
+    summary += "\n" + format_prune_cleanup_summaries(cleanup_result) + "\n"
     print(summary)
     logger = get_logger()
     if logger:
         logger.success_text(summary + "\n")
-    return PruneResult(
-        plan=plan,
-        dry_run=False,
-        destination_state_deleted=deleted,
-        legacy_source_deleted=legacy_deleted,
-        source_delete_candidates=len(source_delete_candidates),
-        source_delete_authorized=len(source_delete_allowed),
-        remaining_state=len(state.get("snapshots", {})),
-    )
-
+    return cleanup_result

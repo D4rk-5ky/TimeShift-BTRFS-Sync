@@ -1,6 +1,6 @@
 # Installation
 
-Current source release: **0.1.91**. Install from the project root. The included original `dist/ts-btrfs` reports **0.1.84** and has not been rebuilt; use `python3 -m timeshift_btrfs_sync` or rebuild the executable from this source before treating it as the current release. The active package is timeshift_btrfs_sync/; project documentation and helpers live at the project root.
+Current source release: **0.1.92**. Install from the project root. The included original `dist/ts-btrfs` reports **0.1.84** and has not been rebuilt; use `python3 -m timeshift_btrfs_sync` or rebuild the executable from this source before treating it as the current release. The active package is timeshift_btrfs_sync/; project documentation and helpers live at the project root.
 
 Normal sync runs on the backup/destination machine. The Timeshift source is reached over SSH or selected locally. Restore may also run on the Timeshift machine and pull a backup repository over SSH when `[restore] mode = "ssh"` is selected. The selected endpoints need the commands and minimal permissions described in the README. `cat` and `id` are not run through sudo during normal discovery. The configured source account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
 
@@ -319,3 +319,21 @@ PyInstaller creates `build/`, `dist/`, and a `.spec` file. These are build artif
 State schema version 3 stores source snapshot paths relative to `source.snapshot_root`, app-created send paths relative to `source.cache_root`, and destination paths relative to `destination.target_root`. After moving or remounting one of these roots, update the matching config value. The app resolves the saved suffix under the new root and still requires the same Btrfs UUID before it accepts an incremental parent. State files must already use the current relative schema.
 
 When a writable Timeshift snapshot needs a read-only send-cache copy, the app first checks the root-scoped cache inventory. Btrfs list paths may include an on-disk prefix, may be relative as `<date>/@`, or may be bare `@` when the date parent itself is probed. If the bulk index missed the child, one authoritative parent-scoped UUID/read-only listing is performed before creation. A valid existing cache snapshot is reused after read-only and Parent UUID checks; an unavailable safety listing aborts instead of guessing. The exact target is therefore never blindly passed to `btrfs subvolume snapshot -r`, so an existing `<date>/@` cannot become a nested `<date>/@/@`.
+
+## Tracking packaged example configs in Git
+
+The root `.gitignore` allows `pyproject.toml` and all eight packaged examples. The current package contains no nested `.gitignore`. When copying over an older checkout, an obsolete `timeshift_btrfs_sync/.gitignore` can remain and its `*.toml` rule can override the root exceptions. Use a fresh checkout/release directory or remove that obsolete duplicate as described in NESTED_DOCUMENT_AUDIT.md.
+
+To identify the actual ignore rule in your checkout:
+
+```bash
+git check-ignore -v -- timeshift_btrfs_sync/data/example-config-local-backup.toml
+```
+
+To stage only the five new packaged examples despite an ignore rule:
+
+```bash
+git add -f -- timeshift_btrfs_sync/data/example-config-*.toml
+```
+
+After correcting the ignore rule, `git add -A` stages the packaged examples normally. The current `.gitignore` continues to ignore private/runtime configs.
