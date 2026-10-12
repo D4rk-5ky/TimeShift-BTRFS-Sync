@@ -1,6 +1,6 @@
 # Installation
 
-Current source release: **0.1.95**. Install from the project root. The included original `dist/ts-btrfs` reports **0.1.84** and has not been rebuilt; use `python3 -m timeshift_btrfs_sync` or rebuild the executable from this source before treating it as the current release. The active package is timeshift_btrfs_sync/; project documentation and helpers live at the project root.
+Current source release: **0.1.98**. Install from the project root. The included original `dist/ts-btrfs` reports **0.1.84** and has not been rebuilt; use `python3 -m timeshift_btrfs_sync` or rebuild the executable from this source before treating it as the current release. The active package is timeshift_btrfs_sync/; project documentation and helpers live at the project root.
 
 Normal sync runs on the backup/destination machine. The Timeshift source is reached over SSH or selected locally. Restore may also run on the Timeshift machine and pull a backup repository over SSH when `[restore] mode = "ssh"` is selected. The selected endpoints need the commands and minimal permissions described in the README. `cat` and `id` are not run through sudo during normal discovery. The configured source account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
 
@@ -359,3 +359,28 @@ git add -f -- timeshift_btrfs_sync/data/example-config-*.toml
 ```
 
 After correcting the ignore rule, `git add -A` stages the packaged examples normally. The current `.gitignore` continues to ignore private/runtime configs.
+
+## State reconciliation and bounded cache cleanup
+
+Current `sync` recovers missing complete UUID-proven dates even from populated state before transfer planning. Standalone `prune` and sync cleanup reconcile before retention. The `[source]` option `delete_redundant_snapshots = true` defaults to true; it removes only verified cache-only dates inside the range of complete live state pairs, under a dedicated app-owned per-job cache_root. `cleanup_superseded_cache = false` disables all cache deletion; the new option false disables only this extra cleanup. Neither option disables state repair. No additional dependency or sudo permission is required.
+
+Preview with `python3 -m timeshift_btrfs_sync prune --config ./config.toml --dry-run`; use `--run --yes-delete` for reviewed real cleanup. Dry-run never saves recovered state or deletes snapshots. Cache-only cleanup protects destination presence, tracked dates, explicit exclusions, incomplete-transfer parents, out-of-window dates, symlinks, unexpected entries/nested subvolumes, inaccessible paths and changed/unproven identities. See README.md for exact bounds and counter meanings. Ordinary source Timeshift retention stays Timeshift-managed; native restore behavior is unchanged.
+
+## Check cache/destination differences
+
+`list-snapshots` always prints a comparison after its three tables, including every cache-only, destination-only and unproven shared date. It checks all configured readonly payload UUIDs and labels incomplete discovery. O/H/D/W/M/B tag changes do not affect pair identity. Use `--check-pairs` to return exit code 1 unless enabled, complete cache/destination inventories fully match; without it, pair differences are warnings and the existing read-failure exit policy applies. This is read-only and never reads/rebuilds state or deletes snapshots.
+
+```bash
+python3 -m timeshift_btrfs_sync list-snapshots --config ./config.toml --check-pairs
+python3 -m timeshift_btrfs_sync prune --config ./config.toml --dry-run
+# After reviewing the plan:
+python3 -m timeshift_btrfs_sync sync --config ./config.toml --run --prune --yes-delete
+```
+
+A successful sync without `--prune` or `prune_after_sync = true` does not clean leftover cache dates. Safe redundant cleanup requires both source cache-cleanup switches, existing deletion consent and verified ownership, bounds and receiver absence; protected, active-parent, ambiguous or newer dates remain. The listing comparison describes observed storage, while prune reconciles missing pairs into state before building its plan. Unknown `df` type (`-`) uses native Btrfs identity/usage rather than being mislabeled as a non-Btrfs filesystem. Use the current source release or rebuild the preserved older executable.
+
+## Native stale-cache cleanup after successful sync
+
+The extra cleanup controlled by `[source].delete_redundant_snapshots = true` runs after successful real sync and paired retention, with `--prune` or `prune_after_sync = true`, the existing cache-cleanup master switch and `--yes-delete`. Standalone prune can preview extras but does not delete them in a real standalone run. A verified no-op sync can qualify.
+
+The source Btrfs tool must support `subvolume delete --subvolid` and `--commit-after`. Only configured Btrfs commands use sudo; no privileged shell/file reader or permission/ownership change is needed. Confirm dedicated cache ownership through native root UUID/ID, containment and canonical state/readonly receiver UUID pairs. Then dated readonly snapshots and containers of readonly snapshots no newer than the latest proven pair can be retired, including older or partial cache layouts. Contents inside qualifying Btrfs trees are deleted with them. Tracked/protected/newer dates, incomplete transfers, receiver copies and uncertain/changed/foreign/writable identities stay protected. Ordinary cache directory access is not required after this proof. Final privileged Btrfs ID enumeration confirms absence. See [Btrfs delete options](https://btrfs.readthedocs.io/en/latest/btrfs-subvolume.html); unsupported flags produce a retry error.

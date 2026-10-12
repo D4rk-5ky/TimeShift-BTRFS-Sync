@@ -32,7 +32,7 @@ TOP_LEVEL_KEYS = {
 }
 SOURCE_KEYS = {
     "snapshot_root", "mode", "subvolumes", "sudo", "btrfs_command", "timeshift_command",
-    "cache_root", "create_readonly_cache", "cleanup_superseded_cache",
+    "cache_root", "create_readonly_cache", "cleanup_superseded_cache", "delete_redundant_snapshots",
     "verify_subvolumes_at_discovery", "verify_incremental_parent_once_per_run",
     "source_change_retry_count", "send_compressed_data", "send_proto",
 }
@@ -113,6 +113,11 @@ class SourceConfig:
     # standalone prune and to prune run after sync, in local and SSH modes.
     # Normal transfer keeps cache snapshots for later incremental parents.
     cleanup_superseded_cache: bool = True
+
+    # After successful sync, remove native readonly stale cache dates no newer
+    # than the latest verified state pair. Ordinary cache access is not required
+    # after native ownership proof. Existing cache cleanup is the master switch.
+    delete_redundant_snapshots: bool = True
 
     # Speed option. False means discovery does not run btrfs subvolume show for
     # every snapshot. The app assumes configured subvolume names exist and only
@@ -429,6 +434,7 @@ def load_config(path: str | Path) -> AppConfig:
         cache_root=cache_root,
         create_readonly_cache=_bool(source_raw, "source", "create_readonly_cache", True),
         cleanup_superseded_cache=_bool(source_raw, "source", "cleanup_superseded_cache", True),
+        delete_redundant_snapshots=_bool(source_raw, "source", "delete_redundant_snapshots", True),
         verify_subvolumes_at_discovery=_bool(source_raw, "source", "verify_subvolumes_at_discovery", False),
         verify_incremental_parent_once_per_run=_bool(source_raw, "source", "verify_incremental_parent_once_per_run", True),
         source_change_retry_count=int(_int(source_raw, "source", "source_change_retry_count", 5)),

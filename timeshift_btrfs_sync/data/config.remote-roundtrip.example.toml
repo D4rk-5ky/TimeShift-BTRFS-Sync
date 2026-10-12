@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.1.95 config
+# timeshift-btrfs-sync v0.1.98 config
 # Inventory: ts-btrfs list-snapshots --config ./config.toml
 # Prints Timeshift, cache_root, target_root; uses configured sudo only for Btrfs/Timeshift reads.
 # Timeshift supplies source metadata; omitted dates use ordinary source info.json reads.
@@ -457,6 +457,22 @@ create_readonly_cache = true
 # The cache date is deleted only after the matching destination date is gone.
 # Normal transfer keeps cache snapshots for future incremental parents.
 cleanup_superseded_cache = true
+
+# Default true: reconcile missing complete pairs before retention, then delete
+# redundant/stale cache dates only AFTER successful sync with requested cleanup.
+# Standalone prune --dry-run previews extras; standalone real prune skips extras.
+# Confirm the native cache_root against canonical state and received UUID pairs.
+# Untracked Timeshift-style date subvolumes no newer than the latest proven pair
+# qualify if they are RO native snapshots or containers of RO native snapshots.
+# Older-than-first retained dates and partial/legacy RO layouts are included.
+# Native Btrfs IDs/UUIDs authorize deletion without ordinary cache traversal;
+# contents inside qualifying dated Btrfs trees are removed with those subvolumes.
+# Use a dedicated cache_root; tracked/protected/newer dates, incomplete transfers,
+# existing receivers and changed/foreign/writable identities stay protected.
+# Requires cleanup_superseded_cache=true, real successful sync, --yes-delete,
+# and Btrfs subvolume delete --subvolid/--commit-after support on the source.
+# false disables extra cache cleanup but preserves safe state reconciliation.
+delete_redundant_snapshots = true
 
 # Optional Btrfs send compressed-data mode.
 # true adds: btrfs send --compressed-data

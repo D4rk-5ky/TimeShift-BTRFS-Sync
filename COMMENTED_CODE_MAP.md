@@ -1,4 +1,4 @@
-# Commented code map — TimeShift-BTRFS-Sync 0.1.95
+# Commented code map — TimeShift-BTRFS-Sync 0.1.98
 
 This file explains every Python class, function, method and nested callback in the current project, plus application commands and supplied shell/integration commands. Line numbers refer to this release. COMMENTED_CODE_MAP.md is the canonical code map; VERSIONING.md is the canonical version ledger.
 
@@ -524,6 +524,120 @@ Runtime layers reuse CommandEndpoint, BtrfsOps, CacheManager, inventory, Workflo
 
 - `RemoteFileLockTests.test_requires_ssh_runner` (function/method, line 97): Regression assertion: requires ssh runner. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RemoteFileLockTests` to use its existing endpoint, state or callback context.
 
+## `tests/test_repository_reconciliation.py`
+
+**Role:** Regression tests. State repair and bounded cache cleanup with actual ordinary files and simulated Btrfs.
+
+**Why:** Keeps test fixtures and assertions close to the behavior they verify so regressions can be reproduced without production data.
+
+- `RepositoryReconciliationTests` (class, line 27): Prevent state gaps or cache leaks without ever deleting real Btrfs snapshots. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `RepositoryReconciliationTests.setUp` (function/method, line 30): Create readable ordinary fixtures and isolated immutable identity indexes. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.add_cache` (function/method, line 54): Model a native app-cache container and two readonly snapshots of known originals. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.add_pair` (function/method, line 66): Build a complete matching received pair with valid current state when requested. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.recover` (function/method, line 93): Run real whole-date recovery against fixtures while observing state writes. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.cleanup` (function/method, line 102): Mock only storage metadata/deletion while exercising actual ordinary filesystem safety checks. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.cleanup.meta` (function/method, line 105): Return current metadata without invoking sudo or Btrfs. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests.cleanup` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.add_window` (function/method, line 118): Retain two proven bounds around a missing cache-only middle date. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_populated_state_recovers_missing_complete_pair_without_overwrite` (function/method, line 124): Regression assertion: populated state recovers missing complete pair without overwrite. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_empty_state_recovers_expired_original_from_cache_and_target_json` (function/method, line 135): Regression assertion: empty state recovers expired original from cache and target json. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_partial_or_mismatched_pairs_never_create_partial_state` (function/method, line 144): Regression assertion: partial or mismatched pairs never create partial state. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_unknown_retention_metadata_preserves_untracked_expired_pair` (function/method, line 158): Regression assertion: unknown retention metadata preserves untracked expired pair. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_changed_original_cannot_be_mislabelled_as_already_backed_up` (function/method, line 164): Regression assertion: changed original cannot be mislabelled as already backed up. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_ordinary_or_symlinked_destination_container_is_not_adopted` (function/method, line 170): Regression assertion: ordinary or symlinked destination container is not adopted. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_relocated_cache_identity_is_not_relabelled_as_another_date` (function/method, line 183): Regression assertion: relocated cache identity is not relabelled as another date. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_dry_recovery_uses_memory_without_writing_state` (function/method, line 191): Regression assertion: dry recovery uses memory without writing state. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_existing_partial_state_is_preserved_for_normal_recovery` (function/method, line 197): Regression assertion: existing partial state is preserved for normal recovery. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_incomplete_index_blocks_state_recovery` (function/method, line 204): Regression assertion: incomplete index blocks state recovery. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_redundant_middle_cache_is_deleted_without_destination_or_state_deletion` (function/method, line 211): Regression assertion: redundant middle cache is deleted without destination or state deletion. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_user_29_cache_17_destination_case_retires_only_12_middle_leftovers` (function/method, line 221): Regression assertion: user 29 cache 17 destination case retires only 12 middle leftovers. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_newer_cache_remains_and_explicitly_protected_older_cache_is_preserved` (function/method, line 232): Regression assertion: newer cache remains and explicitly protected older cache is preserved. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_existing_destination_or_unknown_absence_blocks_cleanup` (function/method, line 241): Regression assertion: existing destination or unknown absence blocks cleanup. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_receiver_appearing_during_checks_is_preserved` (function/method, line 251): Regression assertion: receiver appearing during checks is preserved. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_owned_native_date_contents_do_not_require_ordinary_listing` (function/method, line 257): Regression assertion: owned native date contents do not require ordinary listing. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_changed_writable_or_foreign_cache_uuid_blocks_cleanup` (function/method, line 273): Regression assertion: changed writable or foreign cache uuid blocks cleanup. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_changed_writable_or_foreign_cache_uuid_blocks_cleanup.live` (function/method, line 276): Alter one live payload to exercise identity and ownership refusal. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests.test_changed_writable_or_foreign_cache_uuid_blocks_cleanup` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_incomplete_transfer_parent_is_protected` (function/method, line 286): Regression assertion: incomplete transfer parent is protected. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_disabled_option_master_switch_and_dry_run_never_delete` (function/method, line 295): Regression assertion: disabled option master switch and dry run never delete. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_real_cleanup_requires_existing_yes_delete_consent` (function/method, line 307): Regression assertion: real cleanup requires existing yes delete consent. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_failed_deletion_stays_pending_for_next_run` (function/method, line 312): Regression assertion: failed deletion stays pending for next run. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_prune_reconciles_then_cleans_even_with_zero_paired_candidates` (function/method, line 318): Regression assertion: prune reconciles then cleans even with zero paired candidates. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_config_option_defaults_true_can_disable_and_rejects_non_boolean` (function/method, line 330): Regression assertion: config option defaults true can disable and rejects non boolean. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_no_confirmed_state_window_preserves_all_cache` (function/method, line 341): Regression assertion: no confirmed state window preserves all cache. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_cache_payload_symlink_and_changed_container_are_preserved` (function/method, line 349): Regression assertion: cache payload symlink and changed container are preserved. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_cache_payload_symlink_and_changed_container_are_preserved.live` (function/method, line 359): Simulate replacement of a date container after the inventory was collected. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests.test_cache_payload_symlink_and_changed_container_are_preserved` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_partial_nested_inventory_stops_reconciliation_before_adoption` (function/method, line 367): Regression assertion: partial nested inventory stops reconciliation before adoption. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_wrong_timeshift_filesystem_stops_reconciliation_before_state_or_deletes` (function/method, line 375): Regression assertion: wrong timeshift filesystem stops reconciliation before state or deletes. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_summary_does_not_claim_full_success_when_extra_cache_is_blocked` (function/method, line 383): Regression assertion: summary does not claim full success when extra cache is blocked. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_real_redundant_cleanup_requires_current_successful_sync` (function/method, line 394): Regression assertion: real redundant cleanup requires current successful sync. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_proven_root_cleanup_does_not_run_ordinary_cache_checks` (function/method, line 401): Regression assertion: proven root cleanup does not run ordinary cache checks. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_date_style_readonly_snapshot_and_partial_cache_are_stale_candidates` (function/method, line 409): Regression assertion: date style readonly snapshot and partial cache are stale candidates. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_older_than_first_pair_is_removed_but_newer_is_preserved` (function/method, line 423): Regression assertion: older than first pair is removed but newer is preserved. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_root_state_uuid_mismatch_foreign_root_and_incomplete_state_preserve_cache` (function/method, line 432): Regression assertion: root state uuid mismatch foreign root and incomplete state preserve cache. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_writable_nested_cache_subvolume_blocks_only_its_date` (function/method, line 446): Regression assertion: writable nested cache subvolume blocks only its date. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `RepositoryReconciliationTests.test_36_cache_17_pairs_remove_19_stale_dates_without_ordinary_cache_access` (function/method, line 454): Regression assertion: 36 cache 17 pairs remove 19 stale dates without ordinary cache access. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RepositoryReconciliationTests` to use its existing endpoint, state or callback context.
+
+- `NativeCacheTreeTests` (class, line 467): Exercise numeric deletion and privileged final proof with simulated Btrfs commands only. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `NativeCacheTreeTests._run` (function/method, line 470): Model a native root/date/payload ID graph; ordinary readers must never be called. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `NativeCacheTreeTests` to use its existing endpoint, state or callback context.
+
+- `NativeCacheTreeTests._run.meta` (function/method, line 481): Return stable live native metadata, with optional replacement refusal. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `NativeCacheTreeTests._run` to use its existing endpoint, state or callback context.
+
+- `NativeCacheTreeTests._run.run` (function/method, line 485): Only simulated native Btrfs list/delete commands are supported. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `NativeCacheTreeTests._run` to use its existing endpoint, state or callback context.
+
+- `NativeCacheTreeTests.test_numeric_delete_proves_absence_without_any_ordinary_reader` (function/method, line 503): Regression assertion: numeric delete proves absence without any ordinary reader. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `NativeCacheTreeTests` to use its existing endpoint, state or callback context.
+
+- `NativeCacheTreeTests.test_uuid_replacement_or_unexpected_subvolume_blocks_before_delete` (function/method, line 509): Regression assertion: uuid replacement or unexpected subvolume blocks before delete. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `NativeCacheTreeTests` to use its existing endpoint, state or callback context.
+
+- `NativeCacheTreeTests.test_failed_delete_remaining_ids_and_unsupported_tool_never_claim_success` (function/method, line 515): Regression assertion: failed delete remaining ids and unsupported tool never claim success. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `NativeCacheTreeTests` to use its existing endpoint, state or callback context.
+
+- `PostSyncCleanupOrderTests` (class, line 522): Keep real extra cleanup behind the successful sync return, including verified no-op runs. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `PostSyncCleanupOrderTests.test_successful_noop_sync_passes_gate_and_failed_sync_never_calls_prune` (function/method, line 525): Regression assertion: successful noop sync passes gate and failed sync never calls prune. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `PostSyncCleanupOrderTests` to use its existing endpoint, state or callback context.
+
 ## `tests/test_restore_remote_backup.py`
 
 **Role:** Regression tests. Keeps test fixtures and assertions close to the behavior they verify so regressions can be reproduced without production data.
@@ -1024,6 +1138,36 @@ Runtime layers reuse CommandEndpoint, BtrfsOps, CacheManager, inventory, Workflo
 
 - `SnapshotListingTests.test_large_repository_uses_bounded_batches_without_losing_rows.respond` (function/method, line 257): Return one flag frame per request in each bounded transport batch. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests.test_large_repository_uses_bounded_batches_without_losing_rows` to use its existing endpoint, state or callback context.
 
+- `SnapshotPairComparisonTests` (class, line 270): Expose cache leftovers and UUID mismatches without changing storage or default exit policy. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `SnapshotPairComparisonTests._rows` (function/method, line 273): Build both configured payload identities; differing local UUIDs share a valid send identity. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotPairComparisonTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotPairComparisonTests._compare` (function/method, line 282): Keep endpoint discovery separate from the comparison's captured physical observations. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotPairComparisonTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotPairComparisonTests.test_user_36_cache_17_target_sample_reports_all_19_july_leftovers` (function/method, line 288): Regression assertion: user 36 cache 17 target sample reports all 19 july leftovers. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotPairComparisonTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotPairComparisonTests.test_equal_counts_with_different_dates_are_not_parity` (function/method, line 305): Regression assertion: equal counts with different dates are not parity. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotPairComparisonTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotPairComparisonTests.test_changed_flags_do_not_invalidate_an_immutable_pair` (function/method, line 311): Regression assertion: changed flags do not invalidate an immutable pair. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotPairComparisonTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotPairComparisonTests.test_same_names_with_uuid_mismatch_missing_sibling_or_writable_payload_are_unproven` (function/method, line 318): Regression assertion: same names with uuid mismatch missing sibling or writable payload are unproven. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotPairComparisonTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotPairComparisonTests.test_received_sender_uses_original_stream_identity` (function/method, line 332): Regression assertion: received sender uses original stream identity. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotPairComparisonTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotPairComparisonTests.test_outside_window_is_distinguished_without_a_deletion_claim` (function/method, line 339): Regression assertion: outside window is distinguished without a deletion claim. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotPairComparisonTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotPairComparisonTests.test_incomplete_discovery_never_confirms_parity_or_absence` (function/method, line 348): Regression assertion: incomplete discovery never confirms parity or absence. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotPairComparisonTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotPairComparisonTests.test_disabled_cache_is_explicit_and_empty_enabled_roots_match` (function/method, line 355): Regression assertion: disabled cache is explicit and empty enabled roots match. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotPairComparisonTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotPairComparisonTests.test_opt_in_cli_exit_check_and_default_warning_have_no_run_logging` (function/method, line 363): Regression assertion: opt in cli exit check and default warning have no run logging. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotPairComparisonTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotPairComparisonTests.test_df_unknown_type_preserves_space_when_native_identity_confirms_btrfs` (function/method, line 374): Regression assertion: df unknown type preserves space when native identity confirms btrfs. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotPairComparisonTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotPairComparisonTests.test_df_unknown_type_without_identity_uses_existing_btrfs_reader` (function/method, line 385): Regression assertion: df unknown type without identity uses existing btrfs reader. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotPairComparisonTests` to use its existing endpoint, state or callback context.
+
+- `SnapshotPairComparisonTests.test_partial_native_index_marks_comparison_incomplete` (function/method, line 396): Regression assertion: partial native index marks comparison incomplete. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotPairComparisonTests` to use its existing endpoint, state or callback context.
+
 ## `tests/test_source_inventory.py`
 
 **Role:** Regression tests. Keeps test fixtures and assertions close to the behavior they verify so regressions can be reproduced without production data.
@@ -1444,61 +1588,61 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 - `_refresh_state_metadata_from_timeshift` (function/method, line 368): Refresh mutable state metadata and return the same current Timeshift index. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_list_snapshots` (function/method, line 377): Report both physical repositories without sudo, state writes or notifications. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_list_snapshots` (function/method, line 377): Report repositories and pair differences using configured storage readers without state writes. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_list_source` (function/method, line 388): List snapshots on the source machine. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_list_source` (function/method, line 391): List snapshots on the source machine. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_list_source._run` (function/method, line 398): Discover and print source snapshots with the requested optional Btrfs verification. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_list_source` to use its existing endpoint, state or callback context.
+- `cmd_list_source._run` (function/method, line 401): Discover and print source snapshots with the requested optional Btrfs verification. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_list_source` to use its existing endpoint, state or callback context.
 
-- `_format_cleanup_summary` (function/method, line 411): Return overall retention and separate destination/cache cleanup summaries. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_format_cleanup_summary` (function/method, line 414): Return overall retention and separate destination/cache cleanup summaries. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_format_failed_sync_summary` (function/method, line 479): Return a final sync block when sync failed before a normal summary existed. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_format_failed_sync_summary` (function/method, line 483): Return a final sync block when sync failed before a normal summary existed. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_sync` (function/method, line 496): Reject invalid sync topology, resolve run mode, coordinate the local lock and run shared sync/optional retention with final summaries. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_sync` (function/method, line 500): Reject invalid sync topology, resolve run mode, coordinate the local lock and run shared sync/optional retention with final summaries. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_sync._final_blocks` (function/method, line 517): Finalize elapsed time and produce transfer, sync and cleanup blocks, including early failures. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._final_blocks` (function/method, line 521): Finalize elapsed time and produce transfer, sync and cleanup blocks, including early failures. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_sync._finalize` (function/method, line 543): Join final terminal blocks in transfer-list, sync-summary, cleanup-summary order. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._finalize` (function/method, line 547): Join final terminal blocks in transfer-list, sync-summary, cleanup-summary order. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_sync._mail_finalize` (function/method, line 547): Place the configured job name and sync/cleanup summaries before the transfer list in mail. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._mail_finalize` (function/method, line 551): Place the configured job name and sync/cleanup summaries before the transfer list in mail. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_sync._run_dry` (function/method, line 561): Run sync and optional retention previews using in-memory state without acquiring a mutation lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._run_dry` (function/method, line 565): Run sync and optional retention previews using in-memory state without acquiring a mutation lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_sync._run_locked` (function/method, line 577): Run real sync and requested retention against state while the caller holds the local lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._run_locked` (function/method, line 581): Run real sync and requested retention against state while the caller holds the local lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_prune` (function/method, line 606): Refresh current source metadata and apply shared retention under the real-run lock or in preview. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_prune` (function/method, line 612): Refresh current source metadata and apply shared retention under the real-run lock or in preview. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_prune._run_dry` (function/method, line 610): Refresh state metadata in memory and preview retention without saving or deleting. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_prune` to use its existing endpoint, state or callback context.
+- `cmd_prune._run_dry` (function/method, line 616): Refresh state metadata in memory and preview retention without saving or deleting. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_prune` to use its existing endpoint, state or callback context.
 
-- `cmd_prune._run_locked` (function/method, line 624): Prepare helper paths, refresh state metadata and execute authorized retention under the local lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_prune` to use its existing endpoint, state or callback context.
+- `cmd_prune._run_locked` (function/method, line 629): Prepare helper paths, refresh state metadata and execute authorized retention under the local lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_prune` to use its existing endpoint, state or callback context.
 
-- `cmd_restore` (function/method, line 647): Restore one snapshot or the complete post-common backup chain into Timeshift. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_restore` (function/method, line 651): Restore one snapshot or the complete post-common backup chain into Timeshift. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_restore._run` (function/method, line 653): Pass selection, direction and explicit safety choices to the shared restore_backups workflow. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_restore` to use its existing endpoint, state or callback context.
+- `cmd_restore._run` (function/method, line 657): Pass selection, direction and explicit safety choices to the shared restore_backups workflow. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_restore` to use its existing endpoint, state or callback context.
 
-- `cmd_create_manual` (function/method, line 683): Verify source paths, identity and parent viability before requesting an on-demand Timeshift snapshot. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_create_manual` (function/method, line 687): Verify source paths, identity and parent viability before requesting an on-demand Timeshift snapshot. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_create_manual._run` (function/method, line 686): Check source connectivity/paths and identity, then call the existing manual-snapshot creator. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_create_manual` to use its existing endpoint, state or callback context.
+- `cmd_create_manual._run` (function/method, line 690): Check source connectivity/paths and identity, then call the existing manual-snapshot creator. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_create_manual` to use its existing endpoint, state or callback context.
 
-- `cmd_clear_state` (function/method, line 712): Guardedly remove the configured state_file with normal run logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_clear_state` (function/method, line 716): Guardedly remove the configured state_file with normal run logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_clear_state._run` (function/method, line 718): Preview state removal, or hold the existing lock while confirmed state-file removal runs. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_clear_state` to use its existing endpoint, state or callback context.
+- `cmd_clear_state._run` (function/method, line 722): Preview state removal, or hold the existing lock while confirmed state-file removal runs. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_clear_state` to use its existing endpoint, state or callback context.
 
-- `cmd_delete_lock` (function/method, line 740): Guardedly remove the configured lock_file if it is stale, with logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_delete_lock` (function/method, line 744): Guardedly remove the configured lock_file if it is stale, with logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_delete_lock._run` (function/method, line 746): Call guarded stale-lock removal with the selected preview and danger confirmation. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_delete_lock` to use its existing endpoint, state or callback context.
+- `cmd_delete_lock._run` (function/method, line 750): Call guarded stale-lock removal with the selected preview and danger confirmation. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_delete_lock` to use its existing endpoint, state or callback context.
 
-- `cmd_destroy_leftovers` (function/method, line 757): Destroy configured leftovers with normal run logging enabled. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_destroy_leftovers` (function/method, line 761): Destroy configured leftovers with normal run logging enabled. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_destroy_leftovers._run` (function/method, line 771): Call the shared retirement workflow for only the selected source-cache/destination roots. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_destroy_leftovers` to use its existing endpoint, state or callback context.
+- `cmd_destroy_leftovers._run` (function/method, line 775): Call the shared retirement workflow for only the selected source-cache/destination roots. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_destroy_leftovers` to use its existing endpoint, state or callback context.
 
-- `cmd_show_state` (function/method, line 783): Print validated state as JSON or a compact snapshot/tag/subvolume table. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_show_state` (function/method, line 787): Print validated state as JSON or a compact snapshot/tag/subvolume table. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_show_state._run` (function/method, line 786): Load validated state and print JSON, a compact table or an empty-state message. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_show_state` to use its existing endpoint, state or callback context.
+- `cmd_show_state._run` (function/method, line 790): Load validated state and print JSON, a compact table or an empty-state message. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_show_state` to use its existing endpoint, state or callback context.
 
-- `build_parser` (function/method, line 852): Create the argparse parser and complete command-specific flag help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `build_parser` (function/method, line 856): Create the argparse parser and complete command-specific flag help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `main` (function/method, line 1314): Parse and dispatch CLI arguments; translate configuration, lock, runtime and interruption errors to documented exit codes. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `main` (function/method, line 1326): Parse and dispatch CLI arguments; translate configuration, lock, runtime and interruption errors to documented exit codes. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
 ## `timeshift_btrfs_sync/commands.py`
 
@@ -1548,49 +1692,49 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 - `SourceConfig` (class, line 93): Timeshift source/restore-target paths that always share one endpoint. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `DestinationConfig` (class, line 139): Backup repository and normal local receive settings. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `DestinationConfig` (class, line 144): Backup repository and normal local receive settings. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `StreamConfig` (class, line 153): Optional pipeline display/buffering settings. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `StreamConfig` (class, line 158): Optional pipeline display/buffering settings. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `StreamConfig.command` (function/method, line 181): Return mbuffer command argv or None when disabled. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration. Scoped within `StreamConfig` to use its existing endpoint, state or callback context.
+- `StreamConfig.command` (function/method, line 186): Return mbuffer command argv or None when disabled. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration. Scoped within `StreamConfig` to use its existing endpoint, state or callback context.
 
-- `RetentionConfig` (class, line 195): Backup retention counts by Timeshift tag. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `RetentionConfig` (class, line 200): Backup retention counts by Timeshift tag. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `RetentionConfig.counts_by_tag` (function/method, line 214): Return retention counts keyed by Timeshift tag letters. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration. Scoped within `RetentionConfig` to use its existing endpoint, state or callback context.
+- `RetentionConfig.counts_by_tag` (function/method, line 219): Return retention counts keyed by Timeshift tag letters. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration. Scoped within `RetentionConfig` to use its existing endpoint, state or callback context.
 
-- `RestoreConfig` (class, line 220): Restore-only transport direction. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `RestoreConfig` (class, line 225): Restore-only transport direction. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `RestoreConfig.backup_uses_ssh` (property, line 230): Return True when restore reads the backup repository over SSH. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration. Scoped within `RestoreConfig` to use its existing endpoint, state or callback context.
+- `RestoreConfig.backup_uses_ssh` (property, line 235): Return True when restore reads the backup repository over SSH. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration. Scoped within `RestoreConfig` to use its existing endpoint, state or callback context.
 
-- `RestoreConfig.timeshift_uses_ssh` (property, line 236): Return True when snapshot_root and cache_root are on the SSH Timeshift host. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration. Scoped within `RestoreConfig` to use its existing endpoint, state or callback context.
+- `RestoreConfig.timeshift_uses_ssh` (property, line 241): Return True when snapshot_root and cache_root are on the SSH Timeshift host. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration. Scoped within `RestoreConfig` to use its existing endpoint, state or callback context.
 
-- `AppConfig` (class, line 243): Complete validated app configuration. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `AppConfig` (class, line 248): Complete validated app configuration. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `ConfigError` (class, line 262): Raised when the TOML config is invalid. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `ConfigError` (class, line 267): Raised when the TOML config is invalid. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_table` (function/method, line 265): Read a config section or an empty default and reject values that are not TOML tables. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_table` (function/method, line 270): Read a config section or an empty default and reject values that are not TOML tables. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_optional_str` (function/method, line 271): Return a nonempty string option or None for an absent/blank/non-string optional value. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_optional_str` (function/method, line 276): Return a nonempty string option or None for an absent/blank/non-string optional value. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_positive_int` (function/method, line 274): Accept a positive integer or default and reject nonpositive/invalid values. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_positive_int` (function/method, line 279): Accept a positive integer or default and reject nonpositive/invalid values. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_stripped` (function/method, line 281): Read an option/default as stripped text for normalized config handling. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_stripped` (function/method, line 286): Read an option/default as stripped text for normalized config handling. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_bool` (function/method, line 284): Validate a section boolean through the shared typed boolean helper. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_bool` (function/method, line 289): Validate a section boolean through the shared typed boolean helper. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_int` (function/method, line 287): Validate a section count through the shared nonnegative integer helper. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_int` (function/method, line 292): Validate a section count through the shared nonnegative integer helper. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_as_str` (function/method, line 290): Require a nonempty string and include the field name in validation errors. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_as_str` (function/method, line 295): Require a nonempty string and include the field name in validation errors. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_as_path` (function/method, line 295): Validate nonempty path text and expand the local user-home shortcut. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_as_path` (function/method, line 300): Validate nonempty path text and expand the local user-home shortcut. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_as_bool` (function/method, line 298): Use the default for None and otherwise require an actual boolean. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_as_bool` (function/method, line 303): Use the default for None and otherwise require an actual boolean. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_as_int` (function/method, line 305): Use the default for None and otherwise require a nonnegative integer. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_as_int` (function/method, line 310): Use the default for None and otherwise require a nonnegative integer. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_string_list` (function/method, line 312): Require a list of nonempty strings, or return an empty list when absent. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_string_list` (function/method, line 317): Require a list of nonempty strings, or return an empty list when absent. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `load_config` (function/method, line 320): Read and validate the current TOML configuration. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `load_config` (function/method, line 325): Read and validate the current TOML configuration. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
 ## `timeshift_btrfs_sync/destroy.py`
 
@@ -1680,45 +1824,45 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 - `parse_subvolume_list` (function/method, line 147): Parse ``btrfs subvolume list -u -q -R`` output for one root. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `parse_subvolume_paths` (function/method, line 173): Return root-scoped absolute paths from ``btrfs subvolume list`` output. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `parse_subvolume_paths` (function/method, line 178): Return root-scoped absolute paths from ``btrfs subvolume list`` output. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_mark_readonly_from_list` (function/method, line 187): Mark indexed paths read-only using one ``btrfs subvolume list -r`` result. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_mark_readonly_from_list` (function/method, line 192): Mark indexed paths read-only using one ``btrfs subvolume list -r`` result. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `build_local_btrfs_index` (function/method, line 203): Build a local Btrfs index with bulk list commands. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `build_local_btrfs_index` (function/method, line 208): Build a local Btrfs index with bulk list commands. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_remote_bulk_index_script` (function/method, line 251): Return a POSIX shell script that bulk-lists source Btrfs metadata. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_remote_bulk_index_script` (function/method, line 256): Return a POSIX shell script that bulk-lists source Btrfs metadata. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `build_source_btrfs_index` (function/method, line 297): Build a source Btrfs index in SSH or local mode. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `build_source_btrfs_index` (function/method, line 302): Build a source Btrfs index in SSH or local mode. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `build_remote_btrfs_index` (function/method, line 329): Build a remote source index using one SSH command. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `build_remote_btrfs_index` (function/method, line 334): Build a remote source index using one SSH command. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_parse_remote_btrfs_index_result` (function/method, line 361): Parse one remote bulk-index section into a :class:`BtrfsIndex`. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_parse_remote_btrfs_index_result` (function/method, line 366): Parse one remote bulk-index section into a :class:`BtrfsIndex`. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_parse_remote_btrfs_index_result.flush_list` (function/method, line 393): Parse accumulated Btrfs list records into the index and clear the framing buffer. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `_parse_remote_btrfs_index_result` to use its existing endpoint, state or callback context.
+- `_parse_remote_btrfs_index_result.flush_list` (function/method, line 398): Parse accumulated Btrfs list records into the index and clear the framing buffer. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `_parse_remote_btrfs_index_result` to use its existing endpoint, state or callback context.
 
-- `_parse_remote_btrfs_index_result.flush_readonly` (function/method, line 401): Apply the accumulated read-only list to indexed metadata and clear the framing buffer. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `_parse_remote_btrfs_index_result` to use its existing endpoint, state or callback context.
+- `_parse_remote_btrfs_index_result.flush_readonly` (function/method, line 406): Apply the accumulated read-only list to indexed metadata and clear the framing buffer. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `_parse_remote_btrfs_index_result` to use its existing endpoint, state or callback context.
 
-- `_remote_source_inventory_script` (function/method, line 461): Return one remote script for Timeshift, info.json, and both Btrfs roots. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_remote_source_inventory_script` (function/method, line 466): Return one remote script for Timeshift, info.json, and both Btrfs roots. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_extract_snapshot_info_json_frames` (function/method, line 543): Remove and parse the ``cat`` payloads from combined SSH output. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_extract_snapshot_info_json_frames` (function/method, line 548): Remove and parse the ``cat`` payloads from combined SSH output. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_extract_snapshot_info_json_frames.replace` (function/method, line 560): Capture exact successful metadata frames or per-date errors while removing frames from the remaining output. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `_extract_snapshot_info_json_frames` to use its existing endpoint, state or callback context.
+- `_extract_snapshot_info_json_frames.replace` (function/method, line 565): Capture exact successful metadata frames or per-date errors while removing frames from the remaining output. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `_extract_snapshot_info_json_frames` to use its existing endpoint, state or callback context.
 
-- `_split_remote_source_inventory_output` (function/method, line 577): Split combined output into identity, Timeshift, info.json, and Btrfs sections. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_split_remote_source_inventory_output` (function/method, line 582): Split combined output into identity, Timeshift, info.json, and Btrfs sections. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_current_process_identity` (function/method, line 650): Return the effective local account name and UID used to read metadata. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_current_process_identity` (function/method, line 655): Return the effective local account name and UID used to read metadata. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_read_local_snapshot_info_json` (function/method, line 661): Read all local Timeshift control files without spawning commands. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_read_local_snapshot_info_json` (function/method, line 666): Read all local Timeshift control files without spawning commands. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_record_missing_info_json_errors` (function/method, line 688): Record listed Timeshift dates that had no readable control file. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_record_missing_info_json_errors` (function/method, line 693): Record listed Timeshift dates that had no readable control file. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `build_source_inventory` (function/method, line 702): Build one coherent Timeshift/snapshot/cache source inventory. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `build_source_inventory` (function/method, line 707): Build one coherent Timeshift/snapshot/cache source inventory. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `describe_source_inventory_changes` (function/method, line 825): Return concise human-readable differences between two inventories. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `describe_source_inventory_changes` (function/method, line 830): Return concise human-readable differences between two inventories. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `describe_source_inventory_changes.compare_index` (function/method, line 838): Compare old/new paths and UUID identities and append labeled inventory differences. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `describe_source_inventory_changes` to use its existing endpoint, state or callback context.
+- `describe_source_inventory_changes.compare_index` (function/method, line 843): Compare old/new paths and UUID identities and append labeled inventory differences. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `describe_source_inventory_changes` to use its existing endpoint, state or callback context.
 
-- `refresh_path` (function/method, line 877): Refresh one exact path through the shared Btrfs operation layer. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `refresh_path` (function/method, line 882): Refresh one exact path through the shared Btrfs operation layer. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
 ## `timeshift_btrfs_sync/listing.py`
 
@@ -1728,39 +1872,47 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 - `SnapshotListingRow` (class, line 26): One physical date, retaining incomplete or inaccessible payloads visibly. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `SnapshotListingSection` (class, line 41): Independent endpoint outcome so one failed side cannot hide the other. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+- `SnapshotPairComparison` (class, line 41): Report observed cache/receiver differences without authorizing deletion. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_terminal_text` (function/method, line 54): Remove terminal controls and collapse lines in untrusted remote metadata. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+- `SnapshotPairComparison.parity_confirmed` (function/method, line 57): Require enabled, complete inventories and matching UUIDs for every observed date. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety. Scoped within `SnapshotPairComparison` to use its existing endpoint, state or callback context.
 
-- `_snapshot_description` (function/method, line 60): Decode Timeshift's named retention tags without misreading 'hourly' as O/H. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+- `SnapshotListingSection` (class, line 65): Independent endpoint outcome so one failed side cannot hide the other. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_filesystem_space` (function/method, line 94): Read GNU df's available filesystem space without mounting or using sudo. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+- `_terminal_text` (function/method, line 80): Remove terminal controls and collapse lines in untrusted remote metadata. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_scan_unprivileged` (function/method, line 112): Reuse ordinary physical discovery, optionally skipping JSON already supplied by Timeshift. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+- `_snapshot_description` (function/method, line 86): Decode Timeshift's named retention tags without misreading 'hourly' as O/H. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_run_batched_commands` (function/method, line 118): Batch captured reads with bounded shell arguments and per-command failure framing. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+- `_filesystem_space` (function/method, line 120): Read GNU df's available filesystem space without mounting or using sudo. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_probe_payloads` (function/method, line 162): Read exact subvolume flags through the same configured Btrfs privilege prefix. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+- `_scan_unprivileged` (function/method, line 138): Reuse ordinary physical discovery, optionally skipping JSON already supplied by Timeshift. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_filesystem_identity` (function/method, line 169): Parse filesystem UUID and all device paths from Btrfs filesystem show output. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+- `_run_batched_commands` (function/method, line 144): Batch captured reads with bounded shell arguments and per-command failure framing. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_add_listing_index` (function/method, line 177): Reuse scoped Btrfs parsers and preserve unknown flags when readonly listing fails. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+- `_probe_payloads` (function/method, line 188): Read exact subvolume flags through the same configured Btrfs privilege prefix. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_discover_repository` (function/method, line 190): Discover protected dates and nested payloads using only sudo-authorized Btrfs reads. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+- `_filesystem_identity` (function/method, line 195): Parse filesystem UUID and all device paths from Btrfs filesystem show output. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_read_listing_metadata` (function/method, line 230): Read regular info.json as the login user, excluding dates already supplied by Timeshift; never sudo a file reader. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+- `_add_listing_index` (function/method, line 203): Reuse scoped Btrfs parsers and preserve unknown flags when readonly listing fails. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_space_with_btrfs_fallback` (function/method, line 250): Prefer normal df; if path traversal denies it, read Btrfs usage with approved sudo. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+- `_discover_repository` (function/method, line 216): Discover protected dates and nested payloads using only sudo-authorized Btrfs reads. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_collect_section` (function/method, line 269): Combine Btrfs-authorized discovery with ordinary JSON reads without requiring sudo ls/cat. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+- `_read_listing_metadata` (function/method, line 256): Read regular info.json as the login user, excluding dates already supplied by Timeshift; never sudo a file reader. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_set_listing_metadata` (function/method, line 400): Apply a labeled live metadata observation, retaining other diagnostics. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+- `_space_with_btrfs_fallback` (function/method, line 276): Keep ordinary df space; use native Btrfs evidence for denied reads or unknown types. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_matching_listing_payloads` (function/method, line 407): Require all configured live RO payloads to share send/received UUIDs before borrowing metadata. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+- `_collect_section` (function/method, line 302): Combine Btrfs-authorized discovery with ordinary JSON reads without requiring sudo ls/cat. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `collect_snapshot_listings` (function/method, line 420): Report Timeshift, cache and backup in order using their actual configured local/SSH hosts. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+- `_set_listing_metadata` (function/method, line 438): Apply a labeled live metadata observation, retaining other diagnostics. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `format_snapshot_listings` (function/method, line 507): Render Timeshift-style name/tag/description tables and independent df summaries. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+- `_matching_listing_payloads` (function/method, line 445): Require all configured live RO payloads to share send/received UUIDs before borrowing metadata. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+
+- `compare_snapshot_listings` (function/method, line 458): Compare every observed date and reuse full readonly send/Received UUID proof. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+
+- `_format_pair_comparison` (function/method, line 479): Make unequal repositories and unproven pairs visible, without claiming cleanup eligibility. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+
+- `collect_snapshot_listings` (function/method, line 516): Report Timeshift, cache and backup in order using their actual configured local/SSH hosts. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+
+- `format_snapshot_listings` (function/method, line 604): Render Timeshift-style name/tag/description tables and independent df summaries. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
 ## `timeshift_btrfs_sync/lock.py`
 
@@ -2072,6 +2224,34 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 - `check_required_sync_paths` (function/method, line 786): Verify/create required configured roots before manual snapshot creation or send. **Why:** Checks protected Timeshift paths, managed Btrfs roots and helper/lock paths before mutation while keeping strict sync previews from creating them.
 
+## `timeshift_btrfs_sync/reconciliation.py`
+
+**Role:** Current source/build entry. Reconcile proven repository pairs and retire bounded app-cache leftovers.
+
+**Why:** Repairs complete missing UUID-proven repository pairs before bounded cache-only cleanup; dedicated managed roots, live identities, receiver absence, protected dates, dry-run and explicit deletion consent keep ambiguous or active data intact.
+
+- `ReconciliationContext` (class, line 25): One validated inventory generation shared by recovery and bounded cleanup. **Why:** Repairs complete missing UUID-proven repository pairs before bounded cache-only cleanup; dedicated managed roots, live identities, receiver absence, protected dates, dry-run and explicit deletion consent keep ambiguous or active data intact.
+
+- `RedundantCacheResult` (class, line 36): Keep cache-only outcomes separate from paired destination/state deletion. **Why:** Repairs complete missing UUID-proven repository pairs before bounded cache-only cleanup; dedicated managed roots, live identities, receiver absence, protected dates, dry-run and explicit deletion consent keep ambiguous or active data intact.
+
+- `refresh_repository_indexes` (function/method, line 46): Reuse scoped discovery so date-container children cannot be missing from reconciliation indexes. **Why:** Repairs complete missing UUID-proven repository pairs before bounded cache-only cleanup; dedicated managed roots, live identities, receiver absence, protected dates, dry-run and explicit deletion consent keep ambiguous or active data intact.
+
+- `prepare_reconciliation` (function/method, line 71): Load complete scoped Btrfs views and recover missing pairs before retention decisions. **Why:** Repairs complete missing UUID-proven repository pairs before bounded cache-only cleanup; dedicated managed roots, live identities, receiver absence, protected dates, dry-run and explicit deletion consent keep ambiguous or active data intact.
+
+- `_destination_date_absent` (function/method, line 94): Prove date absence with ordinary traversal; denied access is never interpreted as absence. **Why:** Repairs complete missing UUID-proven repository pairs before bounded cache-only cleanup; dedicated managed roots, live identities, receiver absence, protected dates, dry-run and explicit deletion consent keep ambiguous or active data intact.
+
+- `_protected_cache_dates` (function/method, line 106): Protect tracked dates, explicit exclusions and parents of incomplete transfers. **Why:** Repairs complete missing UUID-proven repository pairs before bounded cache-only cleanup; dedicated managed roots, live identities, receiver absence, protected dates, dry-run and explicit deletion consent keep ambiguous or active data intact.
+
+- `_confirmed_window` (function/method, line 127): Bound cleanup by state dates that still have complete immutable UUID-confirmed pairs. **Why:** Repairs complete missing UUID-proven repository pairs before bounded cache-only cleanup; dedicated managed roots, live identities, receiver absence, protected dates, dry-run and explicit deletion consent keep ambiguous or active data intact.
+
+- `_verified_managed_cache_root` (function/method, line 147): Anchor a dedicated native cache to canonical state paths and complete received UUID pairs. **Why:** Repairs complete missing UUID-proven repository pairs before bounded cache-only cleanup; dedicated managed roots, live identities, receiver absence, protected dates, dry-run and explicit deletion consent keep ambiguous or active data intact.
+
+- `_safe_native_cache_date` (function/method, line 198): Accept a dated RO snapshot or native container of RO snapshots, including partial legacy caches. **Why:** Repairs complete missing UUID-proven repository pairs before bounded cache-only cleanup; dedicated managed roots, live identities, receiver absence, protected dates, dry-run and explicit deletion consent keep ambiguous or active data intact.
+
+- `_safe_cache_date` (function/method, line 225): Recheck exact cache UUIDs, native snapshot layout and ordinary entries before deletion. **Why:** Repairs complete missing UUID-proven repository pairs before bounded cache-only cleanup; dedicated managed roots, live identities, receiver absence, protected dates, dry-run and explicit deletion consent keep ambiguous or active data intact.
+
+- `cleanup_redundant_cache` (function/method, line 273): After successful sync, delete proven stale native cache dates no newer than the latest pair. **Why:** Repairs complete missing UUID-proven repository pairs before bounded cache-only cleanup; dedicated managed roots, live identities, receiver absence, protected dates, dry-run and explicit deletion consent keep ambiguous or active data intact.
+
 ## `timeshift_btrfs_sync/restore.py`
 
 **Role:** Current source/build entry. Restore backed-up snapshots into Timeshift's native Btrfs layout.
@@ -2184,65 +2364,67 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 - `PruneResult` (class, line 56): Retention outcome used by the final sync cleanup summary. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `PruneResult.cleaned_snapshots` (property, line 75): Return snapshot-level cleanup successes, not subvolume delete count. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `PruneResult` to use its existing endpoint, state or callback context.
+- `PruneResult.cleaned_snapshots` (property, line 80): Return snapshot-level cleanup successes, not subvolume delete count. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `PruneResult` to use its existing endpoint, state or callback context.
 
-- `PruneResult.retry_destination_state_items` (property, line 81): Return paired/state candidates that could not complete cleanup. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `PruneResult` to use its existing endpoint, state or callback context.
+- `PruneResult.retry_destination_state_items` (property, line 86): Return paired/state candidates that could not complete cleanup. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `PruneResult` to use its existing endpoint, state or callback context.
 
-- `PruneResult.blocked_source_candidates` (property, line 87): Return current source app-snapshot candidates not authorized now. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `PruneResult` to use its existing endpoint, state or callback context.
+- `PruneResult.blocked_source_candidates` (property, line 92): Return current source app-snapshot candidates not authorized now. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `PruneResult` to use its existing endpoint, state or callback context.
 
-- `format_prune_cleanup_summaries` (function/method, line 93): Report retention outcomes separately for destination and app-owned cache. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `format_prune_cleanup_summaries` (function/method, line 98): Report retention outcomes separately for destination and app-owned cache. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `format_prune_cleanup_summaries.block` (function/method, line 105): Render one cleanup side without inferring success from paired state. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `format_prune_cleanup_summaries` to use its existing endpoint, state or callback context.
+- `format_prune_cleanup_summaries.block` (function/method, line 110): Render one cleanup side without inferring success from paired state. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `format_prune_cleanup_summaries` to use its existing endpoint, state or callback context.
 
-- `_is_app_created_ondemand` (function/method, line 161): Return true when a state entry is a tag O snapshot with the app marker. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_is_app_created_ondemand` (function/method, line 173): Return true when a state entry is a tag O snapshot with the app marker. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_is_current_source_app_created_ondemand` (function/method, line 172): Re-prove app ownership from the current Timeshift listing before deletion. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_is_current_source_app_created_ondemand` (function/method, line 184): Re-prove app ownership from the current Timeshift listing before deletion. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_delete_reason_for_snapshot` (function/method, line 182): Explain why a snapshot is outside the active retention rules. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_delete_reason_for_snapshot` (function/method, line 194): Explain why a snapshot is outside the active retention rules. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_delete_reasons` (function/method, line 218): Return delete reasons without the internal prefix. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_delete_reasons` (function/method, line 230): Return delete reasons without the internal prefix. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_source_cache_delete_paths` (function/method, line 227): Return app-owned source send-cache paths for a prune decision. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_source_cache_delete_paths` (function/method, line 239): Return app-owned source send-cache paths for a prune decision. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_protected_timeshift_send_paths` (function/method, line 273): Return direct Timeshift send paths that prune must never delete. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_protected_timeshift_send_paths` (function/method, line 285): Return direct Timeshift send paths that prune must never delete. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_destination_delete_paths` (function/method, line 303): Return tracked destination subvolume paths for a prune decision. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_destination_delete_paths` (function/method, line 315): Return tracked destination subvolume paths for a prune decision. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `source_snapshot_state` (function/method, line 314): Return temporary state-like data from source Timeshift snapshots. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `source_snapshot_state` (function/method, line 326): Return temporary state-like data from source Timeshift snapshots. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `initial_sync_keep_names` (function/method, line 339): Return retention-selected source names for a fresh or incremental backup. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `initial_sync_keep_names` (function/method, line 351): Return retention-selected source names for a fresh or incremental backup. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_cleanup_source_cache_for_pruned_snapshot` (function/method, line 350): Delete one pruned snapshot's app-owned cache through the shared tree engine. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_cleanup_source_cache_for_pruned_snapshot` (function/method, line 362): Delete one pruned snapshot's app-owned cache through the shared tree engine. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_load_source_timeshift_index` (function/method, line 399): Read one current Timeshift list for destructive source-retention checks. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_load_source_timeshift_index` (function/method, line 411): Read one current Timeshift list for destructive source-retention checks. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_delete_source_timeshift_snapshot_for_prune` (function/method, line 414): Delete one old app-created source O snapshot through Timeshift only. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_delete_source_timeshift_snapshot_for_prune` (function/method, line 426): Delete one old app-created source O snapshot through Timeshift only. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_destination_snapshot_is_proven_complete` (function/method, line 466): Prove that state and the live destination contain every configured payload. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_destination_snapshot_is_proven_complete` (function/method, line 478): Prove that state and the live destination contain every configured payload. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_source_app_retention_delete_names` (function/method, line 483): Return current app-created source O snapshots outside the same retention rules. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_source_app_retention_delete_names` (function/method, line 495): Return current app-created source O snapshots outside the same retention rules. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_authorized_source_timeshift_delete_names` (function/method, line 502): Authorize source deletion from direct backup proof or a backed retained window. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_authorized_source_timeshift_delete_names` (function/method, line 514): Authorize source deletion from direct backup proof or a backed retained window. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `build_prune_plan` (function/method, line 545): Build retention plan from state without deleting anything. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `build_prune_plan` (function/method, line 557): Build retention plan from state without deleting anything. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_delete_destination_snapshot_for_prune` (function/method, line 632): Delete one destination date through the shared tree engine. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_delete_destination_snapshot_for_prune` (function/method, line 644): Delete one destination date through the shared tree engine. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_delete_prune_item` (function/method, line 658): Execute one prune item and remove state only after every required side is gone. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_delete_prune_item` (function/method, line 670): Execute one prune item and remove state only after every required side is gone. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_delete_prune_item.delete_source_timeshift_action` (function/method, line 708): Delete only freshly authorized app-created Timeshift snapshots before removing their proven backups. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `_delete_prune_item` to use its existing endpoint, state or callback context.
+- `_delete_prune_item.delete_source_timeshift_action` (function/method, line 720): Delete only freshly authorized app-created Timeshift snapshots before removing their proven backups. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `_delete_prune_item` to use its existing endpoint, state or callback context.
 
-- `_delete_prune_item.delete_destination` (function/method, line 725): Delete the exact managed backup date using the shared Btrfs-only tree workflow. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `_delete_prune_item` to use its existing endpoint, state or callback context.
+- `_delete_prune_item.delete_destination` (function/method, line 737): Delete the exact managed backup date using the shared Btrfs-only tree workflow. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `_delete_prune_item` to use its existing endpoint, state or callback context.
 
-- `_delete_prune_item.delete_cache_action` (function/method, line 738): Delete the matching app-owned cache date after destination removal succeeds. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `_delete_prune_item` to use its existing endpoint, state or callback context.
+- `_delete_prune_item.delete_cache_action` (function/method, line 750): Delete the matching app-owned cache date after destination removal succeeds. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `_delete_prune_item` to use its existing endpoint, state or callback context.
 
-- `_delete_prune_item.remove_state` (function/method, line 759): Remove the state record only after preceding required deletion actions complete. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `_delete_prune_item` to use its existing endpoint, state or callback context.
+- `_delete_prune_item.remove_state` (function/method, line 771): Remove the state record only after preceding required deletion actions complete. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds. Scoped within `_delete_prune_item` to use its existing endpoint, state or callback context.
 
-- `print_prune_plan` (function/method, line 778): Write an easy-to-read retention summary to terminal and .succes. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `print_prune_plan` (function/method, line 790): Write an easy-to-read retention summary to terminal and .succes. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `_confirmed_prune_parent` (function/method, line 832): Prove a complete live send/receive anchor before pruning its siblings. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `_confirmed_prune_parent` (function/method, line 844): Prove a complete live send/receive anchor before pruning its siblings. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
-- `prune` (function/method, line 874): Apply backup retention plus paired app-created source O retention. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+- `prune` (function/method, line 886): Apply paired retention; CLI callers enable inventory reconciliation and bounded extra cache cleanup. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
+
+- `_apply_redundant_cache_cleanup` (function/method, line 1080): Merge cache-only counters without falsely increasing paired destination/state deletions. **Why:** Separates user on-demand snapshots from app-created ones, proves backup coverage before source deletion and removes state only after required cleanup succeeds.
 
 ## `timeshift_btrfs_sync/source.py`
 
@@ -2498,7 +2680,7 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 - `_match_existing_destination_to_source` (function/method, line 1735): Match one existing destination subvolume to an exact source/cache UUID. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_recover_state_from_existing_destination` (function/method, line 1815): Rebuild missing/empty state.json from proven source/destination matches. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_recover_state_from_existing_destination` (function/method, line 1815): Merge missing complete UUID-proven dates into empty or populated state without inventing parents. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
 - `_filesystem_parent_candidates` (function/method, line 1940): Find local destination parent candidates by matching snapshot names. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
@@ -2586,21 +2768,25 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused.
 
-- `TreeDeleteResult` (class, line 15): Record planned, confirmed and remaining paths plus errors and final root-absence proof for one cleanup. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused.
+- `TreeDeleteResult` (class, line 16): Record planned, confirmed and remaining paths plus errors and final root-absence proof for one cleanup. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused.
 
-- `TreeDeleteResult.success` (property, line 26): Report success only when there are no errors and the configured root is independently verified absent. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused. Scoped within `TreeDeleteResult` to use its existing endpoint, state or callback context.
+- `TreeDeleteResult.success` (property, line 27): Report success only when there are no errors and the configured root is independently verified absent. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused. Scoped within `TreeDeleteResult` to use its existing endpoint, state or callback context.
 
-- `_path_exists` (function/method, line 31): Probe endpoint path existence and distinguish absent paths from command errors. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused.
+- `NativeCacheDeletionProof` (class, line 32): Exact native identities below a cache root already anchored to state/receiver pairs. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused.
 
-- `discover_subvolume_tree` (function/method, line 42): Discover a complete nested Btrfs tree in one endpoint list command. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused.
+- `_native_cache_view` (function/method, line 39): Check the surviving cache identity and read live IDs without ordinary directory access. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused.
 
-- `list_direct_entries` (function/method, line 68): List exact direct children with shell built-ins on either endpoint. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused.
+- `_path_exists` (function/method, line 77): Probe endpoint path existence and distinguish absent paths from command errors. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused.
 
-- `_validate_confirmations` (function/method, line 84): Compare planned and confirmed exact paths and record missing or unexpected deletion confirmations. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused.
+- `discover_subvolume_tree` (function/method, line 88): Discover a complete nested Btrfs tree in one endpoint list command. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused.
 
-- `_verify_absent` (function/method, line 101): Independently prove the configured root is gone and inventory any surviving subvolumes. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused.
+- `list_direct_entries` (function/method, line 114): List exact direct children with shell built-ins on either endpoint. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused.
 
-- `delete_subvolume_tree` (function/method, line 118): Delete one managed tree deepest-first and prove the root is absent. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused.
+- `_validate_confirmations` (function/method, line 130): Compare planned and confirmed exact paths and record missing or unexpected deletion confirmations. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused.
+
+- `_verify_absent` (function/method, line 147): Independently prove the configured root is gone and inventory any surviving subvolumes. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused.
+
+- `delete_subvolume_tree` (function/method, line 164): Delete one managed tree deepest-first and prove the root is absent. **Why:** Uses one deepest-first Btrfs deletion engine with protected-root checks, exact confirmations and final absence proof; ordinary non-empty roots are refused.
 
 ## `tools/pyinstaller_entry.py`
 
@@ -2640,9 +2826,11 @@ Print Timeshift snapshots, cache_root snapshots, then target_root snapshots, wit
 Use configured source/destination sudo prefixes only for Btrfs/Timeshift reads.
 Timeshift --list supplies source tags/descriptions; omitted dates use ordinary JSON reads.
 Btrfs lists discover protected paths and nested payloads without requiring sudo ls/cat.
+Always compare cache/destination dates and full readonly send/Received UUID pairs.
 No sudo shell/file-reader/df, app locks/state/log writes, notifications, transfers,
 snapshot creation or cleanup are performed. Timeshift --list can mount its normal repository.
 Permission/tool failures remain visible and exit 1 after reporting the other side.
+Pair differences are warnings by default; --check-pairs also makes them exit 1.
 
 Auto uses restore rules if restore.mode is ssh or ssh-target, otherwise backup rules.
 Backup: source.mode chooses the Timeshift/cache host; destination is always local.
@@ -2657,7 +2845,7 @@ Examples:
 Rows are physical dates plus Timeshift-listed dates not confirmed below snapshot_root.
 Metadata origins are labeled; missing originals may use an existing target copy only
 when all configured live readonly payload UUIDs match. No state metadata is invented.
-Free space prefers ordinary df, with labeled Btrfs usage fallback if df is denied.
+Free space prefers ordinary df; native Btrfs reads resolve denied reads/unknown types.
 Cache/target own info.json is read without sudo; unresolved metadata remains unknown.
 
 ### `test-source` → `cli.cmd_test_source`
@@ -2708,9 +2896,11 @@ Troubleshooting:
 
 ### `prune` → `cli.cmd_prune`
 
-Apply retention without transferring new snapshots. Destination retention follows [retention].
+Reconcile complete missing repository pairs, then apply retention without transferring snapshots.
 App-created tag O snapshots can also be retired from Timeshift only when they still match
 manual_snapshot.marker and their required backup payloads are proven complete.
+source.delete_redundant_snapshots (default true) previews proven stale readonly cache dates.
+Real redundant-cache deletion runs only after successful sync; standalone prune does not delete extras.
 
 Flag relationships:
   --dry-run and --run are mutually exclusive. If neither is supplied, config.default_dry_run decides.
@@ -2841,7 +3031,7 @@ Use --json when you need the complete stored structure for diagnosis or automati
 - `dist/ts-btrfs`: original executable, independently verified to report 0.1.84. Kept unchanged; rebuild to obtain an executable for the source release.
 - The older nested project and its duplicate docs/tests/helpers were removed. Root documents describe current usage; REMOVED_NESTED_SOURCES.md lists every former path.
 
-Coverage: 549 current source/build symbols; 537 root test symbols.
+Coverage: 567 current source/build symbols; 606 root test symbols.
 
 ## Python environment installation
 

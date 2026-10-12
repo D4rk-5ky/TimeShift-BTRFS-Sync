@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Iterable
 import shlex
 
-from .btrfs_ops import BtrfsOps
+from .btrfs_ops import BtrfsOps, _parse_listed_subvolumes
+from .models import SubvolumeMeta
 from .paths import is_same_or_under, listed_path_to_absolute, sort_deepest_first
 
 
@@ -25,6 +26,51 @@ class TreeDeleteResult:
     @property
     def success(self) -> bool:
         return not self.errors and self.verified_root_absent
+
+
+@dataclass(slots=True)
+class NativeCacheDeletionProof:
+    """Exact native identities below a cache root already anchored to state/receiver pairs."""
+
+    cache_root: SubvolumeMeta
+    subvolumes: dict[str, SubvolumeMeta]
+
+
+def _native_cache_view(ops: BtrfsOps, proof: NativeCacheDeletionProof) -> tuple[set[int], str]:
+    """Check the surviving cache identity and read live IDs without ordinary directory access."""
+
+    anchor = proof.cache_root
+    current = ops.meta(anchor.path, required=False)
+    if (not current or not anchor.uuid or current.uuid != anchor.uuid or current.subvolume_id != anchor.subvolume_id
+            or current.readonly != anchor.readonly or current.parent_uuid != anchor.parent_uuid
+            or current.received_uuid != anchor.received_uuid):
+        return set(), "native cache root identity changed or became unreadable"
+    result = ops.run(["subvolume", "list", "-a", "-p", anchor.path], check=False, log_stderr=False, mirror_stderr=False)
+    records = _parse_listed_subvolumes(result.stdout)
+    ids = {record.subvolume_id for record in records}
+    if (result.returncode or anchor.subvolume_id not in ids
+            or len(records) != len([line for line in result.stdout.splitlines() if line.strip()])
+            or len(ids) != len(records)):
+        return set(), "complete native cache filesystem ID view unavailable"
+    descendants = {anchor.subvolume_id}
+    while True:
+        expanded = descendants | {record.subvolume_id for record in records if record.parent_id in descendants}
+        if expanded == descendants:
+            break
+        descendants = expanded
+    if any(meta.subvolume_id in ids and meta.subvolume_id not in descendants for meta in proof.subvolumes.values()):
+        return set(), "native cache subtree moved outside the anchored root"
+    date_meta = min(proof.subvolumes.values(), key=lambda meta: len(Path(meta.path).parts))
+    date_ids = {date_meta.subvolume_id}
+    while True:
+        expanded = date_ids | {record.subvolume_id for record in records if record.parent_id in date_ids}
+        if expanded == date_ids:
+            break
+        date_ids = expanded
+    expected_ids = {meta.subvolume_id for meta in proof.subvolumes.values()}
+    if (date_ids & ids) - expected_ids or any(meta.subvolume_id in ids and meta.subvolume_id not in date_ids for meta in proof.subvolumes.values()):
+        return set(), "native dated cache subtree changed after proof"
+    return ids, ""
 
 
 
@@ -125,6 +171,7 @@ def delete_subvolume_tree(
     allowed_regular_names: Iterable[str] = (),
     expected_subvolume_paths: Iterable[str | Path] | None = None,
     refuse_unknown_entries: bool = False,
+    native_cache_proof: NativeCacheDeletionProof | None = None,
 ) -> TreeDeleteResult:
     """Delete one managed tree deepest-first and prove the root is absent.
 
@@ -142,7 +189,17 @@ def delete_subvolume_tree(
             )
             return result
 
-    exists, existence_error = _path_exists(ops, root_text)
+    if native_cache_proof is not None:
+        anchor = native_cache_proof.cache_root
+        if root_text == anchor.path or not is_same_or_under(root_text, anchor.path):
+            result.errors.append("native deletion must be strictly below the verified cache root")
+            return result
+        if root_text not in native_cache_proof.subvolumes:
+            result.errors.append("native deletion proof does not identify the date container")
+            return result
+        exists, existence_error = True, ""
+    else:
+        exists, existence_error = _path_exists(ops, root_text)
     meta = ops.meta(root_text, required=False)
     if exists is None:
         result.errors.append(f"could not check path existence: {existence_error}")
@@ -154,6 +211,9 @@ def delete_subvolume_tree(
         return result
 
     if meta is None:
+        if native_cache_proof is not None:
+            result.errors.append("native date container identity became unavailable")
+            return result
         if not allow_empty_ordinary_root:
             result.errors.append(
                 "configured root is an ordinary path, not a Btrfs subvolume; manual inspection is required: "
@@ -183,6 +243,51 @@ def delete_subvolume_tree(
     planned, errors = discover_subvolume_tree(ops, root_text, include_root=True)
     result.planned = planned
     result.errors.extend(errors)
+    if native_cache_proof is not None:
+        proof = native_cache_proof
+        if set(planned) != set(proof.subvolumes):
+            result.errors.append("native cache subtree differs from the verified deletion identities")
+        ids, view_error = _native_cache_view(ops, proof)
+        if view_error:
+            result.errors.append(view_error)
+        for path in planned:
+            expected = proof.subvolumes.get(path)
+            live = ops.meta(path, required=False)
+            if (not expected or not live or not expected.uuid or live.uuid != expected.uuid
+                    or not expected.subvolume_id or live.subvolume_id != expected.subvolume_id
+                    or expected.subvolume_id not in ids or live.readonly != expected.readonly
+                    or live.parent_uuid != expected.parent_uuid or live.received_uuid != expected.received_uuid):
+                result.errors.append(f"native cache identity not confirmed: {path}")
+        if dry_run or result.errors:
+            return result
+        for path in planned:
+            expected = proof.subvolumes[path]
+            live = ops.meta(path, required=False)
+            _ids, error = _native_cache_view(ops, proof)
+            if (error or expected.subvolume_id not in _ids or not live or live.uuid != expected.uuid
+                    or live.subvolume_id != expected.subvolume_id or live.readonly != expected.readonly
+                    or live.parent_uuid != expected.parent_uuid or live.received_uuid != expected.received_uuid):
+                result.errors.append(error or f"native cache identity changed before deletion: {path}")
+                break
+            # Delete by the proven numeric ID on the anchored filesystem. This
+            # avoids ordinary path traversal and path/symlink redirection.
+            removed = ops.run(["subvolume", "delete", "--commit-after", "--subvolid", str(expected.subvolume_id), proof.cache_root.path],
+                              check=False, log_stderr=False, mirror_stderr=False)
+            if removed.returncode:
+                result.errors.append(f"native ID deletion failed for {path}: {removed.stderr.strip() or removed.stdout.strip()}")
+                break
+            result.confirmed.append(path)
+        _validate_confirmations(result)
+        ids, error = _native_cache_view(ops, proof)
+        if error:
+            result.errors.append(error)
+        else:
+            result.remaining = [path for path, expected in proof.subvolumes.items() if expected.subvolume_id in ids]
+            if result.remaining:
+                result.errors.append("native cache IDs remain after deletion: " + ", ".join(result.remaining))
+            elif not result.errors:
+                result.verified_root_absent = True
+        return result
     if refuse_unknown_entries and not errors:
         if expected_subvolume_paths is not None:
             expected = {str(Path(path)) for path in expected_subvolume_paths}

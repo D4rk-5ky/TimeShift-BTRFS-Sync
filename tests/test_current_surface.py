@@ -20,7 +20,7 @@ EXPECTED_MODULES = {
     "config", "destroy", "endpoint", "executor", "inventory", "lock", "log",
     "mail", "maintenance", "models", "mqtt", "notify", "paths", "listing",
     "payload_stats", "planning", "preflight", "restore", "retention",
-    "source", "ssh", "state", "sync", "timeshift", "topology", "transfer_size", "tree_ops",
+    "source", "ssh", "state", "sync", "timeshift", "topology", "reconciliation", "transfer_size", "tree_ops",
 }
 EXPECTED_STATE_FIELDS = {
     "status", "name", "source_path", "send_path", "send_path_kind",

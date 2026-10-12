@@ -38,6 +38,30 @@ class SnapshotListingRow:
 
 
 @dataclass(slots=True)
+class SnapshotPairComparison:
+    """Report observed cache/receiver differences without authorizing deletion."""
+
+    cache_dates: int
+    destination_dates: int
+    shared_dates: list[str]
+    matching_dates: list[str]
+    unproven_dates: list[str]
+    cache_only_dates: list[str]
+    destination_only_dates: list[str]
+    in_window_dates: list[str]
+    outside_window_dates: list[str]
+    window: tuple[str, str] | None
+    inventory_complete: bool
+    cache_enabled: bool
+
+    def parity_confirmed(self) -> bool:
+        """Require enabled, complete inventories and matching UUIDs for every observed date."""
+
+        return (self.cache_enabled and self.inventory_complete
+                and not (self.cache_only_dates or self.destination_only_dates or self.unproven_dates))
+
+
+@dataclass(slots=True)
 class SnapshotListingSection:
     """Independent endpoint outcome so one failed side cannot hide the other."""
 
@@ -49,6 +73,8 @@ class SnapshotListingSection:
     notes: list[str] = field(default_factory=list)
     failed: bool = False
     filesystem_uuid: str | None = None
+    inventory_complete: bool = True
+    comparison: SnapshotPairComparison | None = None
 
 
 def _terminal_text(value: object) -> str:
@@ -247,11 +273,18 @@ def _read_listing_metadata(endpoint: CommandEndpoint, root: str, records: dict[s
             records[name].info_error = f"invalid metadata encoding: {_terminal_text(exc)}"
 
 
-def _space_with_btrfs_fallback(ops: BtrfsOps, root: str, *, device: str = "unavailable") -> dict[str, str]:
-    """Prefer normal df; if path traversal denies it, read Btrfs usage with approved sudo."""
+def _space_with_btrfs_fallback(
+    ops: BtrfsOps, root: str, *, device: str = "unavailable", filesystem_uuid: str | None = None,
+) -> dict[str, str]:
+    """Keep ordinary df space; use native Btrfs evidence for denied reads or unknown types."""
 
     try:
-        return _filesystem_space(ops.endpoint, root)
+        space = _filesystem_space(ops.endpoint, root)
+        if space["fstype"].lower() not in {"-", "", "unknown"}:
+            return space
+        if filesystem_uuid:
+            return {**space, "fstype": "btrfs", "provider": "df space; type confirmed by Btrfs filesystem show"}
+        raise RuntimeError("df filesystem type unavailable")
     except Exception as df_error:
         result = ops.run(["filesystem", "usage", "-b", root], check=False, log_stderr=False, mirror_stderr=False)
         if result.returncode != 0:
@@ -286,8 +319,10 @@ def _collect_section(
             index, records, notes, section.filesystem_uuid, device = _discover_repository(ops, root)
             section.notes.extend(notes)
             section.failed = bool(index.errors)
+            section.inventory_complete = not bool(index.errors)
         except Exception as exc:
             section.failed = True
+            section.inventory_complete = False
             section.notes.append(f"Btrfs inventory unavailable: {_terminal_text(exc)}")
             records = {}
         skip_names = timeshift_names if not (timeshift_filesystem_uuid and section.filesystem_uuid and timeshift_filesystem_uuid != section.filesystem_uuid) else frozenset()
@@ -309,7 +344,9 @@ def _collect_section(
         except Exception as exc:
             section.notes.append(f"info.json reads unavailable: {_terminal_text(exc)}")
     try:
-        section.space = _space_with_btrfs_fallback(ops, root or config.source.snapshot_root, device=device)
+        section.space = _space_with_btrfs_fallback(
+            ops, root or config.source.snapshot_root, device=device, filesystem_uuid=section.filesystem_uuid,
+        )
         if root is not None and section.space["fstype"].lower() != "btrfs":
             section.failed = True
             section.notes.append(f"Configured repository filesystem is {section.space['fstype']}, not Btrfs")
@@ -322,6 +359,7 @@ def _collect_section(
         return section
     if scan_error is not None:
         section.failed = True
+        section.inventory_complete = False
         section.notes.append(scan_error)
         return section
     assert records is not None
@@ -417,6 +455,64 @@ def _matching_listing_payloads(config: AppConfig, sender: SnapshotListingRow, re
     return bool(config.source.subvolumes)
 
 
+def compare_snapshot_listings(
+    config: AppConfig, cache: SnapshotListingSection, backup: SnapshotListingSection,
+) -> SnapshotPairComparison:
+    """Compare every observed date and reuse full readonly send/Received UUID proof."""
+
+    cache_by_name = {row.name: row for row in cache.rows}
+    backup_by_name = {row.name: row for row in backup.rows}
+    shared = sorted(cache_by_name.keys() & backup_by_name.keys())
+    matching = [name for name in shared if _matching_listing_payloads(config, cache_by_name[name], backup_by_name[name])]
+    cache_only = sorted(cache_by_name.keys() - backup_by_name.keys())
+    target_only = sorted(backup_by_name.keys() - cache_by_name.keys())
+    window = (matching[0], matching[-1]) if matching else None
+    in_window = [name for name in cache_only if window and window[0] <= name <= window[1]]
+    return SnapshotPairComparison(
+        len(cache_by_name), len(backup_by_name), shared, matching,
+        sorted(set(shared) - set(matching)), cache_only, target_only, in_window,
+        [name for name in cache_only if window and not window[0] <= name <= window[1]],
+        window, cache.inventory_complete and backup.inventory_complete, cache.root is not None,
+    )
+
+
+def _format_pair_comparison(comparison: SnapshotPairComparison) -> list[str]:
+    """Make unequal repositories and unproven pairs visible, without claiming cleanup eligibility."""
+
+    status = ("DISABLED (cache_root not configured)" if not comparison.cache_enabled
+              else "INCOMPLETE (differences are observations, not proof of absence)" if not comparison.inventory_complete
+              else "OK" if comparison.parity_confirmed() else "WARNING - cache/destination pairs differ")
+    lines = ["", "CACHE / DESTINATION COMPARISON", "=" * 30,
+             f"Status                   : {status}",
+             f"Cache dates              : {comparison.cache_dates}",
+             f"Destination dates        : {comparison.destination_dates}",
+             f"Shared date names        : {len(comparison.shared_dates)}",
+             f"Proven readonly UUID pairs: {len(comparison.matching_dates)}",
+             f"Cache-only dates         : {len(comparison.cache_only_dates)}",
+             f"Destination-only dates   : {len(comparison.destination_only_dates)}",
+             f"Shared dates not proven  : {len(comparison.unproven_dates)}"]
+    if comparison.window:
+        lines += [f"Proven shared date range : {comparison.window[0]} .. {comparison.window[1]}",
+                  f"Cache-only inside range  : {len(comparison.in_window_dates)}",
+                  f"Cache-only outside range : {len(comparison.outside_window_dates)}"]
+    else:
+        lines.append("Proven shared date range : unavailable; cache-only dates cannot be classified by bounds")
+    for title, names in (("CACHE-ONLY DATES (not observed at destination)", comparison.cache_only_dates),
+                         ("DESTINATION-ONLY DATES (not observed in cache)", comparison.destination_only_dates),
+                         ("SHARED DATES WITHOUT A PROVEN FULL UUID PAIR", comparison.unproven_dates)):
+        if names:
+            lines += ["", title]
+            for name in names:
+                suffix = (" [inside proven range]" if name in comparison.in_window_dates
+                          else " [outside proven range]" if name in comparison.outside_window_dates else "")
+                lines.append(f"  {name}{suffix}")
+    lines += ["", "Comparison uses live Btrfs identities for every configured payload; matching names/counts or O/H/D/W/M/B tags alone do not prove a pair.",
+              "Cache-only dates inside the range need a prune safety check; this listing neither reads/rebuilds state nor deletes snapshots.",
+              "Preview: python3 -m timeshift_btrfs_sync prune --config <same-config.toml> --dry-run",
+              "Sync without --prune/prune_after_sync does not perform retention cleanup. Tracked, active-parent, unverified or newer caches may remain; verified older leftovers can be cleaned after successful sync."]
+    return lines
+
+
 def collect_snapshot_listings(
     config: AppConfig, *, workflow: str = "auto", include_timeshift: bool = True,
 ) -> tuple[str, list[SnapshotListingSection]]:
@@ -499,6 +595,7 @@ def collect_snapshot_listings(
         destination_row = backup_by_name.get(row.name)
         if row.tags == "?" and destination_row is not None and destination_row.tags != "?" and _matching_listing_payloads(config, row, destination_row):
             _set_listing_metadata(row, destination_row.tags, destination_row.description, "matching target info/metadata via UUIDs")
+    cache.comparison = compare_snapshot_listings(config, cache, backup)
     # Keep the former opt-in argument accepted for API/CLI compatibility; the
     # user requested all three sections unconditionally and in this order.
     return workflow, [originals, cache, backup]
@@ -537,6 +634,10 @@ def format_snapshot_listings(workflow: str, sections: list[SnapshotListingSectio
                 lines.append(f"      Note: {_terminal_text(note)}")
         for note in section.notes:
             lines.append(f"Note: {_terminal_text(note)}")
+    for section in sections:
+        if section.comparison is not None:
+            lines.extend(_format_pair_comparison(section.comparison))
+            break
     lines.extend(["", "Free space is filesystem-wide (df, or labeled Btrfs usage fallback), not per-snapshot usage or guaranteed receive capacity.",
                   "Complete means configured Btrfs payloads were observed; it does not prove restore eligibility.",
                   "Source metadata uses Timeshift --list with ordinary JSON fallback; cache/target prefer their own readable info.json. Fallback origins are labeled. Unknown/orphan metadata stays ? unless a live matching backup proves it."])

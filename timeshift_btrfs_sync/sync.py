@@ -1822,120 +1822,120 @@ def _recover_state_from_existing_destination(
     source_cache_index: inventory.BtrfsIndex | None,
     source_snapshot_index: inventory.BtrfsIndex | None = None,
     destination_index: inventory.BtrfsIndex | None = None,
+    destination_records: dict | None = None,
 ) -> tuple[str | None, str]:
-    """Rebuild missing/empty state.json from proven source/destination matches.
+    """Merge missing complete UUID-proven dates into empty or populated state without inventing parents."""
 
-    This recovery is intentionally conservative. It never trusts names alone and
-    never invents a parent chain. A destination subvolume is adopted only when
-    Btrfs proves that its Received UUID equals a currently available source
-    UUID, either the original Timeshift snapshot subvolume or an existing
-    read-only source-cache subvolume. Once adopted, the normal sync-floor logic
-    can continue from the newest fully adopted snapshot.
-    """
+    from copy import deepcopy
+    from dataclasses import replace
+    from pathlib import PurePosixPath
+    from .listing import _read_listing_metadata, _snapshot_description
+    from .restore import BackupDirectoryRecord
 
-    if state.get("snapshots"):
-        return None, "state already has snapshot records"
-    if not _destination_has_existing_snapshots(config):
-        return None, "destination has no snapshots to adopt"
-
-    adopted_subvolumes = 0
-    adopted_full_snapshots: list[str] = []
-    skipped: list[str] = []
-    parent_by_subvolume: dict[str, tuple[str, str]] = {}
-
-    for snapshot_name in _destination_snapshot_names(config):
-        snapshot_any_adopted = False
-        snapshot_all_required = True
-        synthetic_snapshot: SnapshotMeta | None = None
-
-        for subvolume_name in config.source.subvolumes:
-            dest_path = _dest_subvolume_path(config, snapshot_name, subvolume_name)
-            dest_meta = destination_index.meta(dest_path) if destination_index is not None else None
-            if dest_meta is None and dest_path.exists():
-                try:
-                    dest_meta = _local_meta(config, dest_path, subvolume_name, required=False)
-                except Exception:
-                    dest_meta = None
-            if dest_meta is None:
-                snapshot_all_required = False
-                skipped.append(f"{snapshot_name}/{subvolume_name}: destination subvolume missing or unreadable")
+    if destination_index is not None:
+        if destination_index.errors or (source_cache_index is not None and source_cache_index.errors):
+            raise SyncError("Incomplete repository indexes; state adoption refused")
+        names = set()
+        root = PurePosixPath(str(config.destination.target_root / "snapshots"))
+        for path in destination_index.by_path:
+            try:
+                relative = PurePosixPath(path).relative_to(root)
+            except ValueError:
                 continue
-
-            (
-                source_snapshot,
-                original_subvol,
-                send_path,
-                original_meta,
-                send_meta,
-                reason,
-            ) = _match_existing_destination_to_source(
-                config,
-                source,
-                source_by_name,
-                snapshot_name=snapshot_name,
-                subvolume_name=subvolume_name,
-                destination_meta=dest_meta,
-                source_cache_index=source_cache_index,
+            if relative.parts and timeshift.SNAPSHOT_RE.fullmatch(relative.parts[0]):
+                names.add(relative.parts[0])
+    else:
+        names = {name for name in _destination_snapshot_names(config) if timeshift.SNAPSHOT_RE.fullmatch(name)}
+    missing = sorted(names - set(state.get("snapshots", {})))
+    if not missing:
+        return None, "no missing destination dates to reconcile"
+    skipped = []
+    safe_missing = []
+    for name in missing:
+        parent = _target_snapshot_dir(config, name)
+        if parent.is_symlink():
+            skipped.append(f"{name}: symlinked destination date preserved")
+            continue
+        container = destination_index.meta(parent) if destination_index is not None else None
+        if container is None:
+            container = _local_meta(config, parent, name, required=False)
+        if container is None:
+            skipped.append(f"{name}: destination date is not a verified Btrfs container")
+            continue
+        safe_missing.append(name)
+    missing = safe_missing
+    records = destination_records or {name: BackupDirectoryRecord(name, "directory", {}, None) for name in missing}
+    metadata_records = {name: records[name] for name in missing if name not in source_by_name and name in records}
+    _read_listing_metadata(CommandEndpoint.local(), str(config.destination.target_root / "snapshots"), metadata_records)
+    adopted = []
+    for name in missing:
+        matches = []
+        for payload in config.source.subvolumes:
+            path = _dest_subvolume_path(config, name, payload)
+            received = destination_index.meta(path) if destination_index is not None else _local_meta(config, path, payload, required=False)
+            if received is None:
+                skipped.append(f"{name}/{payload}: no verified destination payload")
+                break
+            match = _match_existing_destination_to_source(
+                config, source, source_by_name, snapshot_name=name, subvolume_name=payload,
+                destination_meta=received, source_cache_index=source_cache_index,
                 source_snapshot_index=source_snapshot_index,
             )
-            if not send_path or source_snapshot is None or original_subvol is None:
-                snapshot_all_required = False
-                skipped.append(f"{snapshot_name}/{subvolume_name}: {reason}")
+            snapshot, original, send_path, original_meta, send_meta, reason = match
+            if not send_path or snapshot is None or original is None or send_meta is None:
+                skipped.append(f"{name}/{payload}: {reason}")
+                break
+            # State paths must remain canonical same-date paths; a UUID found
+            # under another date is not permission to relabel that cache.
+            expected_paths = {_expected_original_source_path(config, name, payload)}
+            if config.source.cache_root:
+                expected_paths.add(cache_child_path(config.source.cache_root, name, payload))
+            if send_path not in expected_paths:
+                skipped.append(f"{name}/{payload}: matching stream is outside the canonical date/payload path")
+                break
+            is_cache = bool(config.source.cache_root and send_path == cache_child_path(config.source.cache_root, name, payload))
+            if is_cache and original_meta and original_meta.uuid and send_meta.parent_uuid != original_meta.uuid:
+                skipped.append(f"{name}/{payload}: cache lineage differs from current Timeshift original; pair preserved")
+                break
+            original_uuid = send_meta.parent_uuid if is_cache else (original_meta.uuid if original_meta else None) or original.uuid
+            if not original_uuid:
+                skipped.append(f"{name}/{payload}: original UUID cannot be recovered without guessing")
+                break
+            matches.append((replace(original, uuid=original_uuid), send_path, original_meta, send_meta, received))
+        if len(matches) != len(config.source.subvolumes):
+            continue
+        snapshot = source_by_name.get(name)
+        if snapshot is None:
+            tags, comment, error = _snapshot_description(records.get(name))
+            if error:
+                skipped.append(f"{name}: retention metadata unknown; complete pair preserved without adoption")
                 continue
-
-            synthetic_snapshot = source_snapshot
-            parent_snapshot, parent_source_path = parent_by_subvolume.get(subvolume_name, (None, None))
-            # Always adopt into the in-memory state. In dry-run this lets the
-            # remaining plan use the recovered high-watermark without writing
-            # state.json to disk.
+            snapshot = SnapshotMeta(name, str(Path(config.source.snapshot_root) / name),
+                                    tags=[] if tags == "-" else tags.split(), comment=comment,
+                                    created=name, subvolumes={meta.name: meta for meta, *_rest in matches})
+        draft = deepcopy(state)
+        for original, send_path, original_meta, send_meta, received in matches:
             mark_subvolume_synced(
-                state,
-                snapshot=source_snapshot,
-                subvolume=original_subvol,
-                destination_path=dest_path,
-                destination_root=config.destination.target_root,
-                snapshot_root=config.source.snapshot_root,
-                cache_root=config.source.cache_root,
-                parent_snapshot=parent_snapshot,
-                parent_source_path=parent_source_path,
-                send_path=send_path,
-                received_meta=dest_meta,
-                original_meta=original_meta,
-                send_meta=send_meta,
+                draft, snapshot=snapshot, subvolume=original,
+                destination_path=_dest_subvolume_path(config, name, original.name),
+                destination_root=config.destination.target_root, snapshot_root=config.source.snapshot_root,
+                cache_root=config.source.cache_root, parent_snapshot=None, parent_source_path=None,
+                send_path=send_path, received_meta=received, original_meta=original_meta, send_meta=send_meta,
             )
-            parent_by_subvolume[subvolume_name] = (snapshot_name, send_path)
-            adopted_subvolumes += 1
-            snapshot_any_adopted = True
-
-        if snapshot_any_adopted and snapshot_all_required:
-            adopted_full_snapshots.append(snapshot_name)
-
-    _human_blank()
-    print("STATE RECOVERY")
-    print("  trigger: state.json is missing or empty, but destination snapshots exist")
-    print("  rule:    adopt only exact Btrfs UUID matches; names alone are never trusted")
-    print(f"  adopted subvolume(s): {adopted_subvolumes}")
-    if adopted_full_snapshots:
-        print(f"  fully adopted snapshot(s): {', '.join(adopted_full_snapshots)}")
-    if skipped:
-        print(f"  skipped candidate(s): {len(skipped)}")
-        for line in skipped[:10]:
-            print(f"    - {line}")
-        if len(skipped) > 10:
-            print(f"    ... {len(skipped) - 10} more")
-    if dry_run:
-        print("  dry-run: recovered state.json would be written, but was not changed")
-    elif adopted_subvolumes:
+        # Commit a whole configured date only after every payload is proven.
+        state.setdefault("snapshots", {})[name] = draft["snapshots"][name]
+        state["version"] = draft["version"]
+        adopted.append(name)
+    print("STATE RECONCILIATION")
+    print("  rule: complete readonly UUID matches only; existing records preserved")
+    print(f"  recovered dates: {len(adopted)}; skipped dates/payloads: {len(skipped)}")
+    for reason in skipped:
+        print(f"  [KEEP] {reason}")
+    if adopted and not dry_run:
         save_state(config.state_file, state)
-        print("  state.json rebuilt from existing destination/source UUID matches")
-    else:
-        print("  state.json was not rebuilt because no safe UUID matches were found")
-    _human_rule("----")
-
-    if not adopted_full_snapshots:
-        return None, "no complete configured snapshot could be adopted"
-    newest = adopted_full_snapshots[-1]
-    return newest, f"rebuilt state from existing destination/source UUID matches through {newest}"
+    elif adopted:
+        print("  dry-run: recovered dates used in memory; state.json not written")
+    return (adopted[-1], "reconciled complete missing repository pairs") if adopted else (None, "no safe complete missing pairs")
 
 def _filesystem_parent_candidates(config: AppConfig, snapshot_name: str, subvolume_name: str, source_names: set[str]) -> list[str]:
     """Find local destination parent candidates by matching snapshot names.
@@ -2339,16 +2339,16 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
     before_manual_snapshot_names = set(source_by_name)
 
     state_empty_at_start = not state.get("snapshots")
-    if state_empty_at_start and not destination_empty_at_start:
+    if not destination_empty_at_start:
+        from .reconciliation import refresh_repository_indexes
+        destination_index, destination_records = refresh_repository_indexes(config, source, source_inventory)
+        _validate_destination_snapshot_layout(config, destination_index)
+        source_cache_index = source_inventory.cache_index
+        snapshot_root_btrfs_index = source_inventory.snapshot_index
         _recover_state_from_existing_destination(
-            config,
-            source,
-            state,
-            source_by_name,
-            dry_run=dry_run,
-            source_cache_index=source_cache_index,
-            source_snapshot_index=snapshot_root_btrfs_index,
-            destination_index=destination_index,
+            config, source, state, source_by_name, dry_run=dry_run,
+            source_cache_index=source_cache_index, source_snapshot_index=snapshot_root_btrfs_index,
+            destination_index=destination_index, destination_records=destination_records,
         )
 
     # A destination that was already populated when this run started must have a

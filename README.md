@@ -29,7 +29,7 @@ You are responsible for reviewing the code, testing it in a safe environment, ma
 
 ## Choose the current source application
 
-This source release is **0.1.95**. Run it from the project root with Python 3.11 or newer:
+This source release is **0.1.98**. Run it from the project root with Python 3.11 or newer:
 
 ```bash
 python3 -m timeshift_btrfs_sync --version
@@ -239,7 +239,7 @@ This lets you move or remount `source.snapshot_root`, `source.cache_root`, or th
 
 During `sync` and before standalone `prune`, mutable Timeshift metadata for already-synced snapshots is refreshed from the latest `timeshift --list`. This updates snapshot-level `tags`, `comment`, `created`, and `path` in `state.json` without re-sending data and without changing Btrfs UUID, parent-chain, send-path, destination-path, or status fields. This lets retention follow Timeshift when it later promotes or changes flags such as `O`, `H`, `D`, `W`, or `M`. The metadata refresh uses the fast Timeshift list path and does not run `btrfs subvolume show` for every already-synced snapshot.
 
-If `state.json` is missing or empty while destination snapshots already exist, `sync` tries a conservative state recovery before creating a manual snapshot or sending data. It scans destination snapshots and compares each destination subvolume's `Received UUID` with the UUID of the matching source Timeshift subvolume or an existing read-only source-cache subvolume. Only exact UUID matches are adopted into in-memory state and, during a real run, written back to `state.json`. Names alone are never trusted. If an existing destination subvolume cannot be adopted, the app refuses to delete it as an incomplete receive because it may be a valid backup from a missing state file.
+Known Timeshift/configured-source filesystem UUID mismatch stops state reconciliation and snapshot deletion before either action. Before transfers, `sync` reconciles existing destination snapshots with source originals/send-cache even when state already contains records. Standalone `prune` and cleanup after sync also reconcile before building retention decisions. Missing dates are added only when **every configured payload** is present, readonly, and matched by exact send/Received UUIDs at canonical same-date paths. The destination date container must itself be a verified Btrfs subvolume, and symlinked date paths are refused. Existing complete or partial records are preserved for the normal transfer/recovery workflow. One payload matching is insufficient; names alone are never trusted. Cache lineage must agree with a currently available original. Expired originals use the cache's real Parent UUID and readable destination `info.json` metadata; unknown retention metadata or original identity keeps the pair unadopted. Recovery records no guessed historical incremental parents. Real runs save recovered state; dry-run uses a temporary in-memory view without writing state.json. Unsupported/corrupt state remains an error rather than bypassing schema validation.
 
 A full reset means deleting both the received snapshot subvolumes and `.ts-btrfs-sync/`. Use `destroy-leftovers` for a complete app-owned reset. It deletes nested Btrfs subvolumes deepest-first and does not recursively remove ordinary non-empty backup trees.
 
@@ -858,6 +858,7 @@ python3 -m timeshift_btrfs_sync list-snapshots --config ./config.toml
 | `--workflow backup` | Timeshift/cache follows `source.mode`; target backup repository is local. |
 | `--workflow restore` | Both hosts follow `restore.mode`, exactly as `restore` does. With local restore, inspect local Timeshift even if backup uses an SSH source. |
 | `--include-timeshift` | Accepted for compatibility; all three tables are now always included, with Timeshift first. |
+| `--check-pairs` | Also exit 1 unless an enabled cache and destination have complete inventories and matching readonly send/Received UUIDs for every configured payload of every date. Comparison warnings are always displayed; this flag changes only the exit code. |
 | `--help`, `-h` | Describe flags, endpoint ownership, restricted sudo, metadata fallbacks and examples. |
 | `--version` | Show the installed source version without loading config or contacting hosts. |
 
@@ -891,9 +892,31 @@ Readable control files need no additional privileges. Missing files, invalid JSO
 
 #### Space, status and exit codes
 
-Normal GNU `df -h -P -T` reports filesystem availability without sudo. If path traversal prevents df, the command tries the configured sudo Btrfs `filesystem usage -b` reader. Its origin is labeled: statfs free space when available, otherwise the conservative estimated/minimum free value. Fallback total/used values are Btrfs-reported device/allocation figures, and mount/percentage can be unavailable rather than guessed. Device paths and UUID come from Btrfs `filesystem show` when available. A disabled cache remains a separate DISABLED table using the source snapshot-root filesystem for its space report.
+Normal GNU `df -h -P -T` reports filesystem availability without sudo. If path traversal prevents df, the command tries the configured sudo Btrfs `filesystem usage -b` reader. Its origin is labeled: statfs free space when available, otherwise the conservative estimated/minimum free value. Fallback total/used values are Btrfs-reported device/allocation figures, and mount/percentage can be unavailable rather than guessed. Device paths and UUID come from Btrfs `filesystem show` when available. A `df` type of `-` is unknown, not a non-Btrfs verdict: native Btrfs filesystem identity confirms the type while retaining df space figures, or the existing Btrfs usage reader supplies a labeled fallback. A disabled cache remains a separate DISABLED table using the source snapshot-root filesystem for its space report.
 
-Filesystem free space can be shared by multiple tables and is not exclusive snapshot usage or guaranteed receive capacity. Missing/inaccessible roots, wrong filesystem types, required Btrfs/Timeshift failures, incomplete payloads or unavailable space reports keep other tables visible, then exit **1**. Failed nested date queries retain successful dates and mark the section incomplete. **0** means required inventory/space reads completed, including empty repositories or disabled cache; **2** means invalid config/arguments. Counts distinguish dates with at least one verified payload from unverified entries, including incomplete pairs.
+Filesystem free space can be shared by multiple tables and is not exclusive snapshot usage or guaranteed receive capacity. Missing/inaccessible roots, wrong filesystem types, required Btrfs/Timeshift failures, incomplete payloads or unavailable space reports keep other tables visible, then exit **1**. Failed nested date queries retain successful dates and mark the section incomplete. **0** means required inventory/space reads completed, including empty repositories or disabled cache; **2** means invalid config/arguments. Counts distinguish dates with at least one verified payload from unverified entries, including incomplete pairs. Pair differences alone are warnings with the default exit policy; `--check-pairs` also exits 1 for any cache-only, destination-only or unproven shared date, incomplete discovery or disabled cache.
+
+#### Cache/destination comparison
+
+After the three tables, **CACHE / DESTINATION COMPARISON** always reports physical cache/destination totals, shared date names, proven readonly UUID pairs, cache-only dates, destination-only dates and unproven shared dates. It lists every differing date. Equal counts and date names alone are insufficient: every configured payload must be readonly and its send UUID must equal the receiver's Received UUID. Changed O/H/D/W/M/B tags do not invalidate that identity. Incomplete discovery is labeled; a date not observed in a partial inventory is not proof it is absent.
+
+Cache-only dates are classified inside/outside the oldest/newest proven shared-pair range. This observed range is diagnostic: actual redundant cleanup uses the latest verified state pair after reconciliation; older dates outside this observed range can also qualify. Listing does not read or rebuild state and never authorizes deletion. A disabled cache is explicitly labeled, and target-only dates can be legitimate when direct readonly originals were sent without caching.
+
+For example, 36 cache dates and 17 destination dates with all 17 shared and UUID-proven yields a warning with **19 cache-only dates**. July leftovers between a June 23 pair and an October 12 pair are inside the range, rather than newer snapshots waiting to be transferred. Ordinary Timeshift originals are a separate inventory and need not equal cache/destination counts.
+
+Preview reconciliation and safe cleanup using the same job config. Real redundant deletion is performed by successful sync with requested cleanup:
+
+```bash
+python3 -m timeshift_btrfs_sync prune --config ./config.toml --dry-run
+# Apply paired retention only (standalone prune skips redundant cache extras):
+python3 -m timeshift_btrfs_sync prune --config ./config.toml --run --yes-delete
+# Request cleanup after a real sync:
+python3 -m timeshift_btrfs_sync sync --config ./config.toml --run --prune --yes-delete
+# Read-only parity check for scripts:
+python3 -m timeshift_btrfs_sync list-snapshots --config ./config.toml --check-pairs
+```
+
+Sync without requested cleanup does not delete cache leftovers. Cleanup must have `[source].cleanup_superseded_cache = true` and `delete_redundant_snapshots = true` (default), complete inventories, verified ownership/lineage and provable destination absence. Protected/tracked dates, incomplete-transfer parents, uncertain native identities/layouts, and newer dates remain. Ordinary cache access is unnecessary only after complete native ownership proof. Therefore equality after sync is expected only when cleanup was requested and every extra cache date passes those checks. Review the source send-cache cleanup summary for confirmed deletion and blocked/retry counts.
 
 ### `sync`
 
@@ -980,6 +1003,31 @@ Shows the local state tracking file.
 |---|---|---|
 | `--config`, `-c` | Loads the chosen TOML config. | Needed to locate `state.json`. |
 | `--json` | Prints raw `state.json`. | Useful for debugging parent metadata or automation parsing. |
+
+### Reconcile and remove redundant cache dates
+
+```toml
+[source]
+cleanup_superseded_cache = true
+delete_redundant_snapshots = true
+```
+
+`delete_redundant_snapshots` defaults to **true**, including when omitted. Use a dedicated app-owned native Btrfs `cache_root` per backup job. A verified cache root authorizes removal of qualifying dated Btrfs trees and their contents; keep unrelated data elsewhere. Setting this option to false disables only extra cache cleanup. `cleanup_superseded_cache = false` remains the master switch for paired and redundant cache deletion. Reconciliation still runs with either switch disabled.
+
+**Real redundant cleanup runs only after a successful real sync**, followed by paired retention, with requested cleanup (`--prune` or `prune_after_sync = true`) and `--yes-delete`. A completed no-op sync can qualify when existing full cache/state/destination pairs are freshly proven. Failed sync does not call cleanup. Standalone `prune --dry-run` previews redundant cleanup; standalone real prune still applies paired retention but explicitly skips extra cache deletion because no sync succeeded in that invocation. Listing and restore never delete redundant caches.
+
+```bash
+python3 -m timeshift_btrfs_sync prune --config ./config.toml --dry-run
+python3 -m timeshift_btrfs_sync sync --config ./config.toml --run --prune --yes-delete
+```
+
+Reconciliation recovers missing complete matching dates into state before retention. After paired retention, refresh cache/destination inventories. Verify the native cache root UUID/ID and full numeric containment; reject native identity overlap with Timeshift originals. All cache-backed complete state records must resolve to canonical same-date cache paths and match fresh readonly sender UUIDs and receiver Received UUIDs. Require at least one complete cache-backed anchor. Incomplete transfer state, failed inventory or ambiguous ownership keeps extras.
+
+An untracked, unprotected cache-only **Timeshift-style date no newer than the latest confirmed pair** qualifies when it is a native readonly Btrfs snapshot or a native date container containing readonly snapshots. This includes dates older than the oldest retained pair and partial/legacy readonly layouts. Newer dates and referenced incomplete-transfer parents remain protected. A destination date that exists or whose absence cannot be proven blocks deletion. Known original lineage must match; writable, foreign received or changed native identities are preserved. Bare ordinary directories and non-date entries are never extra-delete candidates.
+
+Once that ownership is proven, ordinary cache listing, cache JSON and ordinary file-entry checks are not deletion prerequisites. Existing files/directories/symlinks inside an authorized dated Btrfs tree are removed as its subvolumes are deleted. No sudo shell/cat/ls/Python is added. The shared tree engine rechecks the exact UUID/ID/readonly lineage and subtree, then uses configured Btrfs `subvolume delete --commit-after --subvolid <id> <verified-cache-root>` deepest-first. Numeric IDs prevent path redirection. Final Btrfs ID enumeration on the unchanged surviving cache root proves the planned IDs are absent; ordinary permission failures are never used as absence proof. Unsupported ID-deletion flags or failed commands leave an explicit retry result. See the [Btrfs subvolume documentation](https://btrfs.readthedocs.io/en/latest/btrfs-subvolume.html).
+
+The source summary separates redundant candidates, confirmed deletion, blocked dates and skip reason from destination/state cleanup. Paired/state counters retain their meaning. For 36 cache dates and 17 UUID-proven retained destination/state pairs, 19 stale cache-only dates can be removed after successful sync without removing a destination or Timeshift original. Ambiguous or protected dates remain.
 
 ### `destroy-leftovers`
 
@@ -1145,6 +1193,7 @@ Timeshift's native timestamp path remains an ordinary directory. Restore mode ch
 | `cache_root` | Source-side root for read-only send-cache snapshots. | Needed when Timeshift snapshots are writable and cannot be sent directly. Must be outside `source.snapshot_root`; do not point it at the Timeshift snapshots directory. If missing, real preflight creates it as a Btrfs subvolume when `create_readonly_cache = true`; its parent must already exist and be Btrfs-accessible. `destroy-leftovers --delete-source` checks this path with configured sudo+Btrfs before falling back to source-shell visibility. |
 | `create_readonly_cache` | Creates read-only cache snapshots for writable source snapshots. | Required for writable Timeshift snapshots because `btrfs send` needs read-only sources. |
 | `cleanup_superseded_cache` | Controls app-owned source send-cache cleanup during retention. | Applies to standalone `prune` and prune invoked after `sync`, in local and SSH modes. The cache date is deleted only after the matching destination date is confirmed gone; normal transfer keeps cache snapshots for incremental parents. |
+| `delete_redundant_snapshots` | Default true; remove proven stale readonly dated cache trees after successful sync. | Reconcile complete pairs, run paired retention, refresh native views and prove cache/state/receiver UUID ownership before deleting untracked dates no newer than the latest pair. Requires cleanup_superseded_cache, requested cleanup, real successful sync and --yes-delete; standalone prune only previews extras. Native ID deletion works without ordinary cache access and removes contents of qualifying Btrfs trees. Dedicated cache_root required; tracked/protected/newer dates, Timeshift originals and destinations stay protected. |
 | `send_compressed_data` | Adds `btrfs send --compressed-data`. | Attempts to preserve already-compressed source extents when supported. It does not configure destination compression; mount the receiving Btrfs filesystem/subvolume with compression enabled if you want destination compression. |
 | `send_proto` | Adds `btrfs send --proto <N>`. | Needed only when you intentionally want a specific Btrfs send protocol version. |
 

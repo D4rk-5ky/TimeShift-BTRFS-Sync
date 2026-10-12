@@ -166,6 +166,11 @@ def parse_subvolume_list(output: str, root_path: str | Path) -> list[SubvolumeMe
                 meta.parent_uuid = value
             elif key == "received_uuid":
                 meta.received_uuid = value
+            elif key == "id":
+                try:
+                    meta.subvolume_id = int(tokens[idx + 1])
+                except ValueError:
+                    pass
         metas.append(meta)
     return metas
 

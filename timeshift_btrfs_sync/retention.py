@@ -70,6 +70,11 @@ class PruneResult:
     cache_cleanup_attempted: int = 0
     cache_cleanup_completed: int = 0
     source_timeshift_cleanup_completed: int = 0
+    redundant_cache_candidates: int = 0
+    redundant_cache_completed: int = 0
+    redundant_cache_blocked: int = 0
+    redundant_cache_cleanup_enabled: bool = False
+    redundant_cache_skip_reason: str = ""
 
     @property
     def cleaned_snapshots(self) -> int:
@@ -151,6 +156,13 @@ def format_prune_cleanup_summaries(
             else:
                 status = "completed"
             lines.append(f"  status:             {status}")
+            if cache:
+                lines.append(f"  redundant cleanup:        {'enabled' if result.redundant_cache_cleanup_enabled else 'disabled'}")
+                lines.append(f"  redundant candidates:     {result.redundant_cache_candidates}")
+                lines.append(f"  redundant confirmed gone: {result.redundant_cache_completed}")
+                lines.append(f"  redundant blocked:        {result.redundant_cache_blocked}")
+        if cache and result is not None and result.redundant_cache_skip_reason:
+            lines.append("  redundant skipped:        " + result.redundant_cache_skip_reason)
         return "\n".join(lines)
 
     return block("DESTINATION CLEANUP SUMMARY", cache=False) + "\n\n" + block(
@@ -878,8 +890,16 @@ def prune(
     dry_run: bool,
     yes_delete: bool,
     source_timeshift_index: dict[str, SnapshotMeta] | None = None,
+    reconcile_inventory: bool = False,
+    successful_sync: bool = False,
 ) -> PruneResult:
-    """Apply backup retention plus paired app-created source O retention."""
+    """Apply paired retention; CLI callers enable inventory reconciliation and bounded extra cache cleanup."""
+
+    context = None
+    if reconcile_inventory:
+        from .reconciliation import prepare_reconciliation
+        context = prepare_reconciliation(config, state, dry_run=dry_run)
+        source_timeshift_index = context.source_by_name
 
     plan = build_prune_plan(config, state)
     if plan.delete and config.retention.keep_latest_common_parent:
@@ -951,12 +971,15 @@ def prune(
         source_delete_authorized=len(source_delete_allowed),
         remaining_state=len(state.get("snapshots", {})),
         cache_cleanup_enabled=bool(config.source.cleanup_superseded_cache and config.source.cache_root),
+        redundant_cache_cleanup_enabled=bool(context is not None and config.source.delete_redundant_snapshots and config.source.cleanup_superseded_cache and config.source.cache_root),
         cache_delete_candidates=sum(
             bool(_source_cache_delete_paths(config, name, state.get("snapshots", {}).get(name, {})))
             for name in plan.delete
         ),
     )
     if dry_run:
+        if context is not None:
+            _apply_redundant_cache_cleanup(config, state, context, cleanup_result, yes_delete=False, successful_sync=successful_sync)
         print("Dry-run: no retention deletes were performed.")
         side_summary = format_prune_cleanup_summaries(cleanup_result)
         print(side_summary)
@@ -1027,6 +1050,8 @@ def prune(
                 legacy_deleted += 1
                 cleanup_result.source_timeshift_cleanup_completed += 1
 
+    if context is not None:
+        _apply_redundant_cache_cleanup(config, state, context, cleanup_result, yes_delete=yes_delete, successful_sync=successful_sync)
     save_state(config.state_file, state)
     cleanup_result.destination_state_deleted = deleted
     cleanup_result.legacy_source_deleted = legacy_deleted
@@ -1050,3 +1075,18 @@ def prune(
     if logger:
         logger.success_text(summary + "\n")
     return cleanup_result
+
+
+def _apply_redundant_cache_cleanup(config: AppConfig, state: dict, context, result: PruneResult, *, yes_delete: bool, successful_sync: bool = False) -> None:
+    """Merge cache-only counters without falsely increasing paired destination/state deletions."""
+
+    from .reconciliation import cleanup_redundant_cache
+
+    extra = cleanup_redundant_cache(config, state, context, dry_run=result.dry_run, yes_delete=yes_delete, successful_sync=successful_sync)
+    result.redundant_cache_skip_reason = extra.skipped_reason
+    result.redundant_cache_candidates = extra.candidates
+    result.redundant_cache_completed = extra.completed
+    result.redundant_cache_blocked = len(extra.blocked)
+    result.cache_delete_candidates += extra.candidates
+    result.cache_cleanup_attempted += extra.attempted
+    result.cache_cleanup_completed += extra.completed

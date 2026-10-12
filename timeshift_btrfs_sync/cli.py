@@ -375,14 +375,17 @@ def _refresh_state_metadata_from_timeshift(config, state: dict, *, dry_run: bool
     return source_by_name
 
 def cmd_list_snapshots(args) -> int:
-    """Report both physical repositories without sudo, state writes or notifications."""
+    """Report repositories and pair differences using configured storage readers without state writes."""
 
     config = load_config(args.config)
     workflow, sections = collect_snapshot_listings(
         config, workflow=args.workflow, include_timeshift=args.include_timeshift,
     )
     print(format_snapshot_listings(workflow, sections))
-    return int(any(section.failed for section in sections))
+    pair_check_failed = args.check_pairs and not any(
+        section.comparison is not None and section.comparison.parity_confirmed() for section in sections
+    )
+    return int(any(section.failed for section in sections) or pair_check_failed)
 
 
 def cmd_list_source(args) -> int:
@@ -455,6 +458,7 @@ def _format_cleanup_summary(
         f"  retry paired items:  {result.retry_destination_state_items:>5}",
         f"  blocked Timeshift app:{result.blocked_source_candidates:>5}",
         f"  remaining in state:  {result.remaining_state:>5}",
+        f"  redundant cache confirmed gone: {result.redundant_cache_completed}",
         "  count basis:        completed paired/state items plus source-only app items",
         "  ordinary source snapshots: retention managed by Timeshift",
     ]
@@ -463,7 +467,7 @@ def _format_cleanup_summary(
             "  status:             dry-run only; no snapshots deleted",
             "  result:             SUCCESS - cleaned 0 snapshots (dry-run)",
         ]
-    elif result.retry_destination_state_items or result.blocked_source_candidates:
+    elif result.retry_destination_state_items or result.blocked_source_candidates or result.cache_delete_candidates > result.cache_cleanup_completed:
         lines += [
             "  status:             completed with protected/retry items",
             f"  result:             SUCCESS - cleaned {result.cleaned_snapshots} snapshot(s); some candidates were retained safely",
@@ -571,7 +575,7 @@ def cmd_sync(args) -> int:
             only_missing=not args.resend,
         )
         if cleanup_requested:
-            final_state["cleanup"] = prune(config, state, dry_run=True, yes_delete=False)
+            final_state["cleanup"] = prune(config, state, dry_run=True, yes_delete=False, reconcile_inventory=True)
         return 0
 
     def _run_locked() -> int:
@@ -588,8 +592,10 @@ def cmd_sync(args) -> int:
             final_state["cleanup"] = prune(
                 config,
                 state,
+                reconcile_inventory=True,
                 dry_run=False,
                 yes_delete=args.yes_delete,
+                successful_sync=True,
             )
         return 0
 
@@ -611,26 +617,24 @@ def cmd_prune(args) -> int:
         print("Run mode: dry-run")
         print("Strict dry-run: no lock file and no destination deletion will be performed.")
         state = _load_config_state(config)
-        source_timeshift_index = _refresh_state_metadata_from_timeshift(config, state, dry_run=True)
         prune(
             config,
             state,
             dry_run=True,
             yes_delete=False,
-            source_timeshift_index=source_timeshift_index,
+            reconcile_inventory=True,
         )
         return 0
 
     def _run_locked() -> int:
         prepare_destination_helper_paths(config, dry_run=False)
         state = _load_config_state(config)
-        source_timeshift_index = _refresh_state_metadata_from_timeshift(config, state, dry_run=False)
         prune(
             config,
             state,
+            reconcile_inventory=True,
             dry_run=False,
             yes_delete=args.yes_delete,
-            source_timeshift_index=source_timeshift_index,
         )
         return 0
 
@@ -920,9 +924,11 @@ def build_parser() -> argparse.ArgumentParser:
             "Use configured source/destination sudo prefixes only for Btrfs/Timeshift reads.\n"
             "Timeshift --list supplies source tags/descriptions; omitted dates use ordinary JSON reads.\n"
             "Btrfs lists discover protected paths and nested payloads without requiring sudo ls/cat.\n"
+            "Always compare cache/destination dates and full readonly send/Received UUID pairs.\n"
             "No sudo shell/file-reader/df, app locks/state/log writes, notifications, transfers,\n"
             "snapshot creation or cleanup are performed. Timeshift --list can mount its normal repository.\n"
-            "Permission/tool failures remain visible and exit 1 after reporting the other side."
+            "Permission/tool failures remain visible and exit 1 after reporting the other side.\n"
+            "Pair differences are warnings by default; --check-pairs also makes them exit 1."
         ),
         cmd_list_snapshots,
         epilog=(
@@ -937,11 +943,15 @@ def build_parser() -> argparse.ArgumentParser:
             "Rows are physical dates plus Timeshift-listed dates not confirmed below snapshot_root.\n"
             "Metadata origins are labeled; missing originals may use an existing target copy only\n"
             "when all configured live readonly payload UUIDs match. No state metadata is invented.\n"
-            "Free space prefers ordinary df, with labeled Btrfs usage fallback if df is denied.\n"
+            "Free space prefers ordinary df; native Btrfs reads resolve denied reads/unknown types.\n"
             "Cache/target own info.json is read without sudo; unresolved metadata remains unknown."
         ),
     )
     add_config_arg(p)
+    p.add_argument(
+        "--check-pairs", action="store_true",
+        help="exit 1 unless enabled cache/destination inventories are complete and every date has a matching readonly UUID pair; comparison is always displayed, without cleanup or state writes",
+    )
     p.add_argument(
         "--workflow", choices=("auto", "backup", "restore"), default="auto",
         help="endpoint interpretation; auto (default) follows non-local restore.mode, otherwise backup; backup follows source.mode with local destination; restore follows restore.mode for both hosts",
@@ -1053,7 +1063,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_yes_delete_arg(
         p,
-        "authorize actual retention deletion during a real sync when --prune or prune_after_sync=true requests pruning; has no force/override effect on non-retention safety checks",
+        "authorize actual paired retention and configured redundant-cache deletion during a real sync when --prune or prune_after_sync=true requests pruning; has no force/override effect on non-retention safety checks",
     )
 
     p = new_subparser(
@@ -1061,9 +1071,11 @@ def build_parser() -> argparse.ArgumentParser:
         "prune",
         "apply retention rules",
         (
-            "Apply retention without transferring new snapshots. Destination retention follows [retention].\n"
+            "Reconcile complete missing repository pairs, then apply retention without transferring snapshots.\n"
             "App-created tag O snapshots can also be retired from Timeshift only when they still match\n"
-            "manual_snapshot.marker and their required backup payloads are proven complete."
+            "manual_snapshot.marker and their required backup payloads are proven complete.\n"
+            "source.delete_redundant_snapshots (default true) previews proven stale readonly cache dates.\n"
+            "Real redundant-cache deletion runs only after successful sync; standalone prune does not delete extras."
         ),
         cmd_prune,
         epilog=(
@@ -1080,12 +1092,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_config_arg(p)
     add_run_mode_args(
         p,
-        dry_run_help="force preview mode: refresh/read metadata and show retention decisions, but do not create a lock, save state changes, or delete anything",
+        dry_run_help="force preview mode: reconcile state in memory and show retention/redundant-cache decisions; no lock, state write or deletion",
         run_help="force real prune mode: acquire the lock and apply retention; actual deletion still requires --yes-delete",
     )
     add_yes_delete_arg(
         p,
-        "explicit authorization for real retention deletes; required in addition to real-run mode whenever the plan contains destination/source deletions",
+        "explicit authorization for real paired retention or redundant cache-only deletes; requires real-run mode and never bypasses UUID/layout/ownership protections",
     )
 
     p = new_subparser(
