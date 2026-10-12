@@ -16,6 +16,8 @@ from timeshift_btrfs_sync.commands import Completed
 from timeshift_btrfs_sync.config import CONFIG_PROFILES, load_config
 from timeshift_btrfs_sync.endpoint import CommandEndpoint
 from timeshift_btrfs_sync.restore import BackupDirectoryRecord
+from timeshift_btrfs_sync.inventory import BtrfsIndex
+from timeshift_btrfs_sync.models import SubvolumeMeta
 from test_manual_snapshot_retention import _config
 
 
@@ -103,8 +105,11 @@ class SnapshotListingTests(TestCase):
         self.assertTrue(section.failed)
         self.assertIn("@: symlink", " ".join(section.rows[0].notes))
 
-    def test_cache_metadata_is_live_source_not_cache_or_state(self):
+    def test_cache_own_metadata_precedes_live_source_fallback(self):
         cache = _record(tags="hourly")
+        section = self._section(cache, metadata={NAME: _record(tags="weekly monthly")})
+        self.assertEqual(section.rows[0].tags, "H")
+        cache.info_content = None
         section = self._section(cache, metadata={NAME: _record(tags="weekly monthly")})
         self.assertEqual(section.rows[0].tags, "W M")
         section = self._section(cache, metadata={})
@@ -147,25 +152,28 @@ class SnapshotListingTests(TestCase):
 
     def test_all_eight_profiles_choose_actual_hosts_in_auto(self):
         data = Path(__file__).parents[1] / "timeshift_btrfs_sync/data"
-        with mock.patch.object(listing, "_scan_unprivileged", return_value={}), mock.patch.object(listing, "_filesystem_space", return_value=SPACE), mock.patch.object(listing, "_probe_payloads", return_value={}):
+        with mock.patch.object(listing, "_scan_unprivileged", return_value={}), mock.patch.object(listing, "_filesystem_space", return_value=SPACE), mock.patch.object(listing, "_probe_payloads", return_value={}), mock.patch.object(listing, "_discover_repository", return_value=(BtrfsIndex("/test", "local"), {}, [], None, "device")), mock.patch.object(listing, "_run_batched_commands", return_value={0: Completed(0,"","")}):
             for filename, _description in CONFIG_PROFILES.values():
                 config = load_config(data / filename)
                 with mock.patch.object(listing, "_collect_section", wraps=listing._collect_section) as collect:
                     workflow, sections = listing.collect_snapshot_listings(config, include_timeshift=True)
-                source, destination, originals = (call.args[1] for call in collect.call_args_list)
+                originals, source, destination = (call.args[1] for call in collect.call_args_list)
                 restore = config.restore.mode != "local"
                 expected_source = config.restore.timeshift_uses_ssh if restore else config.source.mode == "ssh"
                 expected_dest = config.restore.backup_uses_ssh if restore else False
                 self.assertEqual(source.location, "remote" if expected_source else "local", filename)
                 self.assertEqual(destination.location, "remote" if expected_dest else "local", filename)
                 self.assertEqual(originals.location, source.location)
+                self.assertEqual(collect.call_args_list[0].kwargs["sudo"], config.source.sudo)
+                self.assertEqual(collect.call_args_list[1].kwargs["sudo"], config.source.sudo)
+                self.assertEqual(collect.call_args_list[2].kwargs["sudo"], config.destination.sudo)
                 self.assertEqual(workflow, "restore" if restore else "backup")
                 self.assertEqual(len(sections), 3)
 
     def test_explicit_restore_local_ignores_sync_ssh_source(self):
         data = Path(__file__).parents[1] / "timeshift_btrfs_sync/data/config.example.toml"
         config = load_config(data)
-        with mock.patch.object(listing, "_scan_unprivileged", return_value={}), mock.patch.object(listing, "_filesystem_space", return_value=SPACE), mock.patch.object(listing, "_probe_payloads", return_value={}):
+        with mock.patch.object(listing, "_scan_unprivileged", return_value={}), mock.patch.object(listing, "_filesystem_space", return_value=SPACE), mock.patch.object(listing, "_probe_payloads", return_value={}), mock.patch.object(listing, "_discover_repository", return_value=(BtrfsIndex("/test", "local"), {}, [], None, "device")), mock.patch.object(listing, "_run_batched_commands", return_value={0: Completed(0,"","")}):
             workflow, sections = listing.collect_snapshot_listings(config, workflow="restore")
         self.assertEqual(workflow, "restore")
         self.assertTrue(all(section.location.startswith("local") for section in sections))
@@ -177,13 +185,14 @@ class SnapshotListingTests(TestCase):
                 raise RuntimeError("source denied")
             return {NAME: _record()}
         probes = {f"/backup/snapshots/{NAME}/{p}": Completed(0, SHOW, "") for p in ("@", "@home")}
-        with mock.patch.object(listing, "_scan_unprivileged", side_effect=scan), mock.patch.object(listing, "_filesystem_space", return_value=SPACE), mock.patch.object(listing, "_probe_payloads", return_value=probes):
+        with mock.patch.object(listing, "_scan_unprivileged", side_effect=scan), mock.patch.object(listing, "_filesystem_space", return_value=SPACE), mock.patch.object(listing, "_probe_payloads", return_value=probes), mock.patch.object(listing, "_discover_repository", return_value=(BtrfsIndex("/test", "local"), {}, [], None, "device")), mock.patch.object(listing, "_run_batched_commands", return_value={0: Completed(0,"","")}):
             workflow, sections = listing.collect_snapshot_listings(_config())
-        self.assertTrue(sections[0].failed)
+        self.assertFalse(sections[0].failed)
         self.assertFalse(sections[1].failed)
+        self.assertFalse(sections[2].failed)
         text = listing.format_snapshot_listings(workflow, sections)
         self.assertIn("source denied", text)
-        self.assertIn("DESTINATION BACKUP SNAPSHOTS", text)
+        self.assertIn("TARGET_ROOT SNAPSHOTS", text)
         self.assertIn(NAME, text)
 
     def test_cli_returns_failure_after_printing_all_sections_without_run_logging(self):

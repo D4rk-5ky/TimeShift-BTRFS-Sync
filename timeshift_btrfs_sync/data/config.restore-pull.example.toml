@@ -1,4 +1,8 @@
-# timeshift-btrfs-sync v0.1.93 remote-backup pull-restore config
+# timeshift-btrfs-sync v0.1.95 remote-backup pull-restore config
+# Inventory: ts-btrfs list-snapshots --config ./config.toml
+# Prints Timeshift, cache_root, target_root; uses configured sudo only for Btrfs/Timeshift reads.
+# Timeshift supplies source metadata; omitted dates use ordinary source info.json reads.
+# Cache/target own info.json and df are read without sudo; stored tags and reader failures stay visible.
 # Run this config on the LOCAL Timeshift machine that will receive the restore.
 # This profile is for: SSH BACKUP HOST -> LOCAL TIMESHIFT RESTORE.
 # [restore] mode = "ssh" selects the remote backup transport directly.

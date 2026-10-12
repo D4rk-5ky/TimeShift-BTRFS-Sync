@@ -1,4 +1,4 @@
-# Commented code map — TimeShift-BTRFS-Sync 0.1.93
+# Commented code map — TimeShift-BTRFS-Sync 0.1.95
 
 This file explains every Python class, function, method and nested callback in the current project, plus application commands and supplied shell/integration commands. Line numbers refer to this release. COMMENTED_CODE_MAP.md is the canonical code map; VERSIONING.md is the canonical version ledger.
 
@@ -778,6 +778,54 @@ Runtime layers reuse CommandEndpoint, BtrfsOps, CacheManager, inventory, Workflo
 
 - `RestoreTopologyRegressionTests.test_privileged_physical_scanner_prefixes_individual_read_only_commands` (function/method, line 193): Regression assertion: privileged physical scanner prefixes individual read only commands. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestoreTopologyRegressionTests` to use its existing endpoint, state or callback context.
 
+## `tests/test_restricted_snapshot_listing.py`
+
+**Role:** Regression tests. Restricted sudo discovery and truthful metadata fallbacks for service accounts.
+
+**Why:** Keeps test fixtures and assertions close to the behavior they verify so regressions can be reproduced without production data.
+
+- `_row` (function/method, line 23): Build a two-payload observed date with exact source/received stream identities. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `RestrictedSnapshotListingTests` (class, line 33): Check the user's Btrfs/Timeshift-only sudo model without requiring a root login. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `RestrictedSnapshotListingTests.test_timeshift_is_primary_only_for_originals` (function/method, line 36): Current Timeshift tags replace source observations while own cache/target tags stay independent. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests.test_source_metadata_reads_skip_only_compatible_timeshift_names` (function/method, line 49): Avoid rereading known source JSON, but retain ordinary reads for omitted dates or a mismatched root. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests.test_failed_ordinary_scan_still_skips_known_source_json` (function/method, line 60): A Btrfs-only physical inventory does not trigger redundant reads of Timeshift-supplied JSON. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests.test_ordinary_json_fallback_reads_only_unlisted_dates` (function/method, line 68): Read omitted-date metadata as the login user without opening the known date's file. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests.test_skipping_source_json_preserves_restore_scanner_default` (function/method, line 87): Listing can skip file contents while restore's default still reads the original JSON and entries. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests._collect` (function/method, line 101): Isolate transport reads while retaining the real merge, proof and table ordering. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests.test_default_order_and_timeshift_metadata_survive_denied_json` (function/method, line 111): Regression assertion: default order and timeshift metadata survive denied json. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests.test_timeshift_failure_keeps_physical_rows_and_other_sides` (function/method, line 126): Regression assertion: timeshift failure keeps physical rows and other sides. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests.test_wrong_timeshift_filesystem_cannot_supply_tags` (function/method, line 136): Regression assertion: wrong timeshift filesystem cannot supply tags. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests.test_expired_original_cache_uses_verified_target_metadata` (function/method, line 144): Regression assertion: expired original cache uses verified target metadata. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests.test_mismatch_missing_or_writable_sibling_blocks_metadata_borrowing` (function/method, line 153): Regression assertion: mismatch missing or writable sibling blocks metadata borrowing. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests.test_btrfs_discovery_queries_nested_date_containers_with_only_approved_commands` (function/method, line 168): Regression assertion: btrfs discovery queries nested date containers with only approved commands. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests.test_btrfs_discovery_queries_nested_date_containers_with_only_approved_commands.batches` (function/method, line 171): Simulate root-only enumeration and second-level readonly payloads. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests.test_btrfs_discovery_queries_nested_date_containers_with_only_approved_commands` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests.test_denied_ls_does_not_prevent_complete_btrfs_inventory` (function/method, line 191): Regression assertion: denied ls does not prevent complete btrfs inventory. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests.test_failed_date_query_retains_other_dates_and_reports_partial_inventory` (function/method, line 205): Regression assertion: failed date query retains other dates and reports partial inventory. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests.test_failed_date_query_retains_other_dates_and_reports_partial_inventory.batches` (function/method, line 207): Simulate one vanished date without losing a different successful date. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests.test_failed_date_query_retains_other_dates_and_reports_partial_inventory` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests.test_df_denial_falls_back_to_sudo_btrfs_usage` (function/method, line 224): Regression assertion: df denial falls back to sudo btrfs usage. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests.test_json_reads_are_unprivileged_and_refuse_symlinks` (function/method, line 238): Regression assertion: json reads are unprivileged and refuse symlinks. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests` to use its existing endpoint, state or callback context.
+
+- `RestrictedSnapshotListingTests.test_unconfirmed_timeshift_dates_are_visible_and_not_counted_as_verified` (function/method, line 255): Regression assertion: unconfirmed timeshift dates are visible and not counted as verified. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `RestrictedSnapshotListingTests` to use its existing endpoint, state or callback context.
+
 ## `tests/test_retention_cleanup_accounting.py`
 
 **Role:** Regression tests. Verify each retention side is counted without changing deletion safety.
@@ -924,57 +972,57 @@ Runtime layers reuse CommandEndpoint, BtrfsOps, CacheManager, inventory, Workflo
 
 **Why:** Keeps test fixtures and assertions close to the behavior they verify so regressions can be reproduced without production data.
 
-- `_record` (function/method, line 27): Create a discovered physical date with native Timeshift metadata. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+- `_record` (function/method, line 29): Create a discovered physical date with native Timeshift metadata. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
 
-- `SnapshotListingTests` (class, line 33): Verify truthful reports and transport/privilege boundaries across every profile. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+- `SnapshotListingTests` (class, line 35): Verify truthful reports and transport/privilege boundaries across every profile. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
 
-- `SnapshotListingTests._section` (function/method, line 36): Reuse the shared config fixture and isolate only external discovery/probes. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests._section` (function/method, line 38): Reuse the shared config fixture and isolate only external discovery/probes. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_named_tags_do_not_invent_ondemand_or_boot` (function/method, line 45): Regression assertion: named tags do not invent ondemand or boot. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_named_tags_do_not_invent_ondemand_or_boot` (function/method, line 47): Regression assertion: named tags do not invent ondemand or boot. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_compact_tags_and_unknown_metadata` (function/method, line 49): Regression assertion: compact tags and unknown metadata. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_compact_tags_and_unknown_metadata` (function/method, line 51): Regression assertion: compact tags and unknown metadata. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_remote_comments_cannot_inject_terminal_controls` (function/method, line 57): Regression assertion: remote comments cannot inject terminal controls. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_remote_comments_cannot_inject_terminal_controls` (function/method, line 59): Regression assertion: remote comments cannot inject terminal controls. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_pair_counts_once_and_readonly_is_visible` (function/method, line 64): Regression assertion: pair counts once and readonly is visible. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_pair_counts_once_and_readonly_is_visible` (function/method, line 66): Regression assertion: pair counts once and readonly is visible. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_incomplete_and_unverified_dates_stay_visible` (function/method, line 78): Regression assertion: incomplete and unverified dates stay visible. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_incomplete_and_unverified_dates_stay_visible` (function/method, line 80): Regression assertion: incomplete and unverified dates stay visible. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_permission_denied_is_visible_without_fallback` (function/method, line 88): Regression assertion: permission denied is visible without fallback. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_permission_denied_is_visible_without_fallback` (function/method, line 90): Regression assertion: permission denied is visible without fallback. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_symlink_date_and_payload_not_probed` (function/method, line 94): Regression assertion: symlink date and payload not probed. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_symlink_date_and_payload_not_probed` (function/method, line 96): Regression assertion: symlink date and payload not probed. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_cache_metadata_is_live_source_not_cache_or_state` (function/method, line 106): Regression assertion: cache metadata is live source not cache or state. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_cache_own_metadata_precedes_live_source_fallback` (function/method, line 108): Regression assertion: cache own metadata precedes live source fallback. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_disabled_cache_reports_source_filesystem` (function/method, line 114): Regression assertion: disabled cache reports source filesystem. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_disabled_cache_reports_source_filesystem` (function/method, line 119): Regression assertion: disabled cache reports source filesystem. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_empty_repository_is_distinct_from_unavailable` (function/method, line 122): Regression assertion: empty repository is distinct from unavailable. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_empty_repository_is_distinct_from_unavailable` (function/method, line 127): Regression assertion: empty repository is distinct from unavailable. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_wrong_filesystem_is_reported_even_for_empty_repository` (function/method, line 130): Regression assertion: wrong filesystem is reported even for empty repository. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_wrong_filesystem_is_reported_even_for_empty_repository` (function/method, line 135): Regression assertion: wrong filesystem is reported even for empty repository. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_real_batch_execution_quotes_paths_and_preserves_failures` (function/method, line 136): Regression assertion: real batch execution quotes paths and preserves failures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_real_batch_execution_quotes_paths_and_preserves_failures` (function/method, line 141): Regression assertion: real batch execution quotes paths and preserves failures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_all_eight_profiles_choose_actual_hosts_in_auto` (function/method, line 148): Regression assertion: all eight profiles choose actual hosts in auto. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_all_eight_profiles_choose_actual_hosts_in_auto` (function/method, line 153): Regression assertion: all eight profiles choose actual hosts in auto. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_explicit_restore_local_ignores_sync_ssh_source` (function/method, line 165): Regression assertion: explicit restore local ignores sync ssh source. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_explicit_restore_local_ignores_sync_ssh_source` (function/method, line 173): Regression assertion: explicit restore local ignores sync ssh source. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_source_failure_does_not_hide_destination` (function/method, line 173): Regression assertion: source failure does not hide destination. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_source_failure_does_not_hide_destination` (function/method, line 181): Regression assertion: source failure does not hide destination. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_source_failure_does_not_hide_destination.scan` (function/method, line 174): Simulate inaccessible source and a readable backup date. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests.test_source_failure_does_not_hide_destination` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_source_failure_does_not_hide_destination.scan` (function/method, line 182): Simulate inaccessible source and a readable backup date. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests.test_source_failure_does_not_hide_destination` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_cli_returns_failure_after_printing_all_sections_without_run_logging` (function/method, line 189): Regression assertion: cli returns failure after printing all sections without run logging. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_cli_returns_failure_after_printing_all_sections_without_run_logging` (function/method, line 198): Regression assertion: cli returns failure after printing all sections without run logging. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_df_parses_localized_environment_and_spaced_mount` (function/method, line 198): Regression assertion: df parses localized environment and spaced mount. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_df_parses_localized_environment_and_spaced_mount` (function/method, line 207): Regression assertion: df parses localized environment and spaced mount. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_actual_local_scan_and_df_need_no_privilege` (function/method, line 211): Regression assertion: actual local scan and df need no privilege. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_actual_local_scan_and_df_need_no_privilege` (function/method, line 220): Regression assertion: actual local scan and df need no privilege. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_batch_probes_reuse_btrfs_argv_and_do_not_inject_sudo` (function/method, line 223): Regression assertion: batch probes reuse btrfs argv and do not inject sudo. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_batch_probes_reuse_btrfs_argv_and_do_not_inject_sudo` (function/method, line 232): Regression assertion: batch probes reuse btrfs argv and do not inject sudo. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_truncated_or_duplicate_batch_response_fails` (function/method, line 238): Regression assertion: truncated or duplicate batch response fails. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_truncated_or_duplicate_batch_response_fails` (function/method, line 247): Regression assertion: truncated or duplicate batch response fails. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_large_repository_uses_bounded_batches_without_losing_rows` (function/method, line 245): Regression assertion: large repository uses bounded batches without losing rows. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_large_repository_uses_bounded_batches_without_losing_rows` (function/method, line 254): Regression assertion: large repository uses bounded batches without losing rows. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests` to use its existing endpoint, state or callback context.
 
-- `SnapshotListingTests.test_large_repository_uses_bounded_batches_without_losing_rows.respond` (function/method, line 248): Return one flag frame per request in each bounded transport batch. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests.test_large_repository_uses_bounded_batches_without_losing_rows` to use its existing endpoint, state or callback context.
+- `SnapshotListingTests.test_large_repository_uses_bounded_batches_without_losing_rows.respond` (function/method, line 257): Return one flag frame per request in each bounded transport batch. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SnapshotListingTests.test_large_repository_uses_bounded_batches_without_losing_rows` to use its existing endpoint, state or callback context.
 
 ## `tests/test_source_inventory.py`
 
@@ -1450,7 +1498,7 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 - `build_parser` (function/method, line 852): Create the argparse parser and complete command-specific flag help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `main` (function/method, line 1311): Parse and dispatch CLI arguments; translate configuration, lock, runtime and interruption errors to documented exit codes. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `main` (function/method, line 1314): Parse and dispatch CLI arguments; translate configuration, lock, runtime and interruption errors to documented exit codes. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
 ## `timeshift_btrfs_sync/commands.py`
 
@@ -1674,29 +1722,45 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 ## `timeshift_btrfs_sync/listing.py`
 
-**Role:** Current source/build entry. Read-only, unprivileged snapshot and filesystem reports for both endpoints.
+**Role:** Current source/build entry. Read-only inventory using the configured restricted Btrfs/Timeshift privileges.
 
-**Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+**Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `SnapshotListingRow` (class, line 23): One physical date, retaining incomplete or inaccessible payloads visibly. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+- `SnapshotListingRow` (class, line 26): One physical date, retaining incomplete or inaccessible payloads visibly. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `SnapshotListingSection` (class, line 36): Independent endpoint outcome so one failed side cannot hide the other. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+- `SnapshotListingSection` (class, line 41): Independent endpoint outcome so one failed side cannot hide the other. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_terminal_text` (function/method, line 48): Remove terminal controls and collapse lines in untrusted remote metadata. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+- `_terminal_text` (function/method, line 54): Remove terminal controls and collapse lines in untrusted remote metadata. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_snapshot_description` (function/method, line 54): Decode Timeshift's named retention tags without misreading 'hourly' as O/H. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+- `_snapshot_description` (function/method, line 60): Decode Timeshift's named retention tags without misreading 'hourly' as O/H. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_filesystem_space` (function/method, line 87): Read GNU df's available filesystem space without mounting or using sudo. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+- `_filesystem_space` (function/method, line 94): Read GNU df's available filesystem space without mounting or using sudo. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_scan_unprivileged` (function/method, line 105): Reuse physical repository discovery with an explicitly empty privilege prefix. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+- `_scan_unprivileged` (function/method, line 112): Reuse ordinary physical discovery, optionally skipping JSON already supplied by Timeshift. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_probe_payloads` (function/method, line 111): Batch Btrfs subvolume read-only property reads without privileged tree searches. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+- `_run_batched_commands` (function/method, line 118): Batch captured reads with bounded shell arguments and per-command failure framing. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `_collect_section` (function/method, line 156): Probe physical payloads with Btrfs and keep errors visible instead of inferring state. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+- `_probe_payloads` (function/method, line 162): Read exact subvolume flags through the same configured Btrfs privilege prefix. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `collect_snapshot_listings` (function/method, line 245): Resolve backup/restore hosts once and independently inventory both configured repositories. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+- `_filesystem_identity` (function/method, line 169): Parse filesystem UUID and all device paths from Btrfs filesystem show output. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
-- `format_snapshot_listings` (function/method, line 292): Render Timeshift-style name/tag/description tables and independent df summaries. **Why:** Reports live snapshot and filesystem observations across the existing local/SSH endpoints without privilege elevation or mutation; retains unknown and incomplete results so the output does not fabricate backup/restore safety.
+- `_add_listing_index` (function/method, line 177): Reuse scoped Btrfs parsers and preserve unknown flags when readonly listing fails. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+
+- `_discover_repository` (function/method, line 190): Discover protected dates and nested payloads using only sudo-authorized Btrfs reads. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+
+- `_read_listing_metadata` (function/method, line 230): Read regular info.json as the login user, excluding dates already supplied by Timeshift; never sudo a file reader. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+
+- `_space_with_btrfs_fallback` (function/method, line 250): Prefer normal df; if path traversal denies it, read Btrfs usage with approved sudo. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+
+- `_collect_section` (function/method, line 269): Combine Btrfs-authorized discovery with ordinary JSON reads without requiring sudo ls/cat. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+
+- `_set_listing_metadata` (function/method, line 400): Apply a labeled live metadata observation, retaining other diagnostics. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+
+- `_matching_listing_payloads` (function/method, line 407): Require all configured live RO payloads to share send/received UUIDs before borrowing metadata. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+
+- `collect_snapshot_listings` (function/method, line 420): Report Timeshift, cache and backup in order using their actual configured local/SSH hosts. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
+
+- `format_snapshot_listings` (function/method, line 507): Render Timeshift-style name/tag/description tables and independent df summaries. **Why:** Reports ordered Timeshift/cache/target observations with the existing restricted Btrfs/Timeshift sudo readers; ordinary JSON/df readers remain unprivileged, fallback origins are labeled and unknown/incomplete results never fabricate transfer or restore safety.
 
 ## `timeshift_btrfs_sync/lock.py`
 
@@ -2042,69 +2106,69 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 - `_scan_snapshot_directories` (function/method, line 174): Scan physical Timeshift-style date directories and their control files. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_read_privileged_file` (function/method, line 282): Read one regular non-symlink file through individually privileged commands. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_read_privileged_file` (function/method, line 286): Read one regular non-symlink file through individually privileged commands. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_effective_send_uuid` (function/method, line 353): Return the UUID identity carried by a Btrfs send stream. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_effective_send_uuid` (function/method, line 357): Return the UUID identity carried by a Btrfs send stream. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_info_os_identity` (function/method, line 367): Return Timeshift provenance identity while ignoring mutable fields. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_info_os_identity` (function/method, line 371): Return Timeshift provenance identity while ignoring mutable fields. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_parse_info_json` (function/method, line 389): Parse one Timeshift control file and extract its provenance identity. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_parse_info_json` (function/method, line 393): Parse one Timeshift control file and extract its provenance identity. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_same_os_identity` (function/method, line 401): Return whether two Timeshift control files have matching provenance. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_same_os_identity` (function/method, line 405): Return whether two Timeshift control files have matching provenance. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_consistent_backup_identity` (function/method, line 412): Require one non-conflicting provenance identity across the backup set. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_consistent_backup_identity` (function/method, line 416): Require one non-conflicting provenance identity across the backup set. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_timeshift_info_identities` (function/method, line 439): Parse provenance identities from the coherent source info.json inventory. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_timeshift_info_identities` (function/method, line 443): Parse provenance identities from the coherent source info.json inventory. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_timeshift_info_diagnostic` (function/method, line 452): Return a concise reason when source ``info.json`` provenance is unavailable. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_timeshift_info_diagnostic` (function/method, line 456): Return a concise reason when source ``info.json`` provenance is unavailable. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_compare_repository_os_identity` (function/method, line 478): Compare backup provenance with currently readable Timeshift control files. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_compare_repository_os_identity` (function/method, line 482): Compare backup provenance with currently readable Timeshift control files. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `RestorePlan` (class, line 511): A side-effect-free single or chain restore plan. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `RestorePlan` (class, line 515): A side-effect-free single or chain restore plan. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `RestorePlan.seed_name` (property, line 526): Return the first chain date that must be full-seeded, or None for an empty plan. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots. Scoped within `RestorePlan` to use its existing endpoint, state or callback context.
+- `RestorePlan.seed_name` (property, line 530): Return the first chain date that must be full-seeded, or None for an empty plan. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots. Scoped within `RestorePlan` to use its existing endpoint, state or callback context.
 
-- `_source_path_exists` (function/method, line 530): Check one Timeshift-side path through the configured source privilege. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_source_path_exists` (function/method, line 534): Check one Timeshift-side path through the configured source privilege. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_privileged_argv` (function/method, line 550): Prefix Timeshift-side utility arguments with the configured source privilege command. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_privileged_argv` (function/method, line 554): Prefix Timeshift-side utility arguments with the configured source privilege command. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_write_source_info_json` (function/method, line 554): Write exact captured metadata through the configured source privilege prefix. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_write_source_info_json` (function/method, line 558): Write exact captured metadata through the configured source privilege prefix. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_validate_backup_snapshot` (function/method, line 595): Validate one backup date, payload set, metadata file, and Btrfs identity. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_validate_backup_snapshot` (function/method, line 599): Validate one backup date, payload set, metadata file, and Btrfs identity. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_discover_backups` (function/method, line 673): Return selected or all valid backups ordered by Timeshift timestamp. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_discover_backups` (function/method, line 677): Return selected or all valid backups ordered by Timeshift timestamp. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_timeshift_snapshots` (function/method, line 698): Read one coherent Timeshift repository/cache/info inventory. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_timeshift_snapshots` (function/method, line 702): Read one coherent Timeshift repository/cache/info inventory. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_exact_timeshift_payload_meta` (function/method, line 776): Return exact live metadata for one Timeshift payload. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_exact_timeshift_payload_meta` (function/method, line 780): Return exact live metadata for one Timeshift payload. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_state_payload_proof` (function/method, line 799): Check the two UUID links recorded for one completed transfer. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_state_payload_proof` (function/method, line 803): Check the two UUID links recorded for one completed transfer. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_live_payload_proof` (function/method, line 829): Prove one payload directly from current Btrfs metadata. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_live_payload_proof` (function/method, line 833): Prove one payload directly from current Btrfs metadata. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_find_latest_common_parent` (function/method, line 891): Find the newest safely confirmed timestamp present in both repositories. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_find_latest_common_parent` (function/method, line 895): Find the newest safely confirmed timestamp present in both repositories. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_build_restore_plan` (function/method, line 1070): Build a single or complete-chain restore plan without changing either side. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_build_restore_plan` (function/method, line 1074): Build a single or complete-chain restore plan without changing either side. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_remove_restore_directory` (function/method, line 1204): Remove one exact app-created ordinary restore directory and its payloads. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_remove_restore_directory` (function/method, line 1208): Remove one exact app-created ordinary restore directory and its payloads. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_cleanup_restore_attempt` (function/method, line 1258): Roll back only directories created by the current restore attempt. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_cleanup_restore_attempt` (function/method, line 1262): Roll back only directories created by the current restore attempt. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_create_pre_restore_snapshot` (function/method, line 1318): Create and verify one safety snapshot on the Timeshift restore target. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_create_pre_restore_snapshot` (function/method, line 1322): Create and verify one safety snapshot on the Timeshift restore target. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_print_restored_snapshot_retention_warning` (function/method, line 1415): Explain that restored Timeshift tags remain subject to normal retention. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_print_restored_snapshot_retention_warning` (function/method, line 1419): Explain that restored Timeshift tags remain subject to normal retention. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_print_restore_plan` (function/method, line 1432): Print endpoint ownership, selected dates, common-parent/provenance proofs and restore/retention warnings before execution. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_print_restore_plan` (function/method, line 1436): Print endpoint ownership, selected dates, common-parent/provenance proofs and restore/retention warnings before execution. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_is_missing_incremental_parent_error` (function/method, line 1501): Return whether Btrfs failed because a parent/clone UUID was unavailable. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_is_missing_incremental_parent_error` (function/method, line 1505): Return whether Btrfs failed because a parent/clone UUID was unavailable. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_remove_partial_received_payload` (function/method, line 1521): Delete only a failed receive's exact partial Btrfs child before retry. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_remove_partial_received_payload` (function/method, line 1525): Delete only a failed receive's exact partial Btrfs child before retry. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_run_restore_stream` (function/method, line 1547): Run one topology-independent backup-send to Timeshift-receive stream. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_run_restore_stream` (function/method, line 1551): Run one topology-independent backup-send to Timeshift-receive stream. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `_receive_restore_payload` (function/method, line 1578): Receive and verify one hidden-chain payload for every restore topology. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `_receive_restore_payload` (function/method, line 1582): Receive and verify one hidden-chain payload for every restore topology. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
-- `restore_backups` (function/method, line 1671): Restore one snapshot or a complete backup chain into Timeshift. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
+- `restore_backups` (function/method, line 1675): Restore one snapshot or a complete backup chain into Timeshift. **Why:** Validates physical backup dates, metadata, provenance and payload UUIDs before constructing a hidden read-only receive chain and exposing writable Timeshift snapshots.
 
 ## `timeshift_btrfs_sync/retention.py`
 
@@ -2572,11 +2636,12 @@ An existing file is preserved unless --force is supplied. Edit all host/path set
 
 ### `list-snapshots` → `cli.cmd_list_snapshots`
 
-Read both physical repositories and print Timeshift-style tables plus df free space.
-Uses unprivileged directory/info.json reads, btrfs property get -ts PATH ro and df on each endpoint.
-Configured source/destination sudo prefixes are ignored; no mounts, locks, state/log writes,
-notifications, transfers, snapshot creation or cleanup are performed.
-Paths must already be mounted and readable by the local or SSH login account.
+Print Timeshift snapshots, cache_root snapshots, then target_root snapshots, with space on each side.
+Use configured source/destination sudo prefixes only for Btrfs/Timeshift reads.
+Timeshift --list supplies source tags/descriptions; omitted dates use ordinary JSON reads.
+Btrfs lists discover protected paths and nested payloads without requiring sudo ls/cat.
+No sudo shell/file-reader/df, app locks/state/log writes, notifications, transfers,
+snapshot creation or cleanup are performed. Timeshift --list can mount its normal repository.
 Permission/tool failures remain visible and exit 1 after reporting the other side.
 
 Auto uses restore rules if restore.mode is ssh or ssh-target, otherwise backup rules.
@@ -2589,9 +2654,11 @@ Examples:
   ts-btrfs list-snapshots --config ./config.toml
   ts-btrfs list-snapshots --config ./restore.toml --workflow restore --include-timeshift
 
-Rows are date directories; configured payloads are verified individually with Btrfs.
-Unverified/incomplete rows stay visible. Missing info.json shows unknown tags, never
-invented state metadata. df availability is not guaranteed receive capacity.
+Rows are physical dates plus Timeshift-listed dates not confirmed below snapshot_root.
+Metadata origins are labeled; missing originals may use an existing target copy only
+when all configured live readonly payload UUIDs match. No state metadata is invented.
+Free space prefers ordinary df, with labeled Btrfs usage fallback if df is denied.
+Cache/target own info.json is read without sudo; unresolved metadata remains unknown.
 
 ### `test-source` → `cli.cmd_test_source`
 
@@ -2774,7 +2841,7 @@ Use --json when you need the complete stored structure for diagnosis or automati
 - `dist/ts-btrfs`: original executable, independently verified to report 0.1.84. Kept unchanged; rebuild to obtain an executable for the source release.
 - The older nested project and its duplicate docs/tests/helpers were removed. Root documents describe current usage; REMOVED_NESTED_SOURCES.md lists every former path.
 
-Coverage: 541 current source/build symbols; 516 root test symbols.
+Coverage: 549 current source/build symbols; 537 root test symbols.
 
 ## Python environment installation
 

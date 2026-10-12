@@ -1,4 +1,8 @@
-# timeshift-btrfs-sync v0.1.93 config
+# timeshift-btrfs-sync v0.1.95 config
+# Inventory: ts-btrfs list-snapshots --config ./config.toml
+# Prints Timeshift, cache_root, target_root; uses configured sudo only for Btrfs/Timeshift reads.
+# Timeshift supplies source metadata; omitted dates use ordinary source info.json reads.
+# Cache/target own info.json and df are read without sudo; stored tags and reader failures stay visible.
 # Run this config on the BACKUP/DESTINATION machine for normal sync.
 # source.mode controls only normal source-side sync/list/prune/manual commands.
 # Sync always writes destination.target_root locally; it never sends the backup destination over SSH.

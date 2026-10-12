@@ -1,6 +1,6 @@
 # Installation
 
-Current source release: **0.1.93**. Install from the project root. The included original `dist/ts-btrfs` reports **0.1.84** and has not been rebuilt; use `python3 -m timeshift_btrfs_sync` or rebuild the executable from this source before treating it as the current release. The active package is timeshift_btrfs_sync/; project documentation and helpers live at the project root.
+Current source release: **0.1.95**. Install from the project root. The included original `dist/ts-btrfs` reports **0.1.84** and has not been rebuilt; use `python3 -m timeshift_btrfs_sync` or rebuild the executable from this source before treating it as the current release. The active package is timeshift_btrfs_sync/; project documentation and helpers live at the project root.
 
 Normal sync runs on the backup/destination machine. The Timeshift source is reached over SSH or selected locally. Restore may also run on the Timeshift machine and pull a backup repository over SSH when `[restore] mode = "ssh"` is selected. The selected endpoints need the commands and minimal permissions described in the README. `cat` and `id` are not run through sudo during normal discovery. The configured source account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
 
@@ -125,23 +125,27 @@ ts-btrfs restore --config ./config.toml --all --dry-run
 ```
 
 
-## Non-root snapshot and space inventory
+## Service-account snapshot and space inventory
 
-After installing the current source into the venv, run as your normal account:
+After installing this source into the venv, run as your normal account:
 
 ```bash
 . .venv/bin/activate
 ts-btrfs list-snapshots --config ./config.toml
-# Inspect restore endpoints and include ordinary Timeshift snapshots:
-ts-btrfs list-snapshots --config ./restore.toml --workflow restore --include-timeshift
+# Inspect the endpoints selected by restore:
+ts-btrfs list-snapshots --config ./restore.toml --workflow restore
 ts-btrfs list-snapshots --help
 ```
 
-This prints source-cache and destination-backup Timeshift-style tables with separate device and free-space summaries. `--include-timeshift` adds the original snapshot table. Without a venv install, run `python3 -m timeshift_btrfs_sync list-snapshots --config ./config.toml` from the project root. The preserved original executable does not contain this command; install current source or rebuild it using the requirements/venv instructions below.
+The output always orders **Timeshift snapshots**, **cache_root snapshots**, then **target_root snapshots**, with independent device/space reports. `--include-timeshift` remains accepted but is no longer necessary. Without installation, run `python3 -m timeshift_btrfs_sync list-snapshots --config ./config.toml` from the new project root. The preserved original executable is older and does not contain this command; install current source or rebuild using the requirements/venv instructions below.
 
-The default `--workflow auto` uses restore hosts for `restore.mode = "ssh"` or `"ssh-target"`, otherwise backup hosts. Explicit `--workflow backup` follows `source.mode` and a local backup destination; `--workflow restore` follows both restore hosts. Source/cache and destination/backup headings retain their configuration meanings even during restore.
+`--workflow auto` uses restore hosts for `restore.mode = "ssh"` or `"ssh-target"`, otherwise backup hosts. Explicit `backup` follows source.mode and a local target; explicit `restore` follows both restore hosts. All eight supplied config profiles support this listing without new config keys.
 
-The local/SSH accounts need read/search access to the already mounted paths and readable Timeshift `info.json` files. Install Btrfs tools and GNU coreutils (`df`, `ls`, `base64`, shell `test`) on each inspected host. Configured Btrfs executable paths are used; both sudo prefixes are ignored. The command does not mount, repair permissions, create snapshots, write app state/logs, notify or clean up. No new sudoers rule is needed or used. If directory/Btrfs permissions deny access, the report shows that side as unavailable and still tries the other side, then exits 1. Expired source originals only leave their cached tags/descriptions unknown; the Btrfs cache rows remain listed. `df` space is device/filesystem availability and can be shared by source originals/cache or other sections on the same filesystem. See README.md for row/count semantics and all flags.
+Install configured Btrfs tools, Timeshift on the original-snapshot host, and GNU coreutils on each inspected host. The local/SSH service account may keep passwordless sudo limited to Btrfs and Timeshift, as in `sudoers/source-minimal.example`. Set the relevant source/destination `sudo = "sudo -n"`; these prefixes are honored only for Btrfs/Timeshift read commands. No sudo shell, cat, ls, base64, df or Python rule is required or used. The Btrfs inventory can enumerate protected payload paths even if ordinary directory scanning fails, and Timeshift --list supplies source tags/descriptions when direct JSON reads are denied. Timeshift listing can mount its normal repository and produce its own normal logs. The app creates no snapshots and does not write app locks/state/logs, transfer, prune or restore during listing.
+
+For inventory, the Timeshift source table takes tags/descriptions from `timeshift --list`, which already reads Timeshift control files. The app skips redundant source JSON reads for reported dates. Physically discovered dates omitted by Timeshift, failed Timeshift listing, or a known filesystem mismatch still use ordinary source JSON reads. Cache and target tables always prefer their own readable regular `info.json` files, read as the login/SSH user without sudo; these preserve stored tags when source tags differ. No generic privileged file reader or additional permission is needed for readable files. App-created caches normally lack control files, so their fallback uses current same-date source data or, after original expiry, a target copy proven by all configured readonly send/received UUIDs. Missing/invalid/unreadable metadata stays visibly unknown when no supported fallback exists. The command changes no ACLs, ownership, modes or sudoers.
+
+Space prefers unprivileged df; protected paths fall back to configured sudo Btrfs filesystem usage, with statfs/estimated origin labeled. See README.md for exact flag, row/count, failure and metadata semantics. A denied or incomplete required reader returns 1 after still reporting all three tables.
 
 ## Restore permissions
 

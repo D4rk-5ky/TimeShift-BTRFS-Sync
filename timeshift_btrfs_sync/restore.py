@@ -177,6 +177,7 @@ def _scan_snapshot_directories(
     *,
     location_label: str,
     privilege_prefix: list[str],
+    read_info: bool = True,
 ) -> dict[str, BackupDirectoryRecord]:
     """Scan physical Timeshift-style date directories and their control files.
 
@@ -184,13 +185,15 @@ def _scan_snapshot_directories(
     contents only from ``timeshift --list`` or a Btrfs bulk index.  The scan is
     read-only and runs through the endpoint's configured privilege prefix so
     local, pull, and SSH-target restore use identical directory and
-    ``info.json`` discovery rules.
+    ``info.json`` discovery rules. Listing may disable control-file reads when
+    Timeshift already supplied metadata; restore always retains the default.
     """
 
     prefix = " ".join(shlex.quote(part) for part in privilege_prefix)
     script = f"""
 root={shlex.quote(root)}
 privilege_prefix={shlex.quote(prefix)}
+read_info={"yes" if read_info else "no"}
 run_privileged() {{
     if [ -n "$privilege_prefix" ]; then
         # shellcheck disable=SC2086
@@ -228,6 +231,7 @@ while IFS= read -r name; do
 $entry_names
 EOF_ENTRIES
 
+    [ "$read_info" = yes ] || continue
     info_path="$date_path/info.json"
     if run_privileged test -L "$info_path"; then
         printf 'TSBTRFS_REPOSITORY_INFO_ERROR\t%s\tsymlink\n' "$name"

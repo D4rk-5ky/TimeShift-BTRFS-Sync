@@ -914,13 +914,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     p = new_subparser(
-        sub, "list-snapshots", "list source cache and destination snapshots without sudo",
+        sub, "list-snapshots", "list Timeshift, cache-root and target-root snapshots",
         (
-            "Read both physical repositories and print Timeshift-style tables plus df free space.\n"
-            "Uses unprivileged directory/info.json reads, btrfs property get -ts PATH ro and df on each endpoint.\n"
-            "Configured source/destination sudo prefixes are ignored; no mounts, locks, state/log writes,\n"
-            "notifications, transfers, snapshot creation or cleanup are performed.\n"
-            "Paths must already be mounted and readable by the local or SSH login account.\n"
+            "Print Timeshift snapshots, cache_root snapshots, then target_root snapshots, with space on each side.\n"
+            "Use configured source/destination sudo prefixes only for Btrfs/Timeshift reads.\n"
+            "Timeshift --list supplies source tags/descriptions; omitted dates use ordinary JSON reads.\n"
+            "Btrfs lists discover protected paths and nested payloads without requiring sudo ls/cat.\n"
+            "No sudo shell/file-reader/df, app locks/state/log writes, notifications, transfers,\n"
+            "snapshot creation or cleanup are performed. Timeshift --list can mount its normal repository.\n"
             "Permission/tool failures remain visible and exit 1 after reporting the other side."
         ),
         cmd_list_snapshots,
@@ -933,9 +934,11 @@ def build_parser() -> argparse.ArgumentParser:
             "Examples:\n"
             "  ts-btrfs list-snapshots --config ./config.toml\n"
             "  ts-btrfs list-snapshots --config ./restore.toml --workflow restore --include-timeshift\n\n"
-            "Rows are date directories; configured payloads are verified individually with Btrfs.\n"
-            "Unverified/incomplete rows stay visible. Missing info.json shows unknown tags, never\n"
-            "invented state metadata. df availability is not guaranteed receive capacity."
+            "Rows are physical dates plus Timeshift-listed dates not confirmed below snapshot_root.\n"
+            "Metadata origins are labeled; missing originals may use an existing target copy only\n"
+            "when all configured live readonly payload UUIDs match. No state metadata is invented.\n"
+            "Free space prefers ordinary df, with labeled Btrfs usage fallback if df is denied.\n"
+            "Cache/target own info.json is read without sudo; unresolved metadata remains unknown."
         ),
     )
     add_config_arg(p)
@@ -944,8 +947,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="endpoint interpretation; auto (default) follows non-local restore.mode, otherwise backup; backup follows source.mode with local destination; restore follows restore.mode for both hosts",
     )
     p.add_argument(
-        "--include-timeshift", action="store_true",
-        help="also print source.snapshot_root as a third table, using the same Timeshift endpoint; ordinary snapshots are only read",
+        "--include-timeshift", action="store_true", default=True,
+        help="accepted for compatibility; Timeshift snapshots are now always included first, followed by cache_root and target_root",
     )
 
     p = new_subparser(
