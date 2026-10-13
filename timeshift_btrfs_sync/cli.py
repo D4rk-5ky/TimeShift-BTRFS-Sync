@@ -459,6 +459,7 @@ def _format_cleanup_summary(
         f"  blocked Timeshift app:{result.blocked_source_candidates:>5}",
         f"  remaining in state:  {result.remaining_state:>5}",
         f"  redundant cache confirmed gone: {result.redundant_cache_completed}",
+        f"  redundant destination confirmed gone: {result.redundant_destination_completed}",
         "  count basis:        completed paired/state items plus source-only app items",
         "  ordinary source snapshots: retention managed by Timeshift",
     ]
@@ -467,7 +468,7 @@ def _format_cleanup_summary(
             "  status:             dry-run only; no snapshots deleted",
             "  result:             SUCCESS - cleaned 0 snapshots (dry-run)",
         ]
-    elif result.retry_destination_state_items or result.blocked_source_candidates or result.cache_delete_candidates > result.cache_cleanup_completed:
+    elif result.retry_destination_state_items or result.blocked_source_candidates or result.cache_delete_candidates > result.cache_cleanup_completed or result.redundant_destination_candidates > result.redundant_destination_completed:
         lines += [
             "  status:             completed with protected/retry items",
             f"  result:             SUCCESS - cleaned {result.cleaned_snapshots} snapshot(s); some candidates were retained safely",
@@ -1063,7 +1064,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_yes_delete_arg(
         p,
-        "authorize actual paired retention and configured redundant-cache deletion during a real sync when --prune or prune_after_sync=true requests pruning; has no force/override effect on non-retention safety checks",
+        "authorize actual paired retention and configured redundant cache/destination deletion during a real sync when --prune or prune_after_sync=true requests pruning; has no force/override effect on non-retention safety checks",
     )
 
     p = new_subparser(
@@ -1075,7 +1076,9 @@ def build_parser() -> argparse.ArgumentParser:
             "App-created tag O snapshots can also be retired from Timeshift only when they still match\n"
             "manual_snapshot.marker and their required backup payloads are proven complete.\n"
             "source.delete_redundant_snapshots (default true) previews proven stale readonly cache dates.\n"
-            "Real redundant-cache deletion runs only after successful sync; standalone prune does not delete extras."
+            "destination.delete_redundant_snapshots (default true) previews destination-only readonly dates\n"
+            "no newer than the latest confirmed state pair, including older leftovers; cache absence and UUID ownership are required.\n"
+            "Real redundant cache/destination deletion runs only after successful sync; standalone prune does not delete extras."
         ),
         cmd_prune,
         epilog=(
@@ -1092,12 +1095,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_config_arg(p)
     add_run_mode_args(
         p,
-        dry_run_help="force preview mode: reconcile state in memory and show retention/redundant-cache decisions; no lock, state write or deletion",
+        dry_run_help="force preview mode: reconcile state in memory and show retention and redundant cache/destination decisions; no lock, state write or deletion",
         run_help="force real prune mode: acquire the lock and apply retention; actual deletion still requires --yes-delete",
     )
     add_yes_delete_arg(
         p,
-        "explicit authorization for real paired retention or redundant cache-only deletes; requires real-run mode and never bypasses UUID/layout/ownership protections",
+        "explicit authorization for real paired retention; post-sync extras require this consent and successful sync; requires real-run mode and never bypasses UUID/layout/ownership protections",
     )
 
     p = new_subparser(

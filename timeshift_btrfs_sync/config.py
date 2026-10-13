@@ -36,7 +36,7 @@ SOURCE_KEYS = {
     "verify_subvolumes_at_discovery", "verify_incremental_parent_once_per_run",
     "source_change_retry_count", "send_compressed_data", "send_proto",
 }
-DESTINATION_KEYS = {"target_root", "sudo", "btrfs_command", "create_target_root", "cleanup_incomplete_receive"}
+DESTINATION_KEYS = {"target_root", "sudo", "btrfs_command", "create_target_root", "cleanup_incomplete_receive", "delete_redundant_snapshots"}
 STREAM_KEYS = {"use_mbuffer", "mbuffer_command", "mbuffer_size", "mbuffer_rate", "mbuffer_extra_args", "btrfs_verbose", "transfer_size_check", "transfer_size_mode", "transfer_size_safety_margin"}
 RETENTION_KEYS = {"hourly", "daily", "weekly", "monthly", "boot", "ondemand", "cleanup_ondemand", "keep_latest", "keep_latest_common_parent", "protected_snapshots"}
 MANUAL_SNAPSHOT_KEYS = {"enabled", "cleanup_enabled", "comment", "marker", "retention_count"}
@@ -153,6 +153,9 @@ class DestinationConfig:
     # destination subvolume that is not recorded in state.json. When this is
     # true, the app deletes that incomplete destination subvolume and retries.
     cleanup_incomplete_receive: bool = True
+
+    # Post-sync cleanup of untracked destination-only dates no newer than the latest proven pair.
+    delete_redundant_snapshots: bool = True
 
 @dataclass(slots=True)
 class StreamConfig:
@@ -451,6 +454,7 @@ def load_config(path: str | Path) -> AppConfig:
         btrfs_command=str(destination_raw.get("btrfs_command", "btrfs")),
         create_target_root=_bool(destination_raw, "destination", "create_target_root", True),
         cleanup_incomplete_receive=_bool(destination_raw, "destination", "cleanup_incomplete_receive", True),
+        delete_redundant_snapshots=_bool(destination_raw, "destination", "delete_redundant_snapshots", True),
     )
 
     stream_raw = _table(raw, "stream")

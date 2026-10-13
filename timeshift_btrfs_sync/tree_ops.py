@@ -30,28 +30,31 @@ class TreeDeleteResult:
 
 @dataclass(slots=True)
 class NativeCacheDeletionProof:
-    """Exact native identities below a cache root already anchored to state/receiver pairs."""
+    """Exact native identities below a repository root anchored to state/cache/receiver pairs.
+
+    The historical cache field/API also carries a proven destination root.
+    """
 
     cache_root: SubvolumeMeta
     subvolumes: dict[str, SubvolumeMeta]
 
 
 def _native_cache_view(ops: BtrfsOps, proof: NativeCacheDeletionProof) -> tuple[set[int], str]:
-    """Check the surviving cache identity and read live IDs without ordinary directory access."""
+    """Check the surviving repository identity and read live IDs without ordinary directory access."""
 
     anchor = proof.cache_root
     current = ops.meta(anchor.path, required=False)
     if (not current or not anchor.uuid or current.uuid != anchor.uuid or current.subvolume_id != anchor.subvolume_id
             or current.readonly != anchor.readonly or current.parent_uuid != anchor.parent_uuid
             or current.received_uuid != anchor.received_uuid):
-        return set(), "native cache root identity changed or became unreadable"
+        return set(), "native repository root identity changed or became unreadable"
     result = ops.run(["subvolume", "list", "-a", "-p", anchor.path], check=False, log_stderr=False, mirror_stderr=False)
     records = _parse_listed_subvolumes(result.stdout)
     ids = {record.subvolume_id for record in records}
     if (result.returncode or anchor.subvolume_id not in ids
             or len(records) != len([line for line in result.stdout.splitlines() if line.strip()])
             or len(ids) != len(records)):
-        return set(), "complete native cache filesystem ID view unavailable"
+        return set(), "complete native repository filesystem ID view unavailable"
     descendants = {anchor.subvolume_id}
     while True:
         expanded = descendants | {record.subvolume_id for record in records if record.parent_id in descendants}
@@ -59,7 +62,7 @@ def _native_cache_view(ops: BtrfsOps, proof: NativeCacheDeletionProof) -> tuple[
             break
         descendants = expanded
     if any(meta.subvolume_id in ids and meta.subvolume_id not in descendants for meta in proof.subvolumes.values()):
-        return set(), "native cache subtree moved outside the anchored root"
+        return set(), "native repository subtree moved outside the anchored root"
     date_meta = min(proof.subvolumes.values(), key=lambda meta: len(Path(meta.path).parts))
     date_ids = {date_meta.subvolume_id}
     while True:
@@ -69,7 +72,7 @@ def _native_cache_view(ops: BtrfsOps, proof: NativeCacheDeletionProof) -> tuple[
         date_ids = expanded
     expected_ids = {meta.subvolume_id for meta in proof.subvolumes.values()}
     if (date_ids & ids) - expected_ids or any(meta.subvolume_id in ids and meta.subvolume_id not in date_ids for meta in proof.subvolumes.values()):
-        return set(), "native dated cache subtree changed after proof"
+        return set(), "native dated repository subtree changed after proof"
     return ids, ""
 
 
@@ -192,7 +195,7 @@ def delete_subvolume_tree(
     if native_cache_proof is not None:
         anchor = native_cache_proof.cache_root
         if root_text == anchor.path or not is_same_or_under(root_text, anchor.path):
-            result.errors.append("native deletion must be strictly below the verified cache root")
+            result.errors.append("native deletion must be strictly below the verified repository root")
             return result
         if root_text not in native_cache_proof.subvolumes:
             result.errors.append("native deletion proof does not identify the date container")
@@ -246,7 +249,7 @@ def delete_subvolume_tree(
     if native_cache_proof is not None:
         proof = native_cache_proof
         if set(planned) != set(proof.subvolumes):
-            result.errors.append("native cache subtree differs from the verified deletion identities")
+            result.errors.append("native repository subtree differs from the verified deletion identities")
         ids, view_error = _native_cache_view(ops, proof)
         if view_error:
             result.errors.append(view_error)
@@ -257,7 +260,7 @@ def delete_subvolume_tree(
                     or not expected.subvolume_id or live.subvolume_id != expected.subvolume_id
                     or expected.subvolume_id not in ids or live.readonly != expected.readonly
                     or live.parent_uuid != expected.parent_uuid or live.received_uuid != expected.received_uuid):
-                result.errors.append(f"native cache identity not confirmed: {path}")
+                result.errors.append(f"native repository identity not confirmed: {path}")
         if dry_run or result.errors:
             return result
         for path in planned:
@@ -267,7 +270,7 @@ def delete_subvolume_tree(
             if (error or expected.subvolume_id not in _ids or not live or live.uuid != expected.uuid
                     or live.subvolume_id != expected.subvolume_id or live.readonly != expected.readonly
                     or live.parent_uuid != expected.parent_uuid or live.received_uuid != expected.received_uuid):
-                result.errors.append(error or f"native cache identity changed before deletion: {path}")
+                result.errors.append(error or f"native repository identity changed before deletion: {path}")
                 break
             # Delete by the proven numeric ID on the anchored filesystem. This
             # avoids ordinary path traversal and path/symlink redirection.
@@ -284,7 +287,7 @@ def delete_subvolume_tree(
         else:
             result.remaining = [path for path, expected in proof.subvolumes.items() if expected.subvolume_id in ids]
             if result.remaining:
-                result.errors.append("native cache IDs remain after deletion: " + ", ".join(result.remaining))
+                result.errors.append("native repository IDs remain after deletion: " + ", ".join(result.remaining))
             elif not result.errors:
                 result.verified_root_absent = True
         return result

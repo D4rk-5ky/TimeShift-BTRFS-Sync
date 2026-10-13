@@ -75,6 +75,11 @@ class PruneResult:
     redundant_cache_blocked: int = 0
     redundant_cache_cleanup_enabled: bool = False
     redundant_cache_skip_reason: str = ""
+    redundant_destination_candidates: int = 0
+    redundant_destination_completed: int = 0
+    redundant_destination_blocked: int = 0
+    redundant_destination_cleanup_enabled: bool = False
+    redundant_destination_skip_reason: str = ""
 
     @property
     def cleaned_snapshots(self) -> int:
@@ -131,7 +136,7 @@ def format_prune_cleanup_summaries(
             ]
         else:
             enabled = not cache or result.cache_cleanup_enabled
-            candidates = result.cache_delete_candidates if cache else len(result.plan.delete)
+            candidates = result.cache_delete_candidates if cache else len(result.plan.delete) + result.redundant_destination_candidates
             attempted = result.cache_cleanup_attempted if cache else result.destination_cleanup_attempted
             completed = result.cache_cleanup_completed if cache else result.destination_cleanup_completed
             # Preview or disabled cleanup cannot claim real deletion, even if a
@@ -161,6 +166,13 @@ def format_prune_cleanup_summaries(
                 lines.append(f"  redundant candidates:     {result.redundant_cache_candidates}")
                 lines.append(f"  redundant confirmed gone: {result.redundant_cache_completed}")
                 lines.append(f"  redundant blocked:        {result.redundant_cache_blocked}")
+            else:
+                lines.append(f"  redundant cleanup:        {'enabled' if result.redundant_destination_cleanup_enabled else 'disabled'}")
+                lines.append(f"  redundant candidates:     {result.redundant_destination_candidates}")
+                lines.append(f"  redundant confirmed gone: {result.redundant_destination_completed}")
+                lines.append(f"  redundant blocked:        {result.redundant_destination_blocked}")
+        if not cache and result is not None and result.redundant_destination_skip_reason:
+            lines.append("  redundant skipped:        " + result.redundant_destination_skip_reason)
         if cache and result is not None and result.redundant_cache_skip_reason:
             lines.append("  redundant skipped:        " + result.redundant_cache_skip_reason)
         return "\n".join(lines)
@@ -971,6 +983,7 @@ def prune(
         source_delete_authorized=len(source_delete_allowed),
         remaining_state=len(state.get("snapshots", {})),
         cache_cleanup_enabled=bool(config.source.cleanup_superseded_cache and config.source.cache_root),
+        redundant_destination_cleanup_enabled=bool(context is not None and config.destination.delete_redundant_snapshots),
         redundant_cache_cleanup_enabled=bool(context is not None and config.source.delete_redundant_snapshots and config.source.cleanup_superseded_cache and config.source.cache_root),
         cache_delete_candidates=sum(
             bool(_source_cache_delete_paths(config, name, state.get("snapshots", {}).get(name, {})))
@@ -980,6 +993,7 @@ def prune(
     if dry_run:
         if context is not None:
             _apply_redundant_cache_cleanup(config, state, context, cleanup_result, yes_delete=False, successful_sync=successful_sync)
+            _apply_redundant_destination_cleanup(config, state, context, cleanup_result, yes_delete=False, successful_sync=successful_sync)
         print("Dry-run: no retention deletes were performed.")
         side_summary = format_prune_cleanup_summaries(cleanup_result)
         print(side_summary)
@@ -1052,6 +1066,7 @@ def prune(
 
     if context is not None:
         _apply_redundant_cache_cleanup(config, state, context, cleanup_result, yes_delete=yes_delete, successful_sync=successful_sync)
+        _apply_redundant_destination_cleanup(config, state, context, cleanup_result, yes_delete=yes_delete, successful_sync=successful_sync)
     save_state(config.state_file, state)
     cleanup_result.destination_state_deleted = deleted
     cleanup_result.legacy_source_deleted = legacy_deleted
@@ -1090,3 +1105,17 @@ def _apply_redundant_cache_cleanup(config: AppConfig, state: dict, context, resu
     result.cache_delete_candidates += extra.candidates
     result.cache_cleanup_attempted += extra.attempted
     result.cache_cleanup_completed += extra.completed
+
+
+def _apply_redundant_destination_cleanup(config: AppConfig, state: dict, context, result: PruneResult, *, yes_delete: bool, successful_sync: bool = False) -> None:
+    """Merge receiver-only counts without changing paired retention/state deletion totals."""
+
+    from .reconciliation import cleanup_redundant_destination
+
+    extra = cleanup_redundant_destination(config, state, context, dry_run=result.dry_run, yes_delete=yes_delete, successful_sync=successful_sync)
+    result.redundant_destination_skip_reason = extra.skipped_reason
+    result.redundant_destination_candidates = extra.candidates
+    result.redundant_destination_completed = extra.completed
+    result.redundant_destination_blocked = len(extra.blocked)
+    result.destination_cleanup_attempted += extra.attempted
+    result.destination_cleanup_completed += extra.completed

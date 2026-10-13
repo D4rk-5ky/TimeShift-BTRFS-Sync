@@ -1,4 +1,4 @@
-"""Reconcile proven repository pairs and retire bounded app-cache leftovers."""
+"""Reconcile proven pairs and retire authorized one-sided cache/destination leftovers."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 import shlex
 import re
+from datetime import datetime
 
 from . import inventory
 from .btrfs_ops import BtrfsOps
@@ -13,7 +14,7 @@ from .cache_ops import cache_parent_path, cache_child_path
 from .config import AppConfig
 from .endpoint import CommandEndpoint
 from .listing import _discover_repository
-from .models import SnapshotMeta, SubvolumeMeta
+from .models import SnapshotMeta, SubvolumeMeta, send_stream_uuid
 from .paths import is_same_or_under
 from .source import SourceRunner
 from .state import resolve_state_send_path, resolve_destination_path, snapshot_is_synced, refresh_state_metadata_and_report
@@ -34,7 +35,7 @@ class ReconciliationContext:
 
 @dataclass(slots=True)
 class RedundantCacheResult:
-    """Keep cache-only outcomes separate from paired destination/state deletion."""
+    """Keep one-sided repository cleanup outcomes separate from paired/state deletion."""
 
     candidates: int = 0
     attempted: int = 0
@@ -195,6 +196,14 @@ def _verified_managed_cache_root(config: AppConfig, state: dict, context: Reconc
     return meta, ""
 
 
+def _native_identity_matches(saved: SubvolumeMeta, live: SubvolumeMeta | None) -> bool:
+    """Require stable UUID, native ID, readonly state and lineage for either repository side."""
+
+    return bool(live and saved.uuid and saved.subvolume_id and live.uuid == saved.uuid
+                and live.subvolume_id == saved.subvolume_id and live.readonly == saved.readonly
+                and live.parent_uuid == saved.parent_uuid and live.received_uuid == saved.received_uuid)
+
+
 def _safe_native_cache_date(config: AppConfig, context: ReconciliationContext, name: str, ops: BtrfsOps) -> str | None:
     """Accept a dated RO snapshot or native container of RO snapshots, including partial legacy caches."""
 
@@ -207,9 +216,7 @@ def _safe_native_cache_date(config: AppConfig, context: ReconciliationContext, n
     readonly_snapshots = 0
     for path, saved in tree.items():
         live = ops.meta(path, required=False)
-        if (not live or not saved.uuid or live.uuid != saved.uuid or not saved.subvolume_id
-                or live.subvolume_id != saved.subvolume_id or live.readonly != saved.readonly
-                or live.parent_uuid != saved.parent_uuid or live.received_uuid):
+        if not _native_identity_matches(saved, live) or live.received_uuid:
             return "native cache subtree identity changed or became unavailable"
         if path == parent and live.readonly is False and not live.parent_uuid:
             continue  # App-created date container; its payload snapshots are RO.
@@ -342,6 +349,184 @@ def cleanup_redundant_cache(config: AppConfig, state: dict, context: Reconciliat
         if deleted.success:
             result.completed += 1
             cache.remove_tree(parent)
+        else:
+            result.blocked.append(f"{name}: " + "; ".join(deleted.errors or ["deletion not confirmed"]))
+            print(f"  [RETRY] {result.blocked[-1]}")
+    return result
+
+
+def _verified_destination_root(config: AppConfig, state: dict, context: ReconciliationContext, ops: BtrfsOps, cache_ops: BtrfsOps) -> tuple[SubvolumeMeta | None, str]:
+    """Anchor destination containment and fresh receiver identities to the verified cache/state job."""
+
+    cache_root, error = _verified_managed_cache_root(config, state, context, cache_ops)
+    if not cache_root:
+        return None, error
+    root = str(config.destination.target_root / "snapshots")
+    if config.source.mode == "local" and (is_same_or_under(root, config.source.snapshot_root)
+            or is_same_or_under(config.source.snapshot_root, root)
+            or is_same_or_under(root, config.source.cache_root)
+            or is_same_or_under(config.source.cache_root, root)):
+        return None, "destination overlaps protected source storage"
+    meta = ops.meta(root, required=False)
+    if not meta or not meta.uuid or not meta.subvolume_id or meta.subvolume_id < 256 or meta.parent_uuid or meta.received_uuid:
+        return None, "destination snapshots root is not a verified native Btrfs container"
+    cache = context.source_inventory.cache_index
+    assert cache is not None
+    original_ids = set(context.source_inventory.snapshot_index.by_uuid) | set(cache.by_uuid) | {cache_root.uuid}
+    if meta.uuid in original_ids or set(context.destination_index.by_uuid) & original_ids:
+        return None, "destination native identities overlap protected source storage"
+    tree, errors = discover_subvolume_tree(ops, root)
+    if errors or set(tree) != {root, *context.destination_index.by_path}:
+        return None, "destination containment differs from complete inventory"
+    for name, snapshot in state.get("snapshots", {}).items():
+        for payload in config.source.subvolumes:
+            saved = snapshot.get("subvolumes", {}).get(payload, {})
+            path = str(config.destination.target_root / "snapshots" / name / payload)
+            if resolve_destination_path(config.destination.target_root, saved.get("destination_path", "")) != config.destination.target_root / "snapshots" / name / payload:
+                return None, "state receiver path is not canonical for this destination"
+            indexed = context.destination_index.meta(path)
+            live = ops.meta(path, required=False)
+            if (not indexed or not live or not indexed.uuid or not indexed.subvolume_id
+                    or live.uuid != indexed.uuid or live.subvolume_id != indexed.subvolume_id
+                    or live.readonly is not True or indexed.readonly is not True
+                    or live.received_uuid != indexed.received_uuid
+                    or live.received_uuid != saved.get("send_source_uuid")):
+                return None, "paired receiver identity changed or state UUID differs"
+    return meta, ""
+
+
+def _safe_native_destination_date(config: AppConfig, context: ReconciliationContext, name: str, ops: BtrfsOps) -> str | None:
+    """Require unchanged native date trees containing only readonly snapshot payloads."""
+
+    parent = str(config.destination.target_root / "snapshots" / name)
+    tree = {path: meta for path, meta in context.destination_index.by_path.items() if is_same_or_under(path, parent)}
+    if parent not in tree:
+        return "date is not a native Btrfs subvolume"
+    readonly_snapshots = 0
+    known_streams = {send_stream_uuid(meta) for index in (context.source_inventory.cache_index, context.source_inventory.snapshot_index)
+                     if index is not None for meta in index.by_path.values() if send_stream_uuid(meta)}
+    for path, saved in tree.items():
+        live = ops.meta(path, required=False)
+        if not _native_identity_matches(saved, live):
+            return "native destination subtree identity changed or became unavailable"
+        if path == parent and live.readonly is False and not live.parent_uuid and not live.received_uuid:
+            continue
+        if live.readonly is not True or not (live.received_uuid or live.parent_uuid):
+            return "destination subtree contains a writable or unproven snapshot"
+        if live.received_uuid in known_streams or live.parent_uuid in known_streams:
+            return "destination still corresponds to a known source/cache snapshot"
+        readonly_snapshots += 1
+    return None if readonly_snapshots else "no readonly native snapshot in dated destination subtree"
+
+
+def _refresh_absent_cache_date(config: AppConfig, context: ReconciliationContext, name: str, ops: BtrfsOps, anchor: SubvolumeMeta) -> str | None:
+    """Re-prove complete cache inventory and stable root before accepting native date absence."""
+
+    root = config.source.cache_root
+    assert root is not None
+    live = ops.meta(root, required=False)
+    if not live or live.uuid != anchor.uuid or live.subvolume_id != anchor.subvolume_id or live.readonly != anchor.readonly or live.parent_uuid or live.received_uuid:
+        return "source cache root changed or became unavailable"
+    cache, _records, _notes, _uuid, _device = _discover_repository(ops, root)
+    if cache.errors or cache.root_missing:
+        return "source cache inventory incomplete; absence not proven"
+    context.source_inventory.cache_index = cache
+    parent = cache_parent_path(root, name)
+    if any(is_same_or_under(path, parent) for path in cache.by_path):
+        return "source cache counterpart exists or appeared"
+    return None
+
+
+def cleanup_redundant_destination(config: AppConfig, state: dict, context: ReconciliationContext, *, dry_run: bool, yes_delete: bool, successful_sync: bool = False) -> RedundantCacheResult:
+    """After successful sync, remove untracked destination-only RO dates no newer than the newest proven pair."""
+
+    result = RedundantCacheResult()
+    if not config.destination.delete_redundant_snapshots:
+        return result
+    if not dry_run and not successful_sync:
+        result.skipped_reason = "requires a successful sync in this run"
+    elif not config.source.cache_root:
+        result.skipped_reason = "source cache_root is required to prove destination-only snapshots"
+    if result.skipped_reason:
+        print("Redundant destination cleanup: skipped; " + result.skipped_reason)
+        return result
+    cache_ops = BtrfsOps(CommandEndpoint.for_source(context.source), config.source.sudo, config.source.btrfs_command)
+    ops = BtrfsOps(CommandEndpoint.local(), config.destination.sudo, config.destination.btrfs_command)
+    cache, _records, _notes, _uuid, _device = _discover_repository(cache_ops, config.source.cache_root)
+    target, records, _notes, _uuid, _device = _discover_repository(ops, str(config.destination.target_root / "snapshots"))
+    if cache.errors or cache.root_missing or target.errors or target.root_missing:
+        result.skipped_reason = "fresh source/destination inventory incomplete"
+        print("Redundant destination cleanup: skipped; " + result.skipped_reason)
+        return result
+    context.source_inventory.cache_index = cache
+    context.destination_index, context.destination_records = target, records
+    window = _confirmed_window(config, state, context)
+    if not window:
+        result.skipped_reason = "no complete UUID-confirmed state/cache/destination range"
+        print("Redundant destination cleanup: skipped; " + result.skipped_reason)
+        return result
+    protected = _protected_cache_dates(config, state)
+    root = str(config.destination.target_root / "snapshots")
+    names = {PurePosixPath(path).relative_to(root).parts[0] for path in target.by_path
+             if is_same_or_under(path, root) and PurePosixPath(path) != PurePosixPath(root)}
+    candidates = []
+    for name in sorted(names - protected):
+        if not SNAPSHOT_RE.fullmatch(name) or name > window[1]:
+            continue
+        try:
+            datetime.strptime(name, "%Y-%m-%d_%H-%M-%S")
+        except ValueError:
+            continue
+        parent = cache_parent_path(config.source.cache_root, name)
+        if not any(is_same_or_under(path, parent) for path in cache.by_path):
+            candidates.append(name)
+    result.candidates = len(candidates)
+    if not candidates:
+        print(f"Redundant destination cleanup: confirmed pairs {window[0]} .. {window[1]}; no untracked destination-only dates no newer than latest pair")
+        return result
+    if not dry_run and not yes_delete:
+        raise RuntimeError("Refusing redundant destination deletion without --yes-delete")
+    print(f"Redundant destination cleanup: confirmed pairs {window[0]} .. {window[1]}; {len(candidates)} untracked destination-only date(s) no newer than latest pair")
+    cache_anchor = cache_ops.meta(config.source.cache_root, required=False)
+    anchor, error = _verified_destination_root(config, state, context, ops, cache_ops)
+    if not anchor:
+        result.blocked = [f"{name}: {error}" for name in candidates]
+        for reason in result.blocked:
+            print(f"  [KEEP] {reason}")
+        return result
+    if cache_anchor is None:
+        result.blocked = [f"{name}: source cache anchor unavailable" for name in candidates]
+        return result
+    print("  ownership: native destination root, state, cache and received UUID pairs confirmed")
+    if dry_run:
+        print("  preview only: real redundant deletion requires successful sync before cleanup")
+    for name in candidates:
+        parent = str(config.destination.target_root / "snapshots" / name)
+        reason = _refresh_absent_cache_date(config, context, name, cache_ops, cache_anchor)
+        reason = reason or _safe_native_destination_date(config, context, name, ops)
+        if reason:
+            result.blocked.append(f"{name}: {reason}")
+            print(f"  [KEEP] {result.blocked[-1]}")
+            continue
+        print(f"  [{'WOULD DELETE' if dry_run else 'DELETE'}] redundant destination {parent}")
+        if dry_run:
+            continue
+        reason = _refresh_absent_cache_date(config, context, name, cache_ops, cache_anchor)
+        reason = reason or _safe_native_destination_date(config, context, name, ops)
+        if reason:
+            result.blocked.append(f"{name}: {reason}")
+            print(f"  [KEEP] {result.blocked[-1]}")
+            continue
+        result.attempted += 1
+        deleted = delete_subvolume_tree(ops, parent,
+            protected_roots=[config.source.snapshot_root, config.source.cache_root] if config.source.mode == "local" else [],
+            native_cache_proof=NativeCacheDeletionProof(anchor, {
+                path: meta for path, meta in target.by_path.items() if is_same_or_under(path, parent)
+            }))
+        if deleted.success:
+            result.completed += 1
+            target.remove_tree(parent)
+            context.destination_records.pop(name, None)
         else:
             result.blocked.append(f"{name}: " + "; ".join(deleted.errors or ["deletion not confirmed"]))
             print(f"  [RETRY] {result.blocked[-1]}")

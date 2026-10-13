@@ -494,7 +494,11 @@ def _format_pair_comparison(comparison: SnapshotPairComparison) -> list[str]:
     if comparison.window:
         lines += [f"Proven shared date range : {comparison.window[0]} .. {comparison.window[1]}",
                   f"Cache-only inside range  : {len(comparison.in_window_dates)}",
-                  f"Cache-only outside range : {len(comparison.outside_window_dates)}"]
+                  f"Cache-only outside range : {len(comparison.outside_window_dates)}",
+                  f"Destination-only inside range : {sum(comparison.window[0] <= name <= comparison.window[1] for name in comparison.destination_only_dates)}",
+                  f"Destination-only outside range: {sum(not comparison.window[0] <= name <= comparison.window[1] for name in comparison.destination_only_dates)}",
+                  f"Destination-only at/before latest: {sum(name <= comparison.window[1] for name in comparison.destination_only_dates)}",
+                  f"Destination-only newer than latest: {sum(name > comparison.window[1] for name in comparison.destination_only_dates)}"]
     else:
         lines.append("Proven shared date range : unavailable; cache-only dates cannot be classified by bounds")
     for title, names in (("CACHE-ONLY DATES (not observed at destination)", comparison.cache_only_dates),
@@ -505,11 +509,15 @@ def _format_pair_comparison(comparison: SnapshotPairComparison) -> list[str]:
             for name in names:
                 suffix = (" [inside proven range]" if name in comparison.in_window_dates
                           else " [outside proven range]" if name in comparison.outside_window_dates else "")
+                if name in comparison.destination_only_dates and comparison.window:
+                    suffix = (" [newer than latest shared pair; compare with state cutoff]" if name > comparison.window[1]
+                              else " [older than first shared pair; needs prune safety check]" if name < comparison.window[0]
+                              else " [inside proven range]")
                 lines.append(f"  {name}{suffix}")
     lines += ["", "Comparison uses live Btrfs identities for every configured payload; matching names/counts or O/H/D/W/M/B tags alone do not prove a pair.",
-              "Cache-only dates inside the range need a prune safety check; this listing neither reads/rebuilds state nor deletes snapshots.",
+              "One-sided dates no newer than the latest shared pair, including older-than-first dates, need a prune safety check; this listing neither reads/rebuilds state nor deletes snapshots. Cleanup derives its upper limit from confirmed state pairs.",
               "Preview: python3 -m timeshift_btrfs_sync prune --config <same-config.toml> --dry-run",
-              "Sync without --prune/prune_after_sync does not perform retention cleanup. Tracked, active-parent, unverified or newer caches may remain; verified older leftovers can be cleaned after successful sync."]
+              "Sync without --prune/prune_after_sync does not perform retention cleanup. Tracked, active-parent, unverified or newer caches may remain; verified older cache leftovers and destination-only dates no newer than the latest confirmed state pair can be cleaned after successful sync."]
     return lines
 
 

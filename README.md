@@ -29,7 +29,7 @@ You are responsible for reviewing the code, testing it in a safe environment, ma
 
 ## Choose the current source application
 
-This source release is **0.1.98**. Run it from the project root with Python 3.11 or newer:
+This source release is **0.2.0**. Run it from the project root with Python 3.11 or newer:
 
 ```bash
 python3 -m timeshift_btrfs_sync --version
@@ -1029,6 +1029,25 @@ Once that ownership is proven, ordinary cache listing, cache JSON and ordinary f
 
 The source summary separates redundant candidates, confirmed deletion, blocked dates and skip reason from destination/state cleanup. Paired/state counters retain their meaning. For 36 cache dates and 17 UUID-proven retained destination/state pairs, 19 stale cache-only dates can be removed after successful sync without removing a destination or Timeshift original. Ambiguous or protected dates remain.
 
+### Remove redundant destination dates
+
+```toml
+[destination]
+delete_redundant_snapshots = true
+```
+
+This strict boolean defaults to **true** when omitted. It is independent of `[source].delete_redundant_snapshots` and `cleanup_superseded_cache`. Use a dedicated destination repository for this job. The existing sync cleanup command above previews/applies both sides; no new command is needed. Real receiver-only deletion requires successful sync in this invocation, requested cleanup and `--yes-delete`. Standalone real prune skips extra deletion; dry prune previews it. Restore and listing never delete extras.
+
+After missing complete pairs have been recovered into state and paired retention has run, refresh both native inventories. Derive the **newest complete live UUID-confirmed state pair as the inclusive upper limit**. Consider all untracked, unprotected destination dates no newer than that pair that have no native source-cache date/subtree. There is **no lower date limit**: dates older than the oldest retained pair are also checked. Anything newer than the latest confirmed pair remains protected for a future transfer. Require a calendar-valid `YYYY-MM-DD_HH-MM-SS` name and an unchanged native readonly snapshot, or a native date container whose snapshot children are readonly. Partial and bare readonly native snapshot layouts can qualify. Writable or unproven snapshot children block the entire date. Changed O/H/D/W/M/B tags do not affect UUID proof.
+
+Prove the dedicated native cache root, canonical cache-backed state paths and all matching sender/Received UUID pairs, plus the native destination snapshots-root identity and complete containment. Fresh receiver UUIDs/IDs must agree with state and inventory. Require at least one full cache-backed anchor; missing cache_root, partial discovery, incomplete state or uncertain roots preserve extras. Known source/cache snapshot identities, tracked dates, exclusions, active incomplete-transfer parents and dates newer than the latest confirmed pair remain protected. Ordinary Timeshift originals are never deleted by this option.
+
+Recheck the complete source-cache view immediately before deleting each receiver date; a newly appearing cache counterpart or failed read keeps it. The existing tree engine deletes exact native Btrfs IDs deepest-first with transaction commit and proves those IDs absent through the unchanged surviving destination root. No sudo shell/file reader, permission change or ordinary recursive deletion is used. Regular contents inside an authorized dated Btrfs tree disappear with its subvolumes.
+
+`list-snapshots --config ./config.toml` reports destination-only dates, counts at/before versus after the latest shared pair, and labels older-than-first and newer-than-latest dates. `--check-pairs` returns 1 for differences. Listing does not read state; its shared physical range is diagnostic, while actual deletion uses the freshly confirmed **state** upper limit. Older-than-first dates can qualify; newer-than-latest dates cannot qualify. Review `prune --dry-run` for the deletion decision and `DESTINATION CLEANUP SUMMARY` for redundant candidates, confirmed-gone, blocked and skipped counts. Paired/state cleanup counters keep their existing meaning.
+
+Qualifying stale destination dates no newer than the confirmed upper limit are removed when cleanup succeeds, including dates older than the oldest retained pair. **An equal cache/destination count is not guaranteed**: newer, tracked, excluded, writable or uncertain dates deliberately remain. Namespace disappearance is confirmed; asynchronous Btrfs space reclamation can take longer.
+
 ### `destroy-leftovers`
 
 Destroys configured source/destination leftovers when this app setup is being retired. This is not a prune command and does not use retention or `state.json` safety. Configured Btrfs roots are scanned recursively and their child subvolumes are deleted deepest-first before the root subvolume. There is no recursive ordinary-directory fallback. A configured ordinary non-empty source cache root or destination root is refused and must be inspected manually in both dry-run and real-run modes; an empty ordinary root may be removed with `rmdir`. Unexpected nested destination Btrfs subvolumes are also refused rather than treated as configured payload children. The command never deletes `source.snapshot_root`.
@@ -1205,6 +1224,7 @@ Timeshift's native timestamp path remains an ordinary directory. Restore mode ch
 | `sudo` | Destination sudo prefix, normally `sudo -n`. | Required for local `btrfs receive` and subvolume delete commands. |
 | `btrfs_command` | Destination Btrfs command name/path. | Use an absolute path if needed by sudo or your distro. |
 | `create_target_root` | Allows preflight to create a missing `target_root` as a Btrfs subvolume and create internal metadata directories. | Convenient for first setup. Disable if you want missing paths to be an error. |
+| `delete_redundant_snapshots` | Default true; remove proven untracked destination-only readonly dated snapshots no newer than the latest confirmed state pair after successful sync, including older-than-first leftovers. | Requires native cache/state/receiver ownership and fresh cache absence, requested sync cleanup and --yes-delete. Independent of source cleanup switches; dry prune previews, standalone real prune skips extras. Tracked/protected/newer/writable/uncertain dates remain; there is no lower date limit. |
 | `cleanup_incomplete_receive` | Removes incomplete destination receives not recorded in state. | Allows safe retry after cancelled transfers only after a non-empty-at-start destination has a complete UUID-confirmed chain anchor. Only Btrfs subvolumes or empty dirs are auto-deleted. |
 
 ### `[stream]`

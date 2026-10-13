@@ -9,7 +9,7 @@
 set -Eeuo pipefail
 
 PROGRAM_NAME="${0##*/}"
-RELEASE_VERSION="0.1.98"
+RELEASE_VERSION="0.2.0"
 MODE="dry-run"
 DESTINATION=""
 

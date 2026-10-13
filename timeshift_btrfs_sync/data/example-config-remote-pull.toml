@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.1.98 config
+# timeshift-btrfs-sync v0.2.0 config
 # Inventory: ts-btrfs list-snapshots --config ./config.toml
 # Prints Timeshift, cache_root, target_root; uses configured sudo only for Btrfs/Timeshift reads.
 # Timeshift supplies source metadata; omitted dates use ordinary source info.json reads.
@@ -538,6 +538,18 @@ create_target_root = true
 # the existing date subvolume. Ordinary destination paths are never deleted as
 # a fallback and require manual inspection.
 cleanup_incomplete_receive = true
+
+# Post-sync redundant receiver cleanup (independent of the source cache switch).
+# After successful sync and paired retention, consider only untracked native
+# Timeshift-date snapshots no newer than the latest UUID-confirmed state pair,
+# including dates older than the oldest retained pair (there is no lower limit).
+# They must be absent from the source cache. Verify dedicated native roots, full immutable
+# cache/state/received UUID anchors, exact RO snapshot trees and native IDs.
+# Protect tracked/excluded/active-parent dates, newer-than-latest dates and uncertainty.
+# Requires sync cleanup (--prune or prune_after_sync), --run and --yes-delete.
+# Standalone prune --dry-run previews; real standalone prune skips these extras.
+# Restore and list-snapshots never perform this cleanup. Default: true.
+delete_redundant_snapshots = true
 
 
 [stream]

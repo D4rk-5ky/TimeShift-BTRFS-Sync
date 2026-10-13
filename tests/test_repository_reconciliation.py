@@ -317,6 +317,7 @@ class RepositoryReconciliationTests(TestCase):
 
     def test_prune_reconciles_then_cleans_even_with_zero_paired_candidates(self):
         self.add_window()
+        self.config.destination.delete_redundant_snapshots = False
         extra = reconciliation.RedundantCacheResult(candidates=1, attempted=1, completed=1)
         with mock.patch.object(reconciliation, "prepare_reconciliation", return_value=self.context) as prepare, mock.patch.object(reconciliation, "cleanup_redundant_cache", return_value=extra) as clean, mock.patch.object(retention, "save_state"), redirect_stdout(io.StringIO()):
             result = retention.prune(self.config, self.state, dry_run=False, yes_delete=True, reconcile_inventory=True, successful_sync=True)
@@ -535,3 +536,286 @@ class PostSyncCleanupOrderTests(TestCase):
             else:
                 self.assertTrue(prune.call_args.kwargs['successful_sync'])
                 self.assertEqual([c[0] for c in events.mock_calls], ['sync', 'prune'])
+
+
+class DestinationReconciliationTests(TestCase):
+    """Exercise bounded receiver-only cleanup without mutating actual storage."""
+
+    def setUp(self):
+        """Reuse repository fixtures and give receiver roots/payloads exact native identities."""
+        self.f = RepositoryReconciliationTests()
+        self.f.setUp()
+        self.addCleanup(self.f.doCleanups)
+        self.f.add_pair(FIRST)
+        self.f.add_pair(LAST)
+        self.receiver_root = SubvolumeMeta('snapshots', str(self.f.config.destination.target_root / 'snapshots'), uuid='owned-target-root', readonly=False, subvolume_id=3000)
+        for i, meta in enumerate(self.f.target.by_path.values(), start=3001):
+            meta.subvolume_id = i
+            if meta.name not in self.f.config.source.subvolumes:
+                meta.readonly = False
+        self.extra_id = 4000
+        self.add_receiver(MIDDLE)
+
+    def add_receiver(self, name, *, bare=False, partial=False):
+        """Add a dated native receiver tree whose sending cache has disappeared."""
+        parent = str(self.f.config.destination.target_root / 'snapshots' / name)
+        meta = SubvolumeMeta(name, parent, uuid='stale-date-'+name, readonly=bare, subvolume_id=self.extra_id,
+                             received_uuid='expired-bare-'+name if bare else None)
+        self.extra_id += 1
+        self.f.target.add(meta)
+        if not bare:
+            for payload in (['@'] if partial else self.f.config.source.subvolumes):
+                self.f.target.add(SubvolumeMeta(payload, parent+'/'+payload, uuid='stale-'+name+payload,
+                    received_uuid='expired-send-'+name+payload, readonly=True, subvolume_id=self.extra_id))
+                self.extra_id += 1
+        self.f.records[name] = BackupDirectoryRecord(name, 'directory', {}, None)
+
+    def cleanup(self, *, dry_run=False, yes_delete=True, successful_sync=True, live=None, discover=None, deleted=True):
+        """Mock native storage while using real cleanup/ownership/range logic."""
+        f = self.f
+        def meta(_ops, path, **kwargs):
+            """Return indexed identities or an explicitly simulated changed native path."""
+            path = str(path)
+            saved = f.root_meta if path == f.config.source.cache_root else self.receiver_root if path == self.receiver_root.path else f.cache.meta(path) or f.target.meta(path) or f.originals.meta(path)
+            return live(path, saved) if live else saved
+        def tree(_ops, root):
+            """Return scoped containment below the selected native repository root."""
+            return ([root, *(f.cache.by_path if root == f.config.source.cache_root else f.target.by_path)], [])
+        def index(_ops, root):
+            """Return complete source/receiver views or a scheduled race/failure fixture."""
+            if discover:
+                discover(root)
+            return (f.cache, {}, [], None, 'device') if root == f.config.source.cache_root else (f.target, f.records, [], None, 'device')
+        with mock.patch.object(BtrfsOps, 'meta', meta), mock.patch.object(reconciliation, 'discover_subvolume_tree', tree), mock.patch.object(reconciliation, '_discover_repository', index), mock.patch.object(reconciliation, 'delete_subvolume_tree', return_value=TreeDeleteResult('fixture', 'local', verified_root_absent=deleted)) as delete, redirect_stdout(io.StringIO()):
+            result = reconciliation.cleanup_redundant_destination(f.config, f.state, f.context,
+                dry_run=dry_run, yes_delete=yes_delete, successful_sync=successful_sync)
+        return result, delete
+
+    def test_destination_only_middle_deleted_without_changing_state_or_cache(self):
+        before = deepcopy(self.f.state)
+        cache = deepcopy(self.f.cache.by_path)
+        result, delete = self.cleanup()
+        self.assertEqual((result.candidates, result.attempted, result.completed), (1,1,1))
+        self.assertEqual(self.f.state, before)
+        self.assertEqual(self.f.cache.by_path, cache)
+        self.assertEqual(set(self.f.records), {FIRST, LAST})
+        self.assertEqual(delete.call_args.kwargs['native_cache_proof'].cache_root, self.receiver_root)
+        self.assertEqual(len(delete.call_args.kwargs['native_cache_proof'].subvolumes),3)
+
+    def test_destination_upper_limit_includes_older_but_preserves_newer_bad_dates_and_names(self):
+        for name in ('2026-09-30_12-00-00','2026-10-04_12-00-00','2026-10-02_14-99-00','old-backup'):
+            self.add_receiver(name)
+        result, delete = self.cleanup()
+        self.assertEqual((result.candidates,result.completed,delete.call_count),(2,2,2))
+        self.assertEqual(len(self.f.records),5)
+        self.assertNotIn('2026-09-30_12-00-00', self.f.records)
+        self.assertIn('2026-10-04_12-00-00', self.f.records)
+
+    def test_source_counterpart_protected_even_if_missing_from_state(self):
+        self.f.add_cache(MIDDLE)
+        result, delete = self.cleanup()
+        self.assertEqual(result.candidates,0)
+        delete.assert_not_called()
+
+    def test_tracked_and_explicitly_protected_receiver_dates_preserved(self):
+        self.f.config.retention.protected_snapshots = [MIDDLE]
+        result, delete = self.cleanup()
+        self.assertEqual(result.candidates,0)
+        delete.assert_not_called()
+        self.f.config.retention.protected_snapshots = []
+        self.f.state['snapshots'][MIDDLE] = deepcopy(self.f.state['snapshots'][FIRST])
+        result, delete = self.cleanup()
+        self.assertEqual(result.candidates,0)
+        delete.assert_not_called()
+
+    def test_no_successful_sync_skip_and_dry_preview_no_delete(self):
+        result, delete = self.cleanup(successful_sync=False)
+        self.assertIn('successful sync',result.skipped_reason)
+        delete.assert_not_called()
+        result, delete = self.cleanup(dry_run=True,successful_sync=False,yes_delete=False)
+        self.assertEqual((result.candidates,result.attempted,result.completed),(1,0,0))
+        self.assertEqual(result.blocked,[])
+        delete.assert_not_called()
+
+    def test_destination_option_independent_of_source_cleanup_switches(self):
+        self.f.config.source.delete_redundant_snapshots = False
+        self.f.config.source.cleanup_superseded_cache = False
+        result, delete = self.cleanup()
+        self.assertEqual(result.completed,1)
+        delete.assert_called_once()
+
+    def test_disabled_destination_option_does_not_call_storage(self):
+        self.f.config.destination.delete_redundant_snapshots = False
+        with mock.patch.object(reconciliation,'_discover_repository') as read:
+            result = reconciliation.cleanup_redundant_destination(self.f.config,self.f.state,self.f.context,dry_run=False,yes_delete=True,successful_sync=True)
+        self.assertEqual(result.completed,0)
+        read.assert_not_called()
+
+    def test_real_delete_requires_explicit_yes_delete(self):
+        with self.assertRaisesRegex(RuntimeError,'--yes-delete'):
+            self.cleanup(yes_delete=False)
+
+    def test_incomplete_or_missing_cache_inventory_preserves_receivers(self):
+        self.f.cache.errors.append('native list truncated')
+        result, delete = self.cleanup()
+        self.assertIn('incomplete',result.skipped_reason)
+        delete.assert_not_called()
+        self.f.cache.errors.clear()
+        self.f.cache.root_missing = True
+        result, delete = self.cleanup()
+        self.assertIn('incomplete',result.skipped_reason)
+        delete.assert_not_called()
+
+    def test_missing_cache_configuration_preserves_receivers(self):
+        self.f.config.source.cache_root = None
+        result, delete = self.cleanup()
+        self.assertIn('cache_root',result.skipped_reason)
+        delete.assert_not_called()
+
+    def test_writable_unknown_or_changed_payload_cannot_be_deleted(self):
+        path = str(self.f.config.destination.target_root / 'snapshots' / MIDDLE / '@')
+        original = self.f.target.meta(path)
+        for change in ({'readonly':False},{'received_uuid':None,'parent_uuid':None},{'uuid':'replacement'},{'subvolume_id':9999}):
+            with self.subTest(change=change):
+                result, delete = self.cleanup(live=lambda p,m: replace(m,**change) if p==path else m)
+                self.assertTrue(result.blocked)
+                delete.assert_not_called()
+        self.assertTrue(original.readonly)
+
+    def test_replaced_or_snapshot_destination_root_blocks_cleanup(self):
+        self.receiver_root.parent_uuid = 'foreign-root-snapshot'
+        result, delete = self.cleanup()
+        self.assertTrue(result.blocked)
+        delete.assert_not_called()
+
+    def test_mismatched_state_pair_blocks_receiver_ownership(self):
+        path = str(self.f.config.destination.target_root / 'snapshots' / FIRST / '@')
+        result, delete = self.cleanup(live=lambda p,m: replace(m,received_uuid='foreign') if p==path else m)
+        self.assertTrue(result.blocked)
+        delete.assert_not_called()
+
+    def test_cache_appearing_immediately_before_delete_blocks_receiver_removal(self):
+        calls = 0
+        def race(root):
+            """Create a source counterpart after the first complete absence check."""
+            nonlocal calls
+            if root == self.f.config.source.cache_root:
+                calls += 1
+                if calls == 3:
+                    self.f.add_cache(MIDDLE)
+        result, delete = self.cleanup(discover=race)
+        self.assertEqual(result.completed,0)
+        self.assertIn('counterpart',result.blocked[0])
+        delete.assert_not_called()
+
+    def test_cache_becoming_unreadable_before_delete_blocks_receiver_removal(self):
+        calls = 0
+        def race(root):
+            """Simulate an unavailable cache between checks without claiming absence."""
+            nonlocal calls
+            if root == self.f.config.source.cache_root:
+                calls += 1
+                if calls == 3:
+                    self.f.cache.errors.append('connection lost')
+        result, delete = self.cleanup(discover=race)
+        self.assertIn('absence not proven',result.blocked[0])
+        delete.assert_not_called()
+
+    def test_bare_and_partial_readonly_receiver_dates_use_shared_tree_engine(self):
+        self.f.target.remove_tree(str(self.f.config.destination.target_root / 'snapshots' / MIDDLE))
+        self.add_receiver(MIDDLE,bare=True)
+        partial = '2026-10-02_13-00-00'
+        self.add_receiver(partial,partial=True)
+        result, delete = self.cleanup()
+        self.assertEqual((result.completed,delete.call_count),(2,2))
+        self.assertEqual([len(c.kwargs['native_cache_proof'].subvolumes) for c in delete.call_args_list],[1,2])
+
+    def test_known_source_uuid_under_another_date_preserves_receiver(self):
+        path = str(self.f.config.destination.target_root / 'snapshots' / MIDDLE / '@')
+        self.f.target.meta(path).received_uuid = self.f.cache.meta(str(Path(self.f.config.source.cache_root) / FIRST / '@')).uuid
+        result, delete = self.cleanup()
+        self.assertIn('known source/cache',result.blocked[0])
+        delete.assert_not_called()
+
+    def test_deletion_not_confirmed_is_retry_without_state_loss(self):
+        before = deepcopy(self.f.state)
+        result, delete = self.cleanup(deleted=False)
+        self.assertEqual((result.candidates,result.attempted,result.completed),(1,1,0))
+        self.assertTrue(result.blocked)
+        self.assertEqual(self.f.state,before)
+        self.assertIn(MIDDLE,self.f.records)
+
+    def test_destination_boolean_default_disable_and_strict_validation(self):
+        template = (Path(__file__).parents[1] / 'timeshift_btrfs_sync/data/example-config-local-backup.toml').read_text()
+        before, destination = template.split('[destination]',1)
+        path = Path(self.f.temp.name) / 'config.toml'
+        for value, expected in (('# omitted',True),('delete_redundant_snapshots = false',False)):
+            path.write_text(before+'[destination]'+destination.replace('delete_redundant_snapshots = true',value))
+            cfg = load_config(path)
+            self.assertEqual(cfg.destination.delete_redundant_snapshots,expected)
+            self.assertTrue(cfg.source.delete_redundant_snapshots)
+        path.write_text(before+'[destination]'+destination.replace('delete_redundant_snapshots = true','delete_redundant_snapshots = "true"'))
+        with self.assertRaises(ConfigError):
+            load_config(path)
+
+    def test_receiver_only_counters_do_not_inflate_paired_state_cleanup(self):
+        from timeshift_btrfs_sync.cli import _format_cleanup_summary
+        result = retention.PruneResult(retention.PrunePlan(),False,redundant_destination_cleanup_enabled=True)
+        extra = reconciliation.RedundantCacheResult(candidates=3,attempted=2,completed=1,blocked=['retry','protected'])
+        with mock.patch.object(reconciliation,'cleanup_redundant_destination',return_value=extra):
+            retention._apply_redundant_destination_cleanup(self.f.config,self.f.state,self.f.context,result,yes_delete=True,successful_sync=True)
+        self.assertEqual(result.cleaned_snapshots,0)
+        self.assertEqual(result.destination_state_deleted,0)
+        text = _format_cleanup_summary(requested=True,dry_run=False,result=result)
+        self.assertIn('redundant destination confirmed gone: 1',text)
+        self.assertIn('completed with protected/retry items',text)
+        self.assertIn('redundant blocked:        2',retention.format_prune_cleanup_summaries(result))
+
+
+    def test_all_older_valid_dates_are_candidates_without_a_lower_limit(self):
+        old = ['2001-01-01_00-00-00','2025-12-31_23-59-59','2026-09-30_23-59-59']
+        for name in old:
+            self.add_receiver(name)
+        before = deepcopy(self.f.state)
+        result, delete = self.cleanup()
+        self.assertEqual((result.candidates,result.completed,delete.call_count),(4,4,4))
+        self.assertEqual(self.f.state,before)
+        self.assertEqual(set(self.f.records),{FIRST,LAST})
+
+    def test_older_receiver_preserved_when_ownership_uuid_pair_is_invalid(self):
+        old = '2025-01-01_00-00-00'
+        self.add_receiver(old)
+        path = str(self.f.config.destination.target_root / 'snapshots' / FIRST / '@')
+        result, delete = self.cleanup(live=lambda p,m: replace(m,received_uuid='foreign-stream') if p==path else m)
+        self.assertEqual(result.completed,0)
+        self.assertTrue(result.blocked)
+        self.assertIn(old,self.f.records)
+        delete.assert_not_called()
+
+    def test_older_excluded_or_writable_snapshots_remain_protected(self):
+        old = '2025-01-01_00-00-00'
+        self.add_receiver(old)
+        self.f.config.retention.protected_snapshots = [old]
+        result, delete = self.cleanup()
+        self.assertEqual(result.completed,1)
+        self.assertIn(old,self.f.records)
+        self.f.config.retention.protected_snapshots = []
+        path = str(self.f.config.destination.target_root / 'snapshots' / old / '@')
+        self.f.target.meta(path).readonly = False
+        result, delete = self.cleanup()
+        self.assertEqual(result.completed,0)
+        self.assertTrue(result.blocked)
+        delete.assert_not_called()
+
+    def test_dry_preview_includes_older_snapshots_but_never_newer_snapshots(self):
+        old = '2025-01-01_00-00-00'
+        future = '2026-10-03_12-00-01'
+        self.add_receiver(old)
+        self.add_receiver(future)
+        before = deepcopy(self.f.state)
+        result, delete = self.cleanup(dry_run=True,successful_sync=False,yes_delete=False)
+        self.assertEqual((result.candidates,result.attempted,result.completed),(2,0,0))
+        self.assertEqual(result.blocked,[])
+        self.assertEqual(self.f.state,before)
+        self.assertIn(future,self.f.records)
+        delete.assert_not_called()
