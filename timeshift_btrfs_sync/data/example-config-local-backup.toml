@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.2.0 config
+# timeshift-btrfs-sync v0.2.1 config
 # Inventory: ts-btrfs list-snapshots --config ./config.toml
 # Prints Timeshift, cache_root, target_root; uses configured sudo only for Btrfs/Timeshift reads.
 # Timeshift supplies source metadata; omitted dates use ordinary source info.json reads.
@@ -352,6 +352,9 @@ sudo = "sudo -n"
 
 # Source-side commands. Absolute paths are also valid, for example /usr/bin/btrfs.
 btrfs_command = "btrfs"
+# Source inventory/list/create waits on Timeshift startup lock denial, polling every 60 seconds.
+# After waiting, rebuild source names/tags/JSON and Btrfs identities before sync planning.
+# No automatic timeout; Ctrl+C cancels. SSH/permission/other errors still fail normally.
 timeshift_command = "timeshift"
 
 # Snapshot discovery command:

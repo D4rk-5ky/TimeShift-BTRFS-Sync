@@ -1,6 +1,15 @@
 # Versioning
 
-Current source version: **0.2.0**. Each newly created release increments the patch component by one. At patch 99, roll over into the next minor component: `0.0.99 → 0.1.0` and `0.1.99 → 0.2.0`; never create patch 100. Preserved original copies and binaries retain their original versions.
+Current source version: **0.2.1**. Each newly created release increments the patch component by one. At patch 99, roll over into the next minor component: `0.0.99 → 0.1.0` and `0.1.99 → 0.2.0`; never create patch 100. Preserved original copies and binaries retain their original versions.
+
+## 0.2.1 — 2026-10-13
+
+- Increment the current source version from 0.2.0 by 0.0.1; retain the complete previous uppercase version ledger.
+- Recognize only Timeshift's exit-1 startup lock denial with its reported PID. Retry every 60 seconds until the lock is available, without imposing a timeout, signaling a process or removing Timeshift locks. Treat the lock as Timeshift busy: a scheduled snapshot or open GUI may hold it. Ctrl+C propagates to existing CLI interruption handling (exit 130 and normal app lock unwinding).
+- Wrap the full existing local/SSH source inventory builder in the shared wait helper. Discard every busy attempt and reconstruct Timeshift names/tags/comments, readable info.json, snapshot_root/cache_root Btrfs UUID/readonly indexes and source identity. Local mode reads Btrfs/JSON only after a successful Timeshift list. Transfer selection and required source-change recovery receive fresh views, including new dates, expired dates and O/H/D/W/M/B changes. Waiting does not consume source-change retry events.
+- Reuse the same narrow startup-denial helper for standalone source listing, test-source and on-demand creation, including creation after an initial inventory/readiness race. Existing sync post-create refresh remains intact. Do not retry unrelated permission, transport, Timeshift or partial-creation failures. Do not replay combined destructive Timeshift delete-plus-verification commands. Diagnostic list-snapshots keeps its existing native Btrfs/JSON fallback.
+- Update current README, INSTALL, canonical COMMENTED_CODE_MAP, config/CLI audit, all eight complete example comments, sync --help and source/build version metadata. No new config setting, dependency, sudo program, state schema, transfer protocol, retention permission or deletion engine is introduced. Preserve original necessary files, executable, requirements and supplied disclaimers.
+- Add regression coverage for exact startup-denial recognition, repeated minute polls, cancellation, local/SSH complete refresh, refreshed retention/tag/date/UUID selection, unrelated-error propagation and destructive-command non-replay. Compile/help/config checks, dual Python suites, CLI fixtures and clean original/prior ZIP manifest comparison are recorded in RELEASE_VERIFICATION.md. Live scheduled Timeshift/Btrfs/SSH concurrency and executable/dependency builds remain untested.
 
 ## 0.2.0 — 2026-10-13
 

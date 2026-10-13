@@ -29,7 +29,7 @@ You are responsible for reviewing the code, testing it in a safe environment, ma
 
 ## Choose the current source application
 
-This source release is **0.2.0**. Run it from the project root with Python 3.11 or newer:
+This source release is **0.2.1**. Run it from the project root with Python 3.11 or newer:
 
 ```bash
 python3 -m timeshift_btrfs_sync --version
@@ -112,6 +112,20 @@ python3 -m timeshift_btrfs_sync init-config --profile remote-pull-restore --path
 ```
 
 Edit mount paths, SSH host/account, privileges and retention before use. The new examples use `/mnt/system/timeshift-btrfs/snapshots` on the Timeshift side and `/mnt/backup/timeshift-btrfs` on the backup side. For pull restore the backup path and optional state file are remote, while `lock_file` and `log_dir` stay local. Restore requires the local lock parent to exist; prepare the explicitly configured local directory before running it. Native Timeshift restore requires `@`, optionally `@home`, under one snapshot root on one filesystem. A home-only/custom backup is not a Timeshift system snapshot, and split-filesystem root/home restore is outside the supported layout.
+
+## Waiting for source Timeshift
+
+Use the normal command; no extra flag or config setting is needed:
+
+```bash
+python3 -m timeshift_btrfs_sync sync --config ./config.toml --run --prune --yes-delete
+```
+
+If local or SSH source Timeshift refuses startup with `Another instance of this application is running (PID=…)`, the app prints the PID and waits **60 seconds** before each retry. It keeps waiting until Timeshift accepts the command. Press **Ctrl+C** to cancel; the CLI exits with status 130 and releases its app lock normally. There is no automatic timeout. An open Timeshift GUI can hold the same lock as a scheduled hourly/daily job; the message alone cannot tell which is running. If the wait persists, check Timeshift on the source machine. The app does not kill that process or alter Timeshift's locks. See [Timeshift's startup lock check](https://github.com/linuxmint/timeshift/blob/master/src/Core/Main.vala) and [PID lock implementation](https://github.com/linuxmint/timeshift/blob/master/src/Utility/AppLock.vala).
+
+Each retry rebuilds the **whole source inventory**, including Timeshift names/tags/comments, readable `info.json`, snapshot_root and cache_root Btrfs identities. Data from a busy attempt is discarded. The existing planner then selects retained snapshots and incremental parents from the refreshed view, accounting for new dates, expired dates and changed O/H/D/W/M/B tags. Inventory reads during transfer recovery use the same wait; these lock waits do not consume `source_change_retry_count`, which still limits actual source-change recovery events. Timeshift can start again later, so the existing live UUID checks and recovery remain necessary.
+
+Standalone source listing, `test-source`, and an app-requested on-demand creation also wait on that exact startup denial. Successful sync on-demand creation is followed by the existing full inventory refresh. Unexpected or translated messages, SSH/permission failures and other Timeshift errors still stop required discovery immediately; optional discovery keeps its existing handling of unrelated errors. A failed create is retried only when it was denied at startup, before work began. Combined destructive delete-and-verify commands are never replayed automatically. `list-snapshots` keeps its existing read-only diagnostic fallback to native Btrfs/JSON when Timeshift listing is unavailable.
 
 ## Safety model
 

@@ -1,4 +1,4 @@
-# Commented code map — TimeShift-BTRFS-Sync 0.2.0
+# Commented code map — TimeShift-BTRFS-Sync 0.2.1
 
 This file explains every Python class, function, method and nested callback in the current project, plus application commands and supplied shell/integration commands. Line numbers refer to this release. COMMENTED_CODE_MAP.md is the canonical code map; VERSIONING.md is the canonical version ledger.
 
@@ -1240,47 +1240,93 @@ Runtime layers reuse CommandEndpoint, BtrfsOps, CacheManager, inventory, Workflo
 
 **Why:** Keeps test fixtures and assertions close to the behavior they verify so regressions can be reproduced without production data.
 
-- `FakeSource` (class, line 14): Groups FakeSource regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+- `FakeSource` (class, line 19): Groups FakeSource regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
 
-- `FakeSource.__init__` (function/method, line 15): Test support: init; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `FakeSource` to use its existing endpoint, state or callback context.
+- `FakeSource.__init__` (function/method, line 20): Test support: init; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `FakeSource` to use its existing endpoint, state or callback context.
 
-- `FakeSource.run` (function/method, line 21): Test support: run; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `FakeSource` to use its existing endpoint, state or callback context.
+- `FakeSource.run` (function/method, line 26): Test support: run; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `FakeSource` to use its existing endpoint, state or callback context.
 
-- `index` (function/method, line 26): Test support: index; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+- `index` (function/method, line 31): Test support: index; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
 
-- `CombinedInventoryTests` (class, line 33): Groups CombinedInventory regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+- `CombinedInventoryTests` (class, line 38): Groups CombinedInventory regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
 
-- `CombinedInventoryTests.test_build_source_inventory_uses_one_source_command_and_parses_all_sections` (function/method, line 34): Regression assertion: build source inventory uses one source command and parses all sections. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `CombinedInventoryTests` to use its existing endpoint, state or callback context.
+- `CombinedInventoryTests.test_build_source_inventory_uses_one_source_command_and_parses_all_sections` (function/method, line 39): Regression assertion: build source inventory uses one source command and parses all sections. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `CombinedInventoryTests` to use its existing endpoint, state or callback context.
 
-- `CombinedInventoryTests.test_index_finds_received_copy_by_effective_send_uuid` (function/method, line 116): Regression assertion: index finds received copy by effective send uuid. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `CombinedInventoryTests` to use its existing endpoint, state or callback context.
+- `CombinedInventoryTests.test_index_finds_received_copy_by_effective_send_uuid` (function/method, line 121): Regression assertion: index finds received copy by effective send uuid. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `CombinedInventoryTests` to use its existing endpoint, state or callback context.
 
-- `CombinedInventoryTests.test_unreadable_snapshot_root_is_applied_to_each_missing_info_json` (function/method, line 130): Regression assertion: unreadable snapshot root is applied to each missing info json. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `CombinedInventoryTests` to use its existing endpoint, state or callback context.
+- `CombinedInventoryTests.test_unreadable_snapshot_root_is_applied_to_each_missing_info_json` (function/method, line 135): Regression assertion: unreadable snapshot root is applied to each missing info json. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `CombinedInventoryTests` to use its existing endpoint, state or callback context.
 
-- `CombinedInventoryTests.test_required_path_changes_ignore_unrelated_churn` (function/method, line 159): Regression assertion: required path changes ignore unrelated churn. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `CombinedInventoryTests` to use its existing endpoint, state or callback context.
+- `CombinedInventoryTests.test_required_path_changes_ignore_unrelated_churn` (function/method, line 164): Regression assertion: required path changes ignore unrelated churn. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `CombinedInventoryTests` to use its existing endpoint, state or callback context.
 
-- `CombinedInventoryTests.test_required_path_changes_detect_disappearance_and_uuid_replacement` (function/method, line 191): Regression assertion: required path changes detect disappearance and uuid replacement. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `CombinedInventoryTests` to use its existing endpoint, state or callback context.
+- `CombinedInventoryTests.test_required_path_changes_detect_disappearance_and_uuid_replacement` (function/method, line 196): Regression assertion: required path changes detect disappearance and uuid replacement. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `CombinedInventoryTests` to use its existing endpoint, state or callback context.
 
-- `PreflightBatchTests` (class, line 218): Groups PreflightBatch regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+- `PreflightBatchTests` (class, line 223): Groups PreflightBatch regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
 
-- `PreflightBatchTests.test_cache_check_runs_only_after_snapshot_ok_inside_one_shell` (function/method, line 219): Regression assertion: cache check runs only after snapshot ok inside one shell. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `PreflightBatchTests` to use its existing endpoint, state or callback context.
+- `PreflightBatchTests.test_cache_check_runs_only_after_snapshot_ok_inside_one_shell` (function/method, line 224): Regression assertion: cache check runs only after snapshot ok inside one shell. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `PreflightBatchTests` to use its existing endpoint, state or callback context.
 
-- `PreflightBatchTests.test_cache_check_is_skipped_when_snapshot_fails` (function/method, line 229): Regression assertion: cache check is skipped when snapshot fails. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `PreflightBatchTests` to use its existing endpoint, state or callback context.
+- `PreflightBatchTests.test_cache_check_is_skipped_when_snapshot_fails` (function/method, line 234): Regression assertion: cache check is skipped when snapshot fails. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `PreflightBatchTests` to use its existing endpoint, state or callback context.
 
-- `CacheCreationBatchTests` (class, line 239): Groups CacheCreationBatch regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+- `CacheCreationBatchTests` (class, line 244): Groups CacheCreationBatch regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
 
-- `CacheCreationBatchTests.test_create_and_show_metadata_are_parsed_from_one_source_command` (function/method, line 240): Regression assertion: create and show metadata are parsed from one source command. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `CacheCreationBatchTests` to use its existing endpoint, state or callback context.
+- `CacheCreationBatchTests.test_create_and_show_metadata_are_parsed_from_one_source_command` (function/method, line 245): Regression assertion: create and show metadata are parsed from one source command. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `CacheCreationBatchTests` to use its existing endpoint, state or callback context.
 
-- `SyncContinuationTests` (class, line 276): Groups SyncContinuation regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+- `SyncContinuationTests` (class, line 281): Groups SyncContinuation regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
 
-- `SyncContinuationTests.test_failed_send_rebuilds_inventory_recovers_version_and_continues` (function/method, line 277): Regression assertion: failed send rebuilds inventory recovers version and continues. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncContinuationTests` to use its existing endpoint, state or callback context.
+- `SyncContinuationTests.test_failed_send_rebuilds_inventory_recovers_version_and_continues` (function/method, line 282): Regression assertion: failed send rebuilds inventory recovers version and continues. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncContinuationTests` to use its existing endpoint, state or callback context.
 
-- `SyncContinuationTests.test_failed_send_rebuilds_inventory_recovers_version_and_continues.SyncSource` (class, line 307): Groups SyncSource regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+- `SyncContinuationTests.test_failed_send_rebuilds_inventory_recovers_version_and_continues.SyncSource` (class, line 312): Groups SyncSource regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
 
-- `SyncContinuationTests.test_failed_send_rebuilds_inventory_recovers_version_and_continues.SyncSource.command` (function/method, line 311): Test support: command; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncContinuationTests.test_failed_send_rebuilds_inventory_recovers_version_and_continues.SyncSource` to use its existing endpoint, state or callback context.
+- `SyncContinuationTests.test_failed_send_rebuilds_inventory_recovers_version_and_continues.SyncSource.command` (function/method, line 316): Test support: command; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncContinuationTests.test_failed_send_rebuilds_inventory_recovers_version_and_continues.SyncSource` to use its existing endpoint, state or callback context.
 
-- `SyncContinuationTests.test_failed_send_rebuilds_inventory_recovers_version_and_continues.SyncSource.environment` (function/method, line 314): Test support: environment; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncContinuationTests.test_failed_send_rebuilds_inventory_recovers_version_and_continues.SyncSource` to use its existing endpoint, state or callback context.
+- `SyncContinuationTests.test_failed_send_rebuilds_inventory_recovers_version_and_continues.SyncSource.environment` (function/method, line 319): Test support: environment; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncContinuationTests.test_failed_send_rebuilds_inventory_recovers_version_and_continues.SyncSource` to use its existing endpoint, state or callback context.
 
-- `SyncContinuationTests.test_failed_send_rebuilds_inventory_recovers_version_and_continues.SyncSource.run` (function/method, line 317): Test support: run; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncContinuationTests.test_failed_send_rebuilds_inventory_recovers_version_and_continues.SyncSource` to use its existing endpoint, state or callback context.
+- `SyncContinuationTests.test_failed_send_rebuilds_inventory_recovers_version_and_continues.SyncSource.run` (function/method, line 322): Test support: run; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncContinuationTests.test_failed_send_rebuilds_inventory_recovers_version_and_continues.SyncSource` to use its existing endpoint, state or callback context.
+
+- `wait_inventory_reply` (function/method, line 360): Model the real remote inventory protocol with independently dated UUIDs. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `TimeshiftWaitTests` (class, line 378): Groups TimeshiftWait regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `TimeshiftWaitTests.test_startup_denial_recognized_in_either_stream_with_color_and_timestamp` (function/method, line 379): Regression assertion: startup denial recognized in either stream with color and timestamp. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_success_and_transport_exit_codes_never_classified_as_busy` (function/method, line 386): Regression assertion: success and transport exit codes never classified as busy. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_unrelated_busy_messages_and_missing_pid_do_not_retry` (function/method, line 390): Regression assertion: unrelated busy messages and missing pid do not retry. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_multiple_polls_are_exactly_one_minute_and_log_resume` (function/method, line 394): Regression assertion: multiple polls are exactly one minute and log resume. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_ctrl_c_during_wait_propagates_without_retry` (function/method, line 404): Regression assertion: ctrl c during wait propagates without retry. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_different_failure_after_busy_stops_immediately` (function/method, line 411): Regression assertion: different failure after busy stops immediately. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.build` (function/method, line 419): Test support: build; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_ssh_discards_busy_inventory_and_refreshes_dates_tags_json_and_uuid` (function/method, line 422): Regression assertion: ssh discards busy inventory and refreshes dates tags json and uuid. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_optional_ssh_inventory_still_waits_for_known_busy` (function/method, line 454): Regression assertion: optional ssh inventory still waits for known busy. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_ssh_transport_error_is_fatal_even_if_old_busy_text_is_present` (function/method, line 461): Regression assertion: ssh transport error is fatal even if old busy text is present. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_ssh_other_timeshift_error_is_fatal_without_polling` (function/method, line 469): Regression assertion: ssh other timeshift error is fatal without polling. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_ssh_busy_then_permission_error_does_not_use_the_old_index` (function/method, line 476): Regression assertion: ssh busy then permission error does not use the old index. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_local_reads_native_metadata_only_after_timeshift_becomes_available` (function/method, line 485): Regression assertion: local reads native metadata only after timeshift becomes available. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_local_nonbusy_error_never_reads_native_metadata_or_sleeps` (function/method, line 496): Regression assertion: local nonbusy error never reads native metadata or sleeps. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_local_interrupt_does_not_read_native_metadata` (function/method, line 505): Regression assertion: local interrupt does not read native metadata. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_single_list_command_waits_and_parses_only_new_output` (function/method, line 514): Regression assertion: single list command waits and parses only new output. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_on_demand_create_retries_only_startup_denial` (function/method, line 523): Regression assertion: on demand create retries only startup denial. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_on_demand_create_other_failure_is_not_repeated` (function/method, line 533): Regression assertion: on demand create other failure is not repeated. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_actual_sync_dry_planner_runs_after_wait_with_only_refreshed_dates` (function/method, line 542): Regression assertion: actual sync dry planner runs after wait with only refreshed dates. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_cli_busy_interrupt_returns_130` (function/method, line 576): Regression assertion: cli busy interrupt returns 130. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
+
+- `TimeshiftWaitTests.test_combined_destructive_delete_verification_is_never_replayed` (function/method, line 586): Regression assertion: combined destructive delete verification is never replayed. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `TimeshiftWaitTests` to use its existing endpoint, state or callback context.
 
 ## `tests/test_ssh_auth_regressions.py`
 
@@ -1708,7 +1754,7 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 - `build_parser` (function/method, line 857): Create the argparse parser and complete command-specific flag help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `main` (function/method, line 1329): Parse and dispatch CLI arguments; translate configuration, lock, runtime and interruption errors to documented exit codes. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `main` (function/method, line 1330): Parse and dispatch CLI arguments; translate configuration, lock, runtime and interruption errors to documented exit codes. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
 ## `timeshift_btrfs_sync/commands.py`
 
@@ -1866,69 +1912,71 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `BtrfsIndex` (class, line 29): In-memory index of Btrfs subvolumes below one root path. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `BtrfsIndex` (class, line 30): In-memory index of Btrfs subvolumes below one root path. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `BtrfsIndex.add` (function/method, line 40): Add or replace one indexed subvolume. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `BtrfsIndex` to use its existing endpoint, state or callback context.
+- `BtrfsIndex.add` (function/method, line 41): Add or replace one indexed subvolume. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `BtrfsIndex` to use its existing endpoint, state or callback context.
 
-- `BtrfsIndex.discard` (function/method, line 53): Remove one path and any known UUID lookup entries for it. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `BtrfsIndex` to use its existing endpoint, state or callback context.
+- `BtrfsIndex.discard` (function/method, line 54): Remove one path and any known UUID lookup entries for it. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `BtrfsIndex` to use its existing endpoint, state or callback context.
 
-- `BtrfsIndex.contains` (function/method, line 65): Return True when ``path`` is an indexed subvolume. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `BtrfsIndex` to use its existing endpoint, state or callback context.
+- `BtrfsIndex.contains` (function/method, line 66): Return True when ``path`` is an indexed subvolume. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `BtrfsIndex` to use its existing endpoint, state or callback context.
 
-- `BtrfsIndex.meta` (function/method, line 70): Return metadata for ``path`` if it was indexed. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `BtrfsIndex` to use its existing endpoint, state or callback context.
+- `BtrfsIndex.meta` (function/method, line 71): Return metadata for ``path`` if it was indexed. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `BtrfsIndex` to use its existing endpoint, state or callback context.
 
-- `BtrfsIndex.find_send_uuid` (function/method, line 75): Return a subvolume whose Btrfs send-stream identity equals ``uuid``. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `BtrfsIndex` to use its existing endpoint, state or callback context.
+- `BtrfsIndex.find_send_uuid` (function/method, line 76): Return a subvolume whose Btrfs send-stream identity equals ``uuid``. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `BtrfsIndex` to use its existing endpoint, state or callback context.
 
-- `BtrfsIndex.remove_tree` (function/method, line 91): Remove a deleted path and all indexed descendants. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `BtrfsIndex` to use its existing endpoint, state or callback context.
+- `BtrfsIndex.remove_tree` (function/method, line 92): Remove a deleted path and all indexed descendants. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `BtrfsIndex` to use its existing endpoint, state or callback context.
 
-- `SourceInventory` (class, line 101): One coherent source-side Timeshift/Btrfs inventory. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `SourceInventory` (class, line 102): One coherent source-side Timeshift/Btrfs inventory. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `SourceInventory.snapshot_names` (property, line 121): Return Timeshift timestamp names in sorted order. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `SourceInventory` to use its existing endpoint, state or callback context.
+- `SourceInventory.snapshot_names` (property, line 122): Return Timeshift timestamp names in sorted order. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `SourceInventory` to use its existing endpoint, state or callback context.
 
-- `SourceInventory.meta` (function/method, line 127): Return source metadata from cache first, then snapshot-root index. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `SourceInventory` to use its existing endpoint, state or callback context.
+- `SourceInventory.meta` (function/method, line 128): Return source metadata from cache first, then snapshot-root index. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `SourceInventory` to use its existing endpoint, state or callback context.
 
-- `_clean_uuid` (function/method, line 138): Normalize Btrfs UUID fields from list/show output. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_clean_uuid` (function/method, line 139): Normalize Btrfs UUID fields from list/show output. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `parse_subvolume_list` (function/method, line 147): Parse ``btrfs subvolume list -u -q -R`` output for one root. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `parse_subvolume_list` (function/method, line 148): Parse ``btrfs subvolume list -u -q -R`` output for one root. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `parse_subvolume_paths` (function/method, line 178): Return root-scoped absolute paths from ``btrfs subvolume list`` output. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `parse_subvolume_paths` (function/method, line 179): Return root-scoped absolute paths from ``btrfs subvolume list`` output. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_mark_readonly_from_list` (function/method, line 192): Mark indexed paths read-only using one ``btrfs subvolume list -r`` result. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_mark_readonly_from_list` (function/method, line 193): Mark indexed paths read-only using one ``btrfs subvolume list -r`` result. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `build_local_btrfs_index` (function/method, line 208): Build a local Btrfs index with bulk list commands. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `build_local_btrfs_index` (function/method, line 209): Build a local Btrfs index with bulk list commands. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_remote_bulk_index_script` (function/method, line 256): Return a POSIX shell script that bulk-lists source Btrfs metadata. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_remote_bulk_index_script` (function/method, line 257): Return a POSIX shell script that bulk-lists source Btrfs metadata. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `build_source_btrfs_index` (function/method, line 302): Build a source Btrfs index in SSH or local mode. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `build_source_btrfs_index` (function/method, line 303): Build a source Btrfs index in SSH or local mode. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `build_remote_btrfs_index` (function/method, line 334): Build a remote source index using one SSH command. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `build_remote_btrfs_index` (function/method, line 335): Build a remote source index using one SSH command. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_parse_remote_btrfs_index_result` (function/method, line 366): Parse one remote bulk-index section into a :class:`BtrfsIndex`. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_parse_remote_btrfs_index_result` (function/method, line 367): Parse one remote bulk-index section into a :class:`BtrfsIndex`. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_parse_remote_btrfs_index_result.flush_list` (function/method, line 398): Parse accumulated Btrfs list records into the index and clear the framing buffer. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `_parse_remote_btrfs_index_result` to use its existing endpoint, state or callback context.
+- `_parse_remote_btrfs_index_result.flush_list` (function/method, line 399): Parse accumulated Btrfs list records into the index and clear the framing buffer. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `_parse_remote_btrfs_index_result` to use its existing endpoint, state or callback context.
 
-- `_parse_remote_btrfs_index_result.flush_readonly` (function/method, line 406): Apply the accumulated read-only list to indexed metadata and clear the framing buffer. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `_parse_remote_btrfs_index_result` to use its existing endpoint, state or callback context.
+- `_parse_remote_btrfs_index_result.flush_readonly` (function/method, line 407): Apply the accumulated read-only list to indexed metadata and clear the framing buffer. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `_parse_remote_btrfs_index_result` to use its existing endpoint, state or callback context.
 
-- `_remote_source_inventory_script` (function/method, line 466): Return one remote script for Timeshift, info.json, and both Btrfs roots. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_remote_source_inventory_script` (function/method, line 467): Return one remote script for Timeshift, info.json, and both Btrfs roots. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_extract_snapshot_info_json_frames` (function/method, line 548): Remove and parse the ``cat`` payloads from combined SSH output. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_extract_snapshot_info_json_frames` (function/method, line 549): Remove and parse the ``cat`` payloads from combined SSH output. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_extract_snapshot_info_json_frames.replace` (function/method, line 565): Capture exact successful metadata frames or per-date errors while removing frames from the remaining output. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `_extract_snapshot_info_json_frames` to use its existing endpoint, state or callback context.
+- `_extract_snapshot_info_json_frames.replace` (function/method, line 566): Capture exact successful metadata frames or per-date errors while removing frames from the remaining output. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `_extract_snapshot_info_json_frames` to use its existing endpoint, state or callback context.
 
-- `_split_remote_source_inventory_output` (function/method, line 582): Split combined output into identity, Timeshift, info.json, and Btrfs sections. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_split_remote_source_inventory_output` (function/method, line 583): Split combined output into identity, Timeshift, info.json, and Btrfs sections. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_current_process_identity` (function/method, line 655): Return the effective local account name and UID used to read metadata. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_current_process_identity` (function/method, line 656): Return the effective local account name and UID used to read metadata. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_read_local_snapshot_info_json` (function/method, line 666): Read all local Timeshift control files without spawning commands. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_read_local_snapshot_info_json` (function/method, line 667): Read all local Timeshift control files without spawning commands. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `_record_missing_info_json_errors` (function/method, line 693): Record listed Timeshift dates that had no readable control file. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_record_missing_info_json_errors` (function/method, line 694): Record listed Timeshift dates that had no readable control file. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `build_source_inventory` (function/method, line 707): Build one coherent Timeshift/snapshot/cache source inventory. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `build_source_inventory` (function/method, line 708): Rebuild every source view after waiting for a busy local/SSH Timeshift. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `describe_source_inventory_changes` (function/method, line 830): Return concise human-readable differences between two inventories. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `_build_source_inventory_once` (function/method, line 736): Build one coherent Timeshift/snapshot/cache source inventory. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `describe_source_inventory_changes.compare_index` (function/method, line 843): Compare old/new paths and UUID identities and append labeled inventory differences. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `describe_source_inventory_changes` to use its existing endpoint, state or callback context.
+- `describe_source_inventory_changes` (function/method, line 865): Return concise human-readable differences between two inventories. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
-- `refresh_path` (function/method, line 882): Refresh one exact path through the shared Btrfs operation layer. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
+- `describe_source_inventory_changes.compare_index` (function/method, line 878): Compare old/new paths and UUID identities and append labeled inventory differences. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory. Scoped within `describe_source_inventory_changes` to use its existing endpoint, state or callback context.
+
+- `refresh_path` (function/method, line 917): Refresh one exact path through the shared Btrfs operation layer. **Why:** Builds coherent Timeshift, info.json and Btrfs views in bulk so UUID checks and source-change recovery use a consistent per-run inventory.
 
 ## `timeshift_btrfs_sync/listing.py`
 
@@ -2780,23 +2828,35 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 **Role:** Current source/build entry. Timeshift command wrappers and parser for `timeshift --list`.
 
-**Why:** Wraps Timeshift listing, creation and verified deletion so original source snapshots remain under Timeshift ownership.
+**Why:** Wraps Timeshift listing/creation and verified deletion; retries only startup lock denial every minute so busy scheduling preserves fresh discovery without replaying destructive compound commands.
 
-- `timeshift_cmd` (function/method, line 18): Build a source-side shell command that invokes sudo+timeshift. **Why:** Wraps Timeshift listing, creation and verified deletion so original source snapshots remain under Timeshift ownership.
+- `TimeshiftBusyError` (class, line 28): Signal Timeshift's startup lock denial, before any command work occurs. **Why:** Wraps Timeshift listing/creation and verified deletion; retries only startup lock denial every minute so busy scheduling preserves fresh discovery without replaying destructive compound commands.
 
-- `normalize_tags` (function/method, line 24): Return unique Timeshift tag letters found in text. **Why:** Wraps Timeshift listing, creation and verified deletion so original source snapshots remain under Timeshift ownership.
+- `TimeshiftBusyError.__init__` (function/method, line 31): Retain the reported PID solely for the normal wait message. **Why:** Wraps Timeshift listing/creation and verified deletion; retries only startup lock denial every minute so busy scheduling preserves fresh discovery without replaying destructive compound commands. Scoped within `TimeshiftBusyError` to use its existing endpoint, state or callback context.
 
-- `parse_timeshift_list` (function/method, line 34): Parse Timeshift snapshot names and tag/comment text. **Why:** Wraps Timeshift listing, creation and verified deletion so original source snapshots remain under Timeshift ownership.
+- `raise_if_timeshift_busy` (function/method, line 38): Recognize only exit-1 startup lock denial; transport/other errors stay fatal. **Why:** Wraps Timeshift listing/creation and verified deletion; retries only startup lock denial every minute so busy scheduling preserves fresh discovery without replaying destructive compound commands.
 
-- `list_source_snapshots` (function/method, line 67): Discover source snapshots through SSH or local source commands. **Why:** Wraps Timeshift listing, creation and verified deletion so original source snapshots remain under Timeshift ownership.
+- `wait_for_timeshift` (function/method, line 52): Retry a complete operation every minute only after startup lock denial. **Why:** Wraps Timeshift listing/creation and verified deletion; retries only startup lock denial every minute so busy scheduling preserves fresh discovery without replaying destructive compound commands.
 
-- `create_remote_manual_snapshot_cmd` (function/method, line 108): Build the Timeshift manual/on-demand snapshot create command. **Why:** Wraps Timeshift listing, creation and verified deletion so original source snapshots remain under Timeshift ownership.
+- `run_source_timeshift_command` (function/method, line 78): Wait for a single list/create command denied at Timeshift startup. **Why:** Wraps Timeshift listing/creation and verified deletion; retries only startup lock denial every minute so busy scheduling preserves fresh discovery without replaying destructive compound commands.
 
-- `create_source_manual_snapshot` (function/method, line 127): Create a source Timeshift on-demand snapshot through SSH or locally. **Why:** Wraps Timeshift listing, creation and verified deletion so original source snapshots remain under Timeshift ownership.
+- `run_source_timeshift_command.attempt` (function/method, line 85): Capture one startup result and reject every non-busy command failure. **Why:** Wraps Timeshift listing/creation and verified deletion; retries only startup lock denial every minute so busy scheduling preserves fresh discovery without replaying destructive compound commands. Scoped within `run_source_timeshift_command` to use its existing endpoint, state or callback context.
 
-- `delete_remote_manual_snapshot_cmd` (function/method, line 133): Build one Timeshift delete command with an in-command verification list. **Why:** Wraps Timeshift listing, creation and verified deletion so original source snapshots remain under Timeshift ownership.
+- `timeshift_cmd` (function/method, line 97): Build a source-side shell command that invokes sudo+timeshift. **Why:** Wraps Timeshift listing/creation and verified deletion; retries only startup lock denial every minute so busy scheduling preserves fresh discovery without replaying destructive compound commands.
 
-- `delete_source_manual_snapshot` (function/method, line 157): Delete one app-created source snapshot through Timeshift and verify it is gone. **Why:** Wraps Timeshift listing, creation and verified deletion so original source snapshots remain under Timeshift ownership.
+- `normalize_tags` (function/method, line 103): Return unique Timeshift tag letters found in text. **Why:** Wraps Timeshift listing/creation and verified deletion; retries only startup lock denial every minute so busy scheduling preserves fresh discovery without replaying destructive compound commands.
+
+- `parse_timeshift_list` (function/method, line 113): Parse Timeshift snapshot names and tag/comment text. **Why:** Wraps Timeshift listing/creation and verified deletion; retries only startup lock denial every minute so busy scheduling preserves fresh discovery without replaying destructive compound commands.
+
+- `list_source_snapshots` (function/method, line 146): Discover source snapshots through SSH or local source commands. **Why:** Wraps Timeshift listing/creation and verified deletion; retries only startup lock denial every minute so busy scheduling preserves fresh discovery without replaying destructive compound commands.
+
+- `create_remote_manual_snapshot_cmd` (function/method, line 187): Build the Timeshift manual/on-demand snapshot create command. **Why:** Wraps Timeshift listing/creation and verified deletion; retries only startup lock denial every minute so busy scheduling preserves fresh discovery without replaying destructive compound commands.
+
+- `create_source_manual_snapshot` (function/method, line 206): Create a source Timeshift on-demand snapshot through SSH or locally. **Why:** Wraps Timeshift listing/creation and verified deletion; retries only startup lock denial every minute so busy scheduling preserves fresh discovery without replaying destructive compound commands.
+
+- `delete_remote_manual_snapshot_cmd` (function/method, line 212): Build one Timeshift delete command with an in-command verification list. **Why:** Wraps Timeshift listing/creation and verified deletion; retries only startup lock denial every minute so busy scheduling preserves fresh discovery without replaying destructive compound commands.
+
+- `delete_source_manual_snapshot` (function/method, line 236): Delete one app-created source snapshot through Timeshift and verify it is gone. **Why:** Wraps Timeshift listing/creation and verified deletion; retries only startup lock denial every minute so busy scheduling preserves fresh discovery without replaying destructive compound commands.
 
 ## `timeshift_btrfs_sync/topology.py`
 
@@ -2953,6 +3013,7 @@ Use --verify-btrfs when diagnosing a wrong snapshot_root, missing @/@home payloa
 
 Back up Timeshift snapshot payloads from the configured source into the local destination.target_root.
 source.mode selects local versus SSH source. Normal sync never writes a remote backup destination.
+If source Timeshift reports its startup lock is busy, retry every 60 seconds and refresh the complete source inventory before planning transfers. Ctrl+C cancels the wait.
 Without --run or --dry-run, config.default_dry_run selects preview versus real execution.
 
 Flag relationships:
@@ -3111,7 +3172,7 @@ Use --json when you need the complete stored structure for diagnosis or automati
 - `dist/ts-btrfs`: original executable, independently verified to report 0.1.84. Kept unchanged; rebuild to obtain an executable for the source release.
 - The older nested project and its duplicate docs/tests/helpers were removed. Root documents describe current usage; REMOVED_NESTED_SOURCES.md lists every former path.
 
-Coverage: 573 current source/build symbols; 639 root test symbols.
+Coverage: 580 current source/build symbols; 662 root test symbols.
 
 ## Python environment installation
 

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import subprocess
+import io
+import tempfile
+from pathlib import Path
+from contextlib import redirect_stdout
+from unittest.mock import Mock, patch, call
 import unittest
 
 from timeshift_btrfs_sync.commands import Completed
 from timeshift_btrfs_sync.models import SubvolumeMeta
-from timeshift_btrfs_sync import preflight, inventory, sync
+from timeshift_btrfs_sync import preflight, inventory, sync, timeshift
 from timeshift_btrfs_sync.btrfs_ops import BtrfsOps
 from timeshift_btrfs_sync.cache_ops import CacheManager
 from timeshift_btrfs_sync.endpoint import CommandEndpoint
@@ -347,3 +352,243 @@ class SyncContinuationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+BUSY = "Another instance of this application is running (PID=2784388)"
+
+
+def wait_inventory_reply(status: int, listing: str, *, rows=()) -> Completed:
+    """Model the real remote inventory protocol with independently dated UUIDs."""
+    text = "TSBTRFS_TIMESHIFT_BEGIN\nTSBTRFS_TIMESHIFT_STATUS\t" + str(status) + "\n" + listing + "\nTSBTRFS_TIMESHIFT_END\n"
+    for name, tags in rows:
+        text += f'TSBTRFS_INFO_JSON_BEGIN\t{name}\n{{"tags":"{tags}","type":"btrfs"}}\nTSBTRFS_INFO_JSON_END\t{name}\t0\n'
+    for label, root in (("snapshot", "/snapshots"), ("cache", "/cache")):
+        text += f"TSBTRFS_INDEX_SECTION_BEGIN\t{label}\nTSBTRFS_ROOT\t{root}\nTSBTRFS_ROOT_SHOW_BEGIN\n"
+        text += f"UUID: {label}-root\nParent UUID: -\nReceived UUID: -\nFlags: -\nTSBTRFS_ROOT_SHOW_END\n"
+        text += f"TSBTRFS_LIST_BEGIN\t{root}\nTSBTRFS_LIST_STATUS\t{root}\t0\n"
+        for num, (name, _tags) in enumerate(rows, 30):
+            text += f"ID {num} gen 1 top level 5 parent_uuid - received_uuid - uuid {label}-{name} path {root.lstrip('/')}/{name}/@\n"
+        text += f"TSBTRFS_LIST_END\t{root}\nTSBTRFS_READONLY_BEGIN\t{root}\nTSBTRFS_READONLY_STATUS\t{root}\t0\n"
+        for num, (name, _tags) in enumerate(rows, 30):
+            text += f"ID {num} gen 1 top level 5 path {root.lstrip('/')}/{name}/@\n"
+        text += f"TSBTRFS_READONLY_END\t{root}\nTSBTRFS_INDEX_SECTION_END\t{label}\n"
+    return Completed(0, text, "")
+
+
+class TimeshiftWaitTests(unittest.TestCase):
+    def test_startup_denial_recognized_in_either_stream_with_color_and_timestamp(self):
+        for stdout, stderr in ((BUSY, ""), ("", BUSY), ("[12:00:00] \x1b[31m" + BUSY + "\x1b[0m", "")):
+            with self.subTest(stdout=stdout, stderr=stderr):
+                with self.assertRaises(timeshift.TimeshiftBusyError) as caught:
+                    timeshift.raise_if_timeshift_busy(1, stdout, stderr)
+                self.assertEqual(caught.exception.pid, "2784388")
+
+    def test_success_and_transport_exit_codes_never_classified_as_busy(self):
+        for code in (0, 2, 127, 255, -15):
+            timeshift.raise_if_timeshift_busy(code, BUSY, BUSY)
+
+    def test_unrelated_busy_messages_and_missing_pid_do_not_retry(self):
+        for text in ("device or resource busy", "Another instance of this application is running", "sudo: a password is required", "No space left on device", "Permission denied"):
+            timeshift.raise_if_timeshift_busy(1, text, "")
+
+    def test_multiple_polls_are_exactly_one_minute_and_log_resume(self):
+        operation = Mock(side_effect=[timeshift.TimeshiftBusyError("12"), timeshift.TimeshiftBusyError("34"), "fresh"])
+        with patch.object(timeshift.time, "sleep") as sleep, redirect_stdout(io.StringIO()) as output:
+            result = timeshift.wait_for_timeshift(operation, label="Source inventory")
+        self.assertEqual(result, "fresh")
+        self.assertEqual(sleep.call_args_list, [call(60), call(60)])
+        self.assertEqual(operation.call_count, 3)
+        self.assertIn("PID=34", output.getvalue())
+        self.assertIn("fresh results", output.getvalue())
+
+    def test_ctrl_c_during_wait_propagates_without_retry(self):
+        operation = Mock(side_effect=timeshift.TimeshiftBusyError("12"))
+        with patch.object(timeshift.time, "sleep", side_effect=KeyboardInterrupt), redirect_stdout(io.StringIO()):
+            with self.assertRaises(KeyboardInterrupt):
+                timeshift.wait_for_timeshift(operation, label="Source inventory")
+        self.assertEqual(operation.call_count, 1)
+
+    def test_different_failure_after_busy_stops_immediately(self):
+        operation = Mock(side_effect=[timeshift.TimeshiftBusyError("12"), RuntimeError("network failed")])
+        with patch.object(timeshift.time, "sleep") as sleep, redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(RuntimeError, "network failed"):
+                timeshift.wait_for_timeshift(operation, label="Source inventory")
+        sleep.assert_called_once_with(60)
+        self.assertEqual(operation.call_count, 2)
+
+    def build(self, source, required=True):
+        return inventory.build_source_inventory(source, snapshot_root="/snapshots", cache_root="/cache", sudo="sudo -n", btrfs_command="btrfs", timeshift_command="timeshift", required=required)
+
+    def test_ssh_discards_busy_inventory_and_refreshes_dates_tags_json_and_uuid(self):
+        old = "2026-10-12_11-00-00"
+        kept = "2026-10-12_12-00-00"
+        new = "2026-10-12_13-00-00"
+        stale = wait_inventory_reply(1, BUSY, rows=((old, "hourly"), (kept, "hourly")))
+        fresh = wait_inventory_reply(0, f"{kept} D W M B changed\n{new} H new", rows=((kept, "daily weekly monthly boot"), (new, "hourly")))
+        source = FakeSource(stale)
+        source.run = Mock(side_effect=[stale, stale, fresh])
+        with patch.object(timeshift.time, "sleep") as sleep, redirect_stdout(io.StringIO()):
+            built = self.build(source)
+        self.assertEqual(sleep.call_args_list, [call(60), call(60)])
+        self.assertEqual(source.run.call_count, 3)
+        self.assertEqual(source.run.call_args_list[0], source.run.call_args_list[-1])
+        self.assertEqual(built.snapshot_names, (kept, new))
+        self.assertNotIn(old, built.snapshot_info_json)
+        self.assertNotIn(f"/cache/{old}/@", built.cache_index.by_path)
+        self.assertIn("monthly", built.snapshot_info_json[kept])
+        self.assertEqual(built.snapshot_index.meta(f"/snapshots/{new}/@").uuid, "snapshot-" + new)
+        from timeshift_btrfs_sync.config import load_config
+        config = load_config("timeshift_btrfs_sync/data/config.example.toml")
+        config.source.snapshot_root = "/snapshots"
+        config.source.subvolumes = ["@"]
+        config.source.verify_subvolumes_at_discovery = True
+        config.retention.hourly = 1
+        config.retention.daily = 1
+        source_by_name = sync._snapshots_from_source_inventory(config, source, built)
+        self.assertEqual(source_by_name[kept].tags, ["D", "W", "M", "B"])
+        with redirect_stdout(io.StringIO()):
+            selected = sync._select_initial_sync_snapshots(config, source_by_name)
+        self.assertEqual([item.name for item in selected], [kept, new])
+        self.assertEqual(source.run.call_count, 3, "planning must use fresh captured output, not an extra stale Timeshift query")
+
+    def test_optional_ssh_inventory_still_waits_for_known_busy(self):
+        source = FakeSource(Completed(0, "", ""))
+        source.run = Mock(side_effect=[wait_inventory_reply(1, BUSY), wait_inventory_reply(0, "")])
+        with patch.object(timeshift.time, "sleep") as sleep, redirect_stdout(io.StringIO()):
+            self.assertEqual(self.build(source, required=False).snapshot_names, ())
+        sleep.assert_called_once_with(60)
+
+    def test_ssh_transport_error_is_fatal_even_if_old_busy_text_is_present(self):
+        source = FakeSource(Completed(255, wait_inventory_reply(1, BUSY).stdout, "Connection reset"))
+        with patch.object(timeshift.time, "sleep") as sleep:
+            with self.assertRaisesRegex(RuntimeError, "SSH command failed: Connection reset"):
+                self.build(source)
+        sleep.assert_not_called()
+        self.assertEqual(len(source.calls), 1)
+
+    def test_ssh_other_timeshift_error_is_fatal_without_polling(self):
+        source = FakeSource(wait_inventory_reply(1, "sudo: a password is required"))
+        with patch.object(timeshift.time, "sleep") as sleep:
+            with self.assertRaisesRegex(RuntimeError, "password is required"):
+                self.build(source)
+        sleep.assert_not_called()
+
+    def test_ssh_busy_then_permission_error_does_not_use_the_old_index(self):
+        source = FakeSource(Completed(0, "", ""))
+        source.run = Mock(side_effect=[wait_inventory_reply(1, BUSY), wait_inventory_reply(1, "permission denied")])
+        with patch.object(timeshift.time, "sleep") as sleep, patch.object(inventory, "_parse_remote_btrfs_index_result") as parse, redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(RuntimeError, "permission denied"):
+                self.build(source)
+        sleep.assert_called_once_with(60)
+        parse.assert_not_called()
+
+    def test_local_reads_native_metadata_only_after_timeshift_becomes_available(self):
+        source = Mock(uses_ssh=False)
+        source.run.side_effect = [Completed(1, "", BUSY), Completed(0, "2026-10-12_13-00-00 H new", "")]
+        events = []
+        with patch.object(timeshift.time, "sleep", side_effect=lambda seconds: events.append(("wait", seconds))), patch.object(inventory, "build_local_btrfs_index", side_effect=lambda root, **kwargs: events.append(("index", root)) or index(root)), patch.object(inventory, "_read_local_snapshot_info_json", side_effect=lambda root: events.append(("json", root)) or ({}, {})), redirect_stdout(io.StringIO()):
+            built = self.build(source)
+        self.assertEqual(events, [("wait", 60), ("index", "/snapshots"), ("index", "/cache"), ("json", "/snapshots")])
+        self.assertEqual(built.snapshot_names, ("2026-10-12_13-00-00",))
+        self.assertFalse(source.run.call_args.kwargs["check"])
+        self.assertFalse(source.run.call_args.kwargs["log_stderr"])
+
+    def test_local_nonbusy_error_never_reads_native_metadata_or_sleeps(self):
+        source = Mock(uses_ssh=False)
+        source.run.return_value = Completed(1, "", "permission denied")
+        with patch.object(timeshift.time, "sleep") as sleep, patch.object(inventory, "build_local_btrfs_index") as native:
+            with self.assertRaisesRegex(RuntimeError, "permission denied"):
+                self.build(source)
+        sleep.assert_not_called()
+        native.assert_not_called()
+
+    def test_local_interrupt_does_not_read_native_metadata(self):
+        source = Mock(uses_ssh=False)
+        source.run.return_value = Completed(1, BUSY, "")
+        with patch.object(timeshift.time, "sleep", side_effect=KeyboardInterrupt), patch.object(inventory, "build_local_btrfs_index") as native, redirect_stdout(io.StringIO()):
+            with self.assertRaises(KeyboardInterrupt):
+                self.build(source)
+        self.assertEqual(source.run.call_count, 1)
+        native.assert_not_called()
+
+    def test_single_list_command_waits_and_parses_only_new_output(self):
+        source = Mock()
+        source.run.side_effect = [Completed(1, BUSY, ""), Completed(0, "2026-10-12_13-00-00 H", "")]
+        with patch.object(timeshift.time, "sleep") as sleep, redirect_stdout(io.StringIO()):
+            snapshots = timeshift.list_source_snapshots(source, snapshot_root="/snapshots", subvolumes=["@"], sudo="sudo -n", timeshift_command="timeshift", btrfs_command="btrfs", include_btrfs_info=False)
+        sleep.assert_called_once_with(60)
+        self.assertEqual([snap.name for snap in snapshots], ["2026-10-12_13-00-00"])
+        self.assertTrue(all("--list" in args.args[0] for args in source.run.call_args_list))
+
+    def test_on_demand_create_retries_only_startup_denial(self):
+        source = Mock()
+        source.run.side_effect = [Completed(1, BUSY, ""), Completed(0, "snapshot created", "")]
+        with patch.object(timeshift.time, "sleep") as sleep, redirect_stdout(io.StringIO()):
+            timeshift.create_source_manual_snapshot(source, sudo="sudo -n", timeshift_command="timeshift", comment="app marker")
+        sleep.assert_called_once_with(60)
+        self.assertEqual(source.run.call_count, 2)
+        self.assertEqual(source.run.call_args_list[0], source.run.call_args_list[1])
+        self.assertIn("--create --scripted --comments", source.run.call_args.args[0])
+
+    def test_on_demand_create_other_failure_is_not_repeated(self):
+        source = Mock()
+        source.run.return_value = Completed(1, "partial snapshot", "No space left on device")
+        with patch.object(timeshift.time, "sleep") as sleep:
+            with self.assertRaisesRegex(RuntimeError, "No space left on device"):
+                timeshift.create_source_manual_snapshot(source, sudo="sudo -n", timeshift_command="timeshift", comment="app marker")
+        sleep.assert_not_called()
+        self.assertEqual(source.run.call_count, 1)
+
+    def test_actual_sync_dry_planner_runs_after_wait_with_only_refreshed_dates(self):
+        from timeshift_btrfs_sync.config import load_config
+        old = "2026-10-12_11-00-00"
+        kept = "2026-10-12_12-00-00"
+        new = "2026-10-12_13-00-00"
+        source = FakeSource(Completed(0, "", ""))
+        source.test = Mock()
+        source.run = Mock(side_effect=[
+            wait_inventory_reply(1, BUSY, rows=((old, "hourly"),)),
+            wait_inventory_reply(0, f"{kept} D W M B refreshed\n{new} H new", rows=((kept, "daily weekly monthly boot"), (new, "hourly"))),
+        ])
+        with tempfile.TemporaryDirectory() as tmp:
+            config = load_config("timeshift_btrfs_sync/data/config.example.toml")
+            config.source.snapshot_root = "/snapshots"
+            config.source.cache_root = "/cache"
+            config.source.subvolumes = ["@"]
+            config.source.verify_subvolumes_at_discovery = True
+            config.source.source_change_retry_count = 0
+            config.manual_snapshot.enabled = False
+            config.destination.target_root = Path(tmp) / "target"
+            config.state_file = Path(tmp) / "state.json"
+            empty_destination = inventory.BtrfsIndex(str(config.destination.target_root / "snapshots"), "local")
+            with patch.object(sync.SourceRunner, "from_config", return_value=source), patch.object(sync.preflight, "check_required_sync_paths"), patch.object(sync.inventory, "build_local_btrfs_index", return_value=empty_destination), patch.object(sync, "_recover_stale_state_snapshots_missing_from_source", return_value=0), patch.object(sync, "_verify_sync_viability_before_manual_snapshot"), patch.object(sync, "_maybe_create_manual_snapshot", return_value=False), patch.object(sync, "refresh_state_metadata_and_report", return_value=0), patch.object(sync, "_select_parent", return_value=(None, None)), patch.object(timeshift.time, "sleep") as sleep, patch.object(sync, "stream_pipeline") as pipeline, redirect_stdout(io.StringIO()) as output:
+                result = sync.sync_once(config, {}, dry_run=True)
+            sleep.assert_called_once_with(60)
+            pipeline.assert_not_called()
+            self.assertFalse(config.state_file.exists())
+            self.assertFalse(config.destination.target_root.exists())
+        self.assertEqual([item["snapshot"] for item in result.events], [kept, new])
+        self.assertEqual(result.events[0]["tags"], "D W M B")
+        self.assertEqual(result.events[1]["tags"], "H")
+        self.assertNotIn(old, output.getvalue())
+        self.assertEqual(source.run.call_count, 2)
+
+    def test_cli_busy_interrupt_returns_130(self):
+        from timeshift_btrfs_sync import cli
+        source = Mock(uses_ssh=False)
+        source.run.return_value = Completed(1, BUSY, "")
+        with patch.object(cli.SourceRunner, "from_config", return_value=source), patch.object(cli, "_with_logging", side_effect=lambda _config, _label, action: action()), patch.object(timeshift.time, "sleep", side_effect=KeyboardInterrupt), redirect_stdout(io.StringIO()) as output:
+            result = cli.main(["test-source", "--config", "timeshift_btrfs_sync/data/example-config-local-backup.toml"])
+        self.assertEqual(result, 130)
+        self.assertIn("Waiting 60 seconds", output.getvalue())
+        self.assertEqual(source.run.call_count, 1)
+
+    def test_combined_destructive_delete_verification_is_never_replayed(self):
+        from timeshift_btrfs_sync.commands import CommandError
+        source = Mock()
+        source.run.side_effect = CommandError("delete then list", 1, timeshift.DELETE_VERIFY_MARKER + "\n" + BUSY)
+        with patch.object(timeshift.time, "sleep") as sleep:
+            with self.assertRaises(CommandError):
+                timeshift.delete_source_manual_snapshot(source, snapshot_root="/snapshots", sudo="sudo -n", timeshift_command="timeshift", snapshot_name="2026-10-12_12-00-00")
+        sleep.assert_not_called()
+        self.assertEqual(source.run.call_count, 1)

@@ -1,11 +1,15 @@
 # Installation
 
-Current source release: **0.2.0**. Install from the project root. The included original `dist/ts-btrfs` reports **0.1.84** and has not been rebuilt; use `python3 -m timeshift_btrfs_sync` or rebuild the executable from this source before treating it as the current release. The active package is timeshift_btrfs_sync/; project documentation and helpers live at the project root.
+Current source release: **0.2.1**. Install from the project root. The included original `dist/ts-btrfs` reports **0.1.84** and has not been rebuilt; use `python3 -m timeshift_btrfs_sync` or rebuild the executable from this source before treating it as the current release. The active package is timeshift_btrfs_sync/; project documentation and helpers live at the project root.
 
 Normal sync runs on the backup/destination machine. The Timeshift source is reached over SSH or selected locally. Restore may also run on the Timeshift machine and pull a backup repository over SSH when `[restore] mode = "ssh"` is selected. The selected endpoints need the commands and minimal permissions described in the README. `cat` and `id` are not run through sudo during normal discovery. The configured source account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
 
 
 The executable or Python install does **not** include system tools such as `btrfs`, `timeshift`, `ssh`, `sudo`, `wc`, `mbuffer`, or `sshpass`. Those must be installed on the relevant machines.
+
+## Source Timeshift concurrency
+
+No extra Python module, source privilege or configuration option is needed for the busy wait. Backup inventory retries Timeshift startup lock denial every 60 seconds on local or SSH sources, then rebuilds all source views before choosing transfers. Use Ctrl+C to cancel (exit 130); there is no automatic timeout. An open Timeshift GUI may also hold the lock. See [README.md](README.md#waiting-for-source-timeshift) for scope, diagnostics and refresh behavior. The app never removes Timeshift locks or kills another process. Unrelated command/SSH failures still stop required discovery.
 
 ## System packages
 

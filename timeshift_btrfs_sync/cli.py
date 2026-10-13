@@ -353,7 +353,7 @@ def cmd_test_source(args) -> int:
             source.test()
         else:
             print("Source mode: local; SSH test skipped.")
-        source.run(timeshift.timeshift_cmd(config.source.sudo, config.source.timeshift_command, ["--list"]))
+        timeshift.run_source_timeshift_command(source, timeshift.timeshift_cmd(config.source.sudo, config.source.timeshift_command, ["--list"]))
         source_btrfs = BtrfsOps(
             CommandEndpoint.for_source(source), config.source.sudo, config.source.btrfs_command
         )
@@ -1011,6 +1011,7 @@ def build_parser() -> argparse.ArgumentParser:
         (
             "Back up Timeshift snapshot payloads from the configured source into the local destination.target_root.\n"
             "source.mode selects local versus SSH source. Normal sync never writes a remote backup destination.\n"
+            "If source Timeshift reports its startup lock is busy, retry every 60 seconds and refresh the complete source inventory before planning transfers. Ctrl+C cancels the wait.\n"
             "Without --run or --dry-run, config.default_dry_run selects preview versus real execution."
         ),
         cmd_sync,

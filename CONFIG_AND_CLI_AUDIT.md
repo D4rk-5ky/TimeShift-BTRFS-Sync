@@ -1,4 +1,7 @@
-# Current audit — source 0.2.0
+# Current audit — source 0.2.1
+
+Source inventory now recognizes Timeshift's specific exit-1 startup lock denial (with PID), waits 60 seconds and retries the complete local/SSH inventory. Busy attempts cannot feed stale or empty source data into transfer planning: reread current Timeshift tags/dates, ordinary readable JSON, snapshot/cache UUIDs and readonly flags. A GUI may hold the same lock as scheduled creation. No PID signaling, lock removal, additional sudo program, config schema or dependency is introduced. Ctrl+C retains CLI exit 130; there is no timeout. Other command/transport errors are not retried. Single list/test-source/on-demand-create calls share the helper; combined destructive delete-and-verify calls are unchanged and never replayed. Existing sync post-create refresh and source-change recovery reuse the fresh inventory. Diagnostic list-snapshots retains its native fallback.
+
 
 list-snapshots now always reports cross-root date differences and all-configured readonly send/Received UUID matches. --check-pairs optionally makes unconfirmed parity exit 1 without modifying storage or state. Partial discovery never proves absence; tag changes do not invalidate matching identities. Unknown df type uses native Btrfs identity or the existing usage fallback. Destination-only dates are also labeled inside/outside the live shared range; actual cleanup uses the newest separately confirmed state pair as an upper limit and includes older-than-first leftovers. Listing also reports at/before-latest versus newer destination-only counts. Current help, docs and fixtures cover these rules.
 
