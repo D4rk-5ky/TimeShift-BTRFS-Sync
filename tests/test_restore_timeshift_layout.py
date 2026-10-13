@@ -13,6 +13,16 @@ DATE = "2026-06-23_07-10-24"
 
 
 class TimeshiftNativeLayoutTests(unittest.TestCase):
+    def test_home_only_or_custom_payload_restore_is_rejected_before_commands(self):
+        for subvolumes in (["@home"], ["root"], ["@", "custom"]):
+            with self.subTest(subvolumes=subvolumes):
+                config = SimpleNamespace(source=SimpleNamespace(subvolumes=subvolumes))
+                with self.assertRaisesRegex(restore.RestoreError, "Native Timeshift restore requires"):
+                    restore._build_restore_plan(
+                        config, SimpleNamespace(), SimpleNamespace(),
+                        snapshot_name=DATE, restore_all=False,
+                    )
+
     def test_misrouted_native_timeshift_date_gets_transport_guidance(self):
         config = SimpleNamespace(
             source=SimpleNamespace(

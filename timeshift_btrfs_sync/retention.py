@@ -63,6 +63,23 @@ class PruneResult:
     source_delete_candidates: int = 0
     source_delete_authorized: int = 0
     remaining_state: int = 0
+    destination_cleanup_attempted: int = 0
+    destination_cleanup_completed: int = 0
+    cache_cleanup_enabled: bool = False
+    cache_delete_candidates: int = 0
+    cache_cleanup_attempted: int = 0
+    cache_cleanup_completed: int = 0
+    source_timeshift_cleanup_completed: int = 0
+    redundant_cache_candidates: int = 0
+    redundant_cache_completed: int = 0
+    redundant_cache_blocked: int = 0
+    redundant_cache_cleanup_enabled: bool = False
+    redundant_cache_skip_reason: str = ""
+    redundant_destination_candidates: int = 0
+    redundant_destination_completed: int = 0
+    redundant_destination_blocked: int = 0
+    redundant_destination_cleanup_enabled: bool = False
+    redundant_destination_skip_reason: str = ""
 
     @property
     def cleaned_snapshots(self) -> int:
@@ -81,6 +98,88 @@ class PruneResult:
         """Return current source app-snapshot candidates not authorized now."""
 
         return max(0, self.source_delete_candidates - self.source_delete_authorized)
+
+
+def format_prune_cleanup_summaries(
+    result: PruneResult | None,
+    *,
+    requested: bool = True,
+    dry_run: bool = False,
+) -> str:
+    """Report retention outcomes separately for destination and app-owned cache.
+
+    Counts refer to snapshot dates, not individual @/@home subvolumes. Confirmed
+    absence includes paths already gone. Unknown outcomes never imply success.
+    """
+
+    def block(title: str, *, cache: bool) -> str:
+        """Render one cleanup side without inferring success from paired state."""
+
+        lines = [title, "=" * len(title), "  scope:              retention cleanup"]
+        if cache:
+            lines.append("  contents:           app-owned send-cache only; Timeshift originals protected")
+        if not requested:
+            lines += [
+                "  candidates:         0",
+                "  attempted:          0",
+                "  confirmed gone:     0",
+                "  status:             not requested",
+            ]
+        elif result is None:
+            lines += [
+                f"  mode:               {'dry-run' if dry_run else 'real run'}",
+                "  candidates:         unknown",
+                "  attempted:          unknown",
+                "  confirmed gone:     unknown",
+                "  pending/skipped:    unknown",
+                "  status:             failed/not completed; counts unavailable",
+            ]
+        else:
+            enabled = not cache or result.cache_cleanup_enabled
+            candidates = result.cache_delete_candidates if cache else len(result.plan.delete) + result.redundant_destination_candidates
+            attempted = result.cache_cleanup_attempted if cache else result.destination_cleanup_attempted
+            completed = result.cache_cleanup_completed if cache else result.destination_cleanup_completed
+            # Preview or disabled cleanup cannot claim real deletion, even if a
+            # caller supplied contradictory counters.
+            if result.dry_run or not enabled:
+                attempted = completed = 0
+            if not enabled:
+                candidates = 0
+            lines += [
+                f"  mode:               {'dry-run' if result.dry_run else 'real run'}",
+                f"  candidates:         {candidates}",
+                f"  attempted:          {attempted}",
+                f"  confirmed gone:     {completed}",
+                f"  pending/skipped:    {max(0, candidates - completed)}",
+            ]
+            if not enabled:
+                status = "disabled; source send-cache left unchanged"
+            elif result.dry_run:
+                status = "dry-run only; no deletion performed"
+            elif candidates > completed:
+                status = "incomplete/retained for retry"
+            else:
+                status = "completed"
+            lines.append(f"  status:             {status}")
+            if cache:
+                lines.append(f"  redundant cleanup:        {'enabled' if result.redundant_cache_cleanup_enabled else 'disabled'}")
+                lines.append(f"  redundant candidates:     {result.redundant_cache_candidates}")
+                lines.append(f"  redundant confirmed gone: {result.redundant_cache_completed}")
+                lines.append(f"  redundant blocked:        {result.redundant_cache_blocked}")
+            else:
+                lines.append(f"  redundant cleanup:        {'enabled' if result.redundant_destination_cleanup_enabled else 'disabled'}")
+                lines.append(f"  redundant candidates:     {result.redundant_destination_candidates}")
+                lines.append(f"  redundant confirmed gone: {result.redundant_destination_completed}")
+                lines.append(f"  redundant blocked:        {result.redundant_destination_blocked}")
+        if not cache and result is not None and result.redundant_destination_skip_reason:
+            lines.append("  redundant skipped:        " + result.redundant_destination_skip_reason)
+        if cache and result is not None and result.redundant_cache_skip_reason:
+            lines.append("  redundant skipped:        " + result.redundant_cache_skip_reason)
+        return "\n".join(lines)
+
+    return block("DESTINATION CLEANUP SUMMARY", cache=False) + "\n\n" + block(
+        "SOURCE SEND-CACHE CLEANUP SUMMARY", cache=True
+    )
 
 
 def _is_app_created_ondemand(snapshot_state: dict, marker: str) -> bool:
@@ -262,9 +361,9 @@ def source_snapshot_state(snapshots: Iterable[SnapshotMeta]) -> dict:
 
 
 def initial_sync_keep_names(config: AppConfig, snapshots: Iterable[SnapshotMeta]) -> set[str]:
-    """Return source snapshot names that a fresh destination should seed.
+    """Return retention-selected source names for a fresh or incremental backup.
 
-    This uses the same retention planner as prune so a new/full sync does not
+    This uses the same retention planner as prune so normal sync does not
     waste time sending snapshots that the post-sync retention step would delete
     immediately.
     """
@@ -467,7 +566,7 @@ def _authorized_source_timeshift_delete_names(
     return authorized, retained_window_proven
 
 
-def build_prune_plan(config: AppConfig, state: dict) -> PrunePlan:
+def build_prune_plan(config: AppConfig, state: dict, *, common_parent_name: str | None = None) -> PrunePlan:
     """Build retention plan from state without deleting anything.
 
     On-demand cleanup is intentionally split into two independent decisions:
@@ -534,7 +633,9 @@ def build_prune_plan(config: AppConfig, state: dict) -> PrunePlan:
             plan.add_keep(name, f"tag {tag} retention count {count}")
 
     if config.retention.keep_latest_common_parent:
-        plan.add_keep(names[-1], "latest common parent safety")
+        # Metadata-only selection uses the newest name as a provisional seed.
+        # Actual pruning supplies the newest live UUID-confirmed complete pair.
+        plan.add_keep(common_parent_name or names[-1], "latest common parent safety")
 
     for name in names:
         if name not in plan.keep:
@@ -588,6 +689,7 @@ def _delete_prune_item(
     name: str,
     *,
     source_cache_index: inventory.BtrfsIndex | None = None,
+    cleanup_result: PruneResult | None = None,
 ) -> bool:
     """Execute one prune item and remove state only after every required side is gone."""
 
@@ -640,6 +742,8 @@ def _delete_prune_item(
             source_timeshift_index,
             name,
         )
+        if cleanup_result is not None and status["source_timeshift"]:
+            cleanup_result.source_timeshift_cleanup_completed += 1
         return status["source_timeshift"]
 
     def delete_destination(_action):
@@ -648,7 +752,11 @@ def _delete_prune_item(
             print("  skipped: source Timeshift retention step was not confirmed")
             status["destination"] = False
             return False
+        if cleanup_result is not None:
+            cleanup_result.destination_cleanup_attempted += 1
         status["destination"] = _delete_destination_snapshot_for_prune(config, name)
+        if cleanup_result is not None and status["destination"]:
+            cleanup_result.destination_cleanup_completed += 1
         return status["destination"]
 
     def delete_cache_action(_action):
@@ -658,6 +766,9 @@ def _delete_prune_item(
             status["cache"] = False
             return False
         assert source_runner is not None
+        tracked_cache = bool(_source_cache_delete_paths(config, name, snapshot_state))
+        if cleanup_result is not None and tracked_cache:
+            cleanup_result.cache_cleanup_attempted += 1
         status["cache"] = _cleanup_source_cache_for_pruned_snapshot(
             config,
             source_runner,
@@ -665,6 +776,8 @@ def _delete_prune_item(
             snapshot_state,
             source_cache_index=source_cache_index,
         )
+        if cleanup_result is not None and tracked_cache and status["cache"]:
+            cleanup_result.cache_cleanup_completed += 1
         return status["cache"]
 
     def remove_state(_action):
@@ -740,6 +853,48 @@ def print_prune_plan(config: AppConfig, plan: PrunePlan, state: dict, *, dry_run
     emit_success_summary("\n".join(lines))
 
 
+def _confirmed_prune_parent(config: AppConfig, state: dict) -> str:
+    """Prove a complete live send/receive anchor before pruning its siblings.
+
+    Reuse sync's UUID/read-only proof so retention cannot keep an unusable newer
+    hourly while deleting the last matching daily. The local import avoids the
+    existing sync-to-retention module dependency during initialization.
+    """
+
+    from .sync import _find_confirmed_sync_floor, _snapshots_from_source_inventory
+
+    source = SourceRunner.from_config(config)
+    source_inventory = inventory.build_source_inventory(
+        source,
+        snapshot_root=config.source.snapshot_root,
+        cache_root=config.source.cache_root,
+        sudo=config.source.sudo,
+        btrfs_command=config.source.btrfs_command,
+        timeshift_command=config.source.timeshift_command,
+        required=True,
+    )
+    destination_index = inventory.build_local_btrfs_index(
+        config.destination.target_root / "snapshots",
+        sudo=config.destination.sudo,
+        btrfs_command=config.destination.btrfs_command,
+        include_root=True,
+    )
+    name, reason = _find_confirmed_sync_floor(
+        config, source, state,
+        _snapshots_from_source_inventory(config, source, source_inventory),
+        source_cache_index=source_inventory.cache_index,
+        source_snapshot_index=source_inventory.snapshot_index,
+        destination_index=destination_index,
+    )
+    if name is None:
+        raise RuntimeError(
+            "Refusing retention cleanup: keep_latest_common_parent is enabled, "
+            "but no complete read-only UUID-matching source/destination parent is proven. "
+            + reason
+        )
+    return name
+
+
 def prune(
     config: AppConfig,
     state: dict,
@@ -747,10 +902,21 @@ def prune(
     dry_run: bool,
     yes_delete: bool,
     source_timeshift_index: dict[str, SnapshotMeta] | None = None,
+    reconcile_inventory: bool = False,
+    successful_sync: bool = False,
 ) -> PruneResult:
-    """Apply backup retention plus paired app-created source O retention."""
+    """Apply paired retention; CLI callers enable inventory reconciliation and bounded extra cache cleanup."""
+
+    context = None
+    if reconcile_inventory:
+        from .reconciliation import prepare_reconciliation
+        context = prepare_reconciliation(config, state, dry_run=dry_run)
+        source_timeshift_index = context.source_by_name
 
     plan = build_prune_plan(config, state)
+    if plan.delete and config.retention.keep_latest_common_parent:
+        common_parent_name = _confirmed_prune_parent(config, state)
+        plan = build_prune_plan(config, state, common_parent_name=common_parent_name)
     state_names_before_prune = set(state.get("snapshots", {}))
 
     source_runner: SourceRunner | None = None
@@ -810,15 +976,31 @@ def prune(
             print(f"  [{action}] {name}: {authorization}")
         print()
 
+    cleanup_result = PruneResult(
+        plan=plan,
+        dry_run=dry_run,
+        source_delete_candidates=len(source_delete_candidates),
+        source_delete_authorized=len(source_delete_allowed),
+        remaining_state=len(state.get("snapshots", {})),
+        cache_cleanup_enabled=bool(config.source.cleanup_superseded_cache and config.source.cache_root),
+        redundant_destination_cleanup_enabled=bool(context is not None and config.destination.delete_redundant_snapshots),
+        redundant_cache_cleanup_enabled=bool(context is not None and config.source.delete_redundant_snapshots and config.source.cleanup_superseded_cache and config.source.cache_root),
+        cache_delete_candidates=sum(
+            bool(_source_cache_delete_paths(config, name, state.get("snapshots", {}).get(name, {})))
+            for name in plan.delete
+        ),
+    )
     if dry_run:
+        if context is not None:
+            _apply_redundant_cache_cleanup(config, state, context, cleanup_result, yes_delete=False, successful_sync=successful_sync)
+            _apply_redundant_destination_cleanup(config, state, context, cleanup_result, yes_delete=False, successful_sync=successful_sync)
         print("Dry-run: no retention deletes were performed.")
-        return PruneResult(
-            plan=plan,
-            dry_run=True,
-            source_delete_candidates=len(source_delete_candidates),
-            source_delete_authorized=len(source_delete_allowed),
-            remaining_state=len(state.get("snapshots", {})),
-        )
+        side_summary = format_prune_cleanup_summaries(cleanup_result)
+        print(side_summary)
+        logger = get_logger()
+        if logger:
+            logger.success_text(side_summary + "\n")
+        return cleanup_result
     if (plan.delete or source_delete_candidates) and not yes_delete:
         raise RuntimeError("Refusing to delete without --yes-delete")
 
@@ -854,6 +1036,7 @@ def prune(
             source_delete_allowed,
             name,
             source_cache_index=source_cache_index,
+            cleanup_result=cleanup_result,
         ):
             deleted += 1
 
@@ -879,8 +1062,15 @@ def prune(
                 require_synced_state=False,
             ):
                 legacy_deleted += 1
+                cleanup_result.source_timeshift_cleanup_completed += 1
 
+    if context is not None:
+        _apply_redundant_cache_cleanup(config, state, context, cleanup_result, yes_delete=yes_delete, successful_sync=successful_sync)
+        _apply_redundant_destination_cleanup(config, state, context, cleanup_result, yes_delete=yes_delete, successful_sync=successful_sync)
     save_state(config.state_file, state)
+    cleanup_result.destination_state_deleted = deleted
+    cleanup_result.legacy_source_deleted = legacy_deleted
+    cleanup_result.remaining_state = len(state.get("snapshots", {}))
     summary = "\n".join(
         [
             "",
@@ -894,17 +1084,38 @@ def prune(
             "",
         ]
     )
+    summary += "\n" + format_prune_cleanup_summaries(cleanup_result) + "\n"
     print(summary)
     logger = get_logger()
     if logger:
         logger.success_text(summary + "\n")
-    return PruneResult(
-        plan=plan,
-        dry_run=False,
-        destination_state_deleted=deleted,
-        legacy_source_deleted=legacy_deleted,
-        source_delete_candidates=len(source_delete_candidates),
-        source_delete_authorized=len(source_delete_allowed),
-        remaining_state=len(state.get("snapshots", {})),
-    )
+    return cleanup_result
 
+
+def _apply_redundant_cache_cleanup(config: AppConfig, state: dict, context, result: PruneResult, *, yes_delete: bool, successful_sync: bool = False) -> None:
+    """Merge cache-only counters without falsely increasing paired destination/state deletions."""
+
+    from .reconciliation import cleanup_redundant_cache
+
+    extra = cleanup_redundant_cache(config, state, context, dry_run=result.dry_run, yes_delete=yes_delete, successful_sync=successful_sync)
+    result.redundant_cache_skip_reason = extra.skipped_reason
+    result.redundant_cache_candidates = extra.candidates
+    result.redundant_cache_completed = extra.completed
+    result.redundant_cache_blocked = len(extra.blocked)
+    result.cache_delete_candidates += extra.candidates
+    result.cache_cleanup_attempted += extra.attempted
+    result.cache_cleanup_completed += extra.completed
+
+
+def _apply_redundant_destination_cleanup(config: AppConfig, state: dict, context, result: PruneResult, *, yes_delete: bool, successful_sync: bool = False) -> None:
+    """Merge receiver-only counts without changing paired retention/state deletion totals."""
+
+    from .reconciliation import cleanup_redundant_destination
+
+    extra = cleanup_redundant_destination(config, state, context, dry_run=result.dry_run, yes_delete=yes_delete, successful_sync=successful_sync)
+    result.redundant_destination_skip_reason = extra.skipped_reason
+    result.redundant_destination_candidates = extra.candidates
+    result.redundant_destination_completed = extra.completed
+    result.redundant_destination_blocked = len(extra.blocked)
+    result.destination_cleanup_attempted += extra.attempted
+    result.destination_cleanup_completed += extra.completed

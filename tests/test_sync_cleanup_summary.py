@@ -90,6 +90,9 @@ class SyncCleanupSummaryTests(unittest.TestCase):
             self.assertLess(log_text.rfind("SYNC SUMMARY"), log_text.rfind("CLEANUP SUMMARY"))
             self.assertLess(success_text.rfind("TRANSFERRED SNAPSHOTS"), success_text.rfind("SYNC SUMMARY"))
             self.assertLess(success_text.rfind("SYNC SUMMARY"), success_text.rfind("CLEANUP SUMMARY"))
+            for text in (log_text, success_text):
+                self.assertLess(text.rfind("DESTINATION CLEANUP SUMMARY"), text.rfind("SOURCE SEND-CACHE CLEANUP SUMMARY"))
+                self.assertIn("Timeshift originals protected", text)
 
     def test_mail_success_text_replaces_intermediate_success_output_and_starts_with_name(self) -> None:
         sync = self._sample_sync()
@@ -119,6 +122,8 @@ class SyncCleanupSummaryTests(unittest.TestCase):
             self.assertLess(success_text.index("SYNC SUMMARY"), success_text.index("CLEANUP SUMMARY"))
             self.assertLess(success_text.index("CLEANUP SUMMARY"), success_text.index("TRANSFERRED SNAPSHOTS"))
             self.assertIn("total backup time: 00:01:05", success_text)
+            self.assertLess(success_text.index("DESTINATION CLEANUP SUMMARY"), success_text.index("SOURCE SEND-CACHE CLEANUP SUMMARY"))
+            self.assertLess(success_text.index("SOURCE SEND-CACHE CLEANUP SUMMARY"), success_text.index("TRANSFERRED SNAPSHOTS"))
 
     def test_sync_summary_includes_total_backup_time(self) -> None:
         text = format_sync_summary(self._sample_sync(), elapsed_seconds=3723.6)

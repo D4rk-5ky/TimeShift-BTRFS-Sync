@@ -9,6 +9,7 @@
 set -Eeuo pipefail
 
 PROGRAM_NAME="${0##*/}"
+RELEASE_VERSION="0.2.0"
 MODE="dry-run"
 DESTINATION=""
 
@@ -18,7 +19,9 @@ Usage:
   sudo ./$PROGRAM_NAME --dry-run DESTINATION
   sudo ./$PROGRAM_NAME --yes-delete DESTINATION
 
-Modes:
+Options:
+  -h, --help    Show this usage text and exit.
+  --version     Print the release version and exit without inspecting paths.
   --dry-run      Show and validate what Btrfs would delete. This is the default.
   --yes-delete   Permanently delete all contents below DESTINATION.
 
@@ -42,6 +45,10 @@ while (($#)); do
             ;;
         --yes-delete)
             MODE="delete"
+            ;;
+        --version)
+            printf '%s %s\n' "$PROGRAM_NAME" "$RELEASE_VERSION"
+            exit 0
             ;;
         -h|--help)
             usage

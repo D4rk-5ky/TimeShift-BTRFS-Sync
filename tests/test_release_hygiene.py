@@ -16,6 +16,7 @@ EXPECTED_COMMANDS = {
     "init-config",
     "test-source",
     "list-source",
+    "list-snapshots",
     "sync",
     "prune",
     "restore",
@@ -28,9 +29,10 @@ EXPECTED_COMMANDS = {
 
 
 class ReleaseHygieneTests(unittest.TestCase):
-    def test_removed_legacy_files_stay_removed(self) -> None:
+    def test_preserved_helper_is_separate_from_runtime(self) -> None:
         self.assertFalse((RUNTIME_DIR / "metadata.py").exists())
-        self.assertFalse((PROJECT_ROOT / "delete-btrfs-tree.sh").exists())
+        self.assertTrue((PROJECT_ROOT / "delete-btrfs-tree.sh").is_file())
+        # Preserve the original standalone helper; runtime commands do not import it.
 
     def test_runtime_success_logs_are_ignored_and_not_shipped(self) -> None:
         gitignore = (PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
@@ -52,7 +54,7 @@ class ReleaseHygieneTests(unittest.TestCase):
         with (PROJECT_ROOT / "pyproject.toml").open("rb") as handle:
             pyproject = tomllib.load(handle)
         self.assertEqual(pyproject["project"]["version"], __version__)
-        self.assertEqual(__version__, "0.1.84")
+        self.assertEqual(__version__, "0.2.1")
 
     def test_readme_documents_every_cli_command(self) -> None:
         readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
@@ -103,7 +105,7 @@ class ReleaseHygieneTests(unittest.TestCase):
         self.assertEqual(missing, [], "undocumented symbols:\n" + "\n".join(missing))
 
     def test_no_python_cache_or_build_cache_is_present_in_source_tree(self) -> None:
-        forbidden_names = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", "build", "dist"}
+        forbidden_names = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", "build"}
         offenders = []
         for path in PROJECT_ROOT.rglob("*"):
             rel = path.relative_to(PROJECT_ROOT)
@@ -112,6 +114,8 @@ class ReleaseHygieneTests(unittest.TestCase):
             elif path.is_file() and path.suffix in {".pyc", ".pyo"}:
                 offenders.append(rel.as_posix())
         self.assertEqual(offenders, [])
+        # dist/ts-btrfs is an original deliverable, not a disposable build cache.
+        self.assertEqual({p.name for p in (PROJECT_ROOT / "dist").iterdir()}, {"ts-btrfs"})
 
 
 if __name__ == "__main__":

@@ -2,13 +2,49 @@
 
 `timeshift-btrfs-sync` backs up Timeshift Btrfs snapshots and can restore either one backup or a complete UUID-validated backup chain into the configured Timeshift repository. It can pull from or restore to another machine over SSH, or operate locally on the same machine. All restore directions use the same Btrfs, metadata, validation, and safety logic; only the selected backup and Timeshift endpoints change.
 
-> ⚠️ AI-assisted / vibe-coded experimental software. Use at your own risk.
+## ⚠️ Disclaimer / Liability
+
+**Use this script at your own risk.**
+
+The author takes **no responsibility or liability** for any data loss, service disruption, misconfiguration, service outage, missed backups, credential exposure, or other damage that may occur from using this script.
+
+Before running it in production, you **must**:
+
+- Read the entire source code
+- Understand exactly what it does (and what it does *not* do)
+- Review and adapt it to your own environment
+- Test it carefully in a non‑production setup
+
+By using this script, **you accept full responsibility** for its effects.
+
+⚠️ AI-assisted / vibe-coded experimental software. Use at your own risk.
 
 ## Disclaimer
 
 This project is AI-assisted / vibe-coded software created as a hobby project. It has not been professionally audited and may contain bugs, unsafe behavior, data-loss issues, security problems, or incorrect assumptions.
 
 You are responsible for reviewing the code, testing it in a safe environment, making backups, and understanding what it does before using it on real data. The author is not responsible for damage, data loss, broken systems, security issues, or other problems caused by using this software.
+
+---
+
+## Choose the current source application
+
+This source release is **0.2.1**. Run it from the project root with Python 3.11 or newer:
+
+```bash
+python3 -m timeshift_btrfs_sync --version
+python3 -m timeshift_btrfs_sync --help
+python3 -m timeshift_btrfs_sync init-config --profile remote-roundtrip --path ./config.toml
+# Edit every path, host and retention setting before contacting a machine.
+python3 -m timeshift_btrfs_sync sync --config ./config.toml --dry-run
+```
+
+After installation, `ts-btrfs` exposes the same commands. See [INSTALL.md](INSTALL.md) for installation and building an executable.
+
+The preserved `dist/ts-btrfs` executable reports **0.1.84**. It is the original binary and does not include the current source behavior. Rebuild it before using this release's fixes. Use the source commands above or rebuild with `python3 scripts/build_pyinstaller.py --mode onefile` before using an executable for this release.
+
+The application package is `timeshift_btrfs_sync/` directly under the project root. Run source commands from that root, where this README, tests, build helpers and integration examples live. Current configuration examples are in `timeshift_btrfs_sync/data/`.
+
 
 ## Data Loss Warning
 
@@ -55,7 +91,41 @@ host = "the-timeshift-source.example.lan"
 
 This means: pull Timeshift snapshots from that SSH host into the local backup, then push the local backup back to that same SSH Timeshift host. For pull restore, use a separate `restore-pull` profile on the Timeshift machine; its SSH host is the backup machine.
 
-Three complete commented config profiles are packaged: `config.example.toml` for normal sync/local restore, `config.restore-pull.example.toml` for SSH-backup-to-local-Timeshift restore, and `config.remote-roundtrip.example.toml` for SSH Timeshift source → local backup → push restore back to the same SSH Timeshift host. Generate one with `ts-btrfs init-config --profile ...`.
+Eight complete commented profiles are supplied under `timeshift_btrfs_sync/data/`. Each includes every available config option. The five explicit workflow examples are:
+
+| Profile for `init-config --profile` | Example file | Run on | Direction |
+|---|---|---|---|
+| `local-backup` | `example-config-local-backup.toml` | Timeshift host with backup filesystem mounted | Local Timeshift → local backup |
+| `remote-pull` | `example-config-remote-pull.toml` | Backup host | SSH Timeshift → local backup |
+| `local-restore` | `example-config-local-restore.toml` | Timeshift host with backup filesystem mounted | Local backup → local Timeshift |
+| `remote-push-restore` | `example-config-remote-push-restore.toml` | Backup host | Local backup → SSH Timeshift |
+| `remote-pull-restore` | `example-config-remote-pull-restore.toml` | Timeshift host | SSH backup → local Timeshift |
+
+The existing `sync`, `restore-pull`, and `remote-roundtrip` profiles remain available, using `config.example.toml`, `config.restore-pull.example.toml`, and `config.remote-roundtrip.example.toml`. `remote-pull` is a backup profile; choose the separate `remote-push-restore` profile to send that backup back to its SSH Timeshift host.
+
+```bash
+python3 -m timeshift_btrfs_sync init-config --profile local-backup --path ./local-backup.toml
+python3 -m timeshift_btrfs_sync init-config --profile remote-pull --path ./remote-pull.toml
+python3 -m timeshift_btrfs_sync init-config --profile local-restore --path ./local-restore.toml
+python3 -m timeshift_btrfs_sync init-config --profile remote-push-restore --path ./remote-push-restore.toml
+python3 -m timeshift_btrfs_sync init-config --profile remote-pull-restore --path ./remote-pull-restore.toml
+```
+
+Edit mount paths, SSH host/account, privileges and retention before use. The new examples use `/mnt/system/timeshift-btrfs/snapshots` on the Timeshift side and `/mnt/backup/timeshift-btrfs` on the backup side. For pull restore the backup path and optional state file are remote, while `lock_file` and `log_dir` stay local. Restore requires the local lock parent to exist; prepare the explicitly configured local directory before running it. Native Timeshift restore requires `@`, optionally `@home`, under one snapshot root on one filesystem. A home-only/custom backup is not a Timeshift system snapshot, and split-filesystem root/home restore is outside the supported layout.
+
+## Waiting for source Timeshift
+
+Use the normal command; no extra flag or config setting is needed:
+
+```bash
+python3 -m timeshift_btrfs_sync sync --config ./config.toml --run --prune --yes-delete
+```
+
+If local or SSH source Timeshift refuses startup with `Another instance of this application is running (PID=…)`, the app prints the PID and waits **60 seconds** before each retry. It keeps waiting until Timeshift accepts the command. Press **Ctrl+C** to cancel; the CLI exits with status 130 and releases its app lock normally. There is no automatic timeout. An open Timeshift GUI can hold the same lock as a scheduled hourly/daily job; the message alone cannot tell which is running. If the wait persists, check Timeshift on the source machine. The app does not kill that process or alter Timeshift's locks. See [Timeshift's startup lock check](https://github.com/linuxmint/timeshift/blob/master/src/Core/Main.vala) and [PID lock implementation](https://github.com/linuxmint/timeshift/blob/master/src/Utility/AppLock.vala).
+
+Each retry rebuilds the **whole source inventory**, including Timeshift names/tags/comments, readable `info.json`, snapshot_root and cache_root Btrfs identities. Data from a busy attempt is discarded. The existing planner then selects retained snapshots and incremental parents from the refreshed view, accounting for new dates, expired dates and changed O/H/D/W/M/B tags. Inventory reads during transfer recovery use the same wait; these lock waits do not consume `source_change_retry_count`, which still limits actual source-change recovery events. Timeshift can start again later, so the existing live UUID checks and recovery remain necessary.
+
+Standalone source listing, `test-source`, and an app-requested on-demand creation also wait on that exact startup denial. Successful sync on-demand creation is followed by the existing full inventory refresh. Unexpected or translated messages, SSH/permission failures and other Timeshift errors still stop required discovery immediately; optional discovery keeps its existing handling of unrelated errors. A failed create is retried only when it was denied at startup, before work began. Combined destructive delete-and-verify commands are never replayed automatically. `list-snapshots` keeps its existing read-only diagnostic fallback to native Btrfs/JSON when Timeshift listing is unavailable.
 
 ## Safety model
 
@@ -183,7 +253,7 @@ This lets you move or remount `source.snapshot_root`, `source.cache_root`, or th
 
 During `sync` and before standalone `prune`, mutable Timeshift metadata for already-synced snapshots is refreshed from the latest `timeshift --list`. This updates snapshot-level `tags`, `comment`, `created`, and `path` in `state.json` without re-sending data and without changing Btrfs UUID, parent-chain, send-path, destination-path, or status fields. This lets retention follow Timeshift when it later promotes or changes flags such as `O`, `H`, `D`, `W`, or `M`. The metadata refresh uses the fast Timeshift list path and does not run `btrfs subvolume show` for every already-synced snapshot.
 
-If `state.json` is missing or empty while destination snapshots already exist, `sync` tries a conservative state recovery before creating a manual snapshot or sending data. It scans destination snapshots and compares each destination subvolume's `Received UUID` with the UUID of the matching source Timeshift subvolume or an existing read-only source-cache subvolume. Only exact UUID matches are adopted into in-memory state and, during a real run, written back to `state.json`. Names alone are never trusted. If an existing destination subvolume cannot be adopted, the app refuses to delete it as an incomplete receive because it may be a valid backup from a missing state file.
+Known Timeshift/configured-source filesystem UUID mismatch stops state reconciliation and snapshot deletion before either action. Before transfers, `sync` reconciles existing destination snapshots with source originals/send-cache even when state already contains records. Standalone `prune` and cleanup after sync also reconcile before building retention decisions. Missing dates are added only when **every configured payload** is present, readonly, and matched by exact send/Received UUIDs at canonical same-date paths. The destination date container must itself be a verified Btrfs subvolume, and symlinked date paths are refused. Existing complete or partial records are preserved for the normal transfer/recovery workflow. One payload matching is insufficient; names alone are never trusted. Cache lineage must agree with a currently available original. Expired originals use the cache's real Parent UUID and readable destination `info.json` metadata; unknown retention metadata or original identity keeps the pair unadopted. Recovery records no guessed historical incremental parents. Real runs save recovered state; dry-run uses a temporary in-memory view without writing state.json. Unsupported/corrupt state remains an error rather than bypassing schema validation.
 
 A full reset means deleting both the received snapshot subvolumes and `.ts-btrfs-sync/`. Use `destroy-leftovers` for a complete app-owned reset. It deletes nested Btrfs subvolumes deepest-first and does not recursively remove ordinary non-empty backup trees.
 
@@ -439,10 +509,25 @@ btrfs send -p <parent> <current>
 The parent must represent the same Btrfs snapshot on both source and destination. Before using a destination snapshot as an incremental parent, the app compares:
 
 ```text
-source parent UUID == destination parent Received UUID
+source parent send-stream UUID == destination parent Received UUID
 ```
 
 This protects the backup from mixing snapshots from another OS, another source host, or a reset backup chain. Parent paths from previous runs are always checked before use. The app first checks whether the indexed source send-cache already contains a read-only snapshot whose UUID exactly matches the destination parent's `Received UUID`. This lets a local run reuse read-only cache snapshots that were created earlier by an SSH pull. If no indexed cache UUID match exists, the app resolves the saved root-relative `send_path` against the current configured source root, then tries any indexed cache path for the UUIDs recorded in state, and finally the original Timeshift source snapshot. It never creates a replacement cache snapshot while choosing an existing parent, because a recreated cache snapshot gets a new UUID and cannot match the destination parent.
+
+### Changing tags, missing hourly snapshots and older daily parents
+
+O/B/H/D/W/M are Timeshift retention labels. Incremental-parent identity uses the send-stream UUID (`Received UUID` for an already received source, otherwise its local UUID), matched to the receiver's `Received UUID`. Both parent payloads must be confirmed read-only. State UUIDs are hints and cannot override a different live receiver identity.
+
+All candidate dates are searched newest-first. If a newer hourly is gone from Timeshift but its exact read-only send-cache still exists, that hourly can remain the parent. If both original and cache are gone, or the destination parent is missing/unusable, the app tries the next older matching date, including a daily. Changing only the tags does not invalidate a matching parent. A recreated cache has a new UUID and cannot substitute for the old streamed cache.
+
+With a matching daily available, retained newer snapshots are sent incrementally from that daily and then from each successful newer snapshot. `sync --run --prune --yes-delete` applies retention after successful transfer. Tracked extra destination hourlies outside all retention/protection rules are deleted, followed by their eligible app-owned cache copies. Scheduled source H/D/W/M/B snapshots remain managed by Timeshift. App-created on-demand source cleanup requires current O tag/marker and complete backup proof. Unknown/untracked destination trees are left for explicit inspection; normal prune does not infer deletion ownership from a date name alone.
+
+```bash
+python3 -m timeshift_btrfs_sync sync --config ./remote-pull.toml --dry-run --prune
+python3 -m timeshift_btrfs_sync sync --config ./remote-pull.toml --run --prune --yes-delete
+```
+
+Continuation restarts a failed snapshot date from a verified parent; it does not resume a byte offset in an interrupted Btrfs stream. Required source-path changes trigger bounded inventory rebuilds and retries. Network/buffer failures and destination storage errors still stop the run. If a nonempty backup has no proven common parent, the app refuses a full-send fallback; repair its exact cache/state or select a separate empty target. Dry-run parent paths are provisional previews; the real transfer verifies the selected parent.
 
 ## Transfer-size capacity preflight
 
@@ -507,12 +592,12 @@ At the beginning of a sync run, the app builds one coherent source inventory and
 The index is deliberately per-run only. Successful cache preparation performs an exact target probe, optional snapshot creation, and metadata verification in one source command, then inserts or refreshes the result in the cache index. Successful receive refreshes the new destination path, and prune removes deleted source-cache paths from the index. The exact target probe is a safety fallback when a bulk list could not map a remounted filesystem-relative path; it does not add a separate SSH request. Normal discovery and parent comparison still use the bulk inventory without per-parent SSH metadata reads. Safety-critical incremental matching still requires the same identity rule:
 
 ```text
-source parent UUID == destination parent Received UUID
+source parent send-stream UUID == destination parent Received UUID
 ```
 
 This reduces the overhead from many small SSH calls, especially when the SSH identity file is password-protected with high key-derivation iterations. The actual `btrfs send`/`receive` stream still uses one SSH pipeline per snapshot/subvolume that must be transferred.
 
-On a fresh/full sync into a destination that was empty at run start, the app first applies the active retention rules to the source Timeshift list and sends only the snapshots that would be kept. For example, if retention keeps the newest 6 hourly, 5 daily, 2 weekly, and 6 monthly snapshots, the first seed starts at the oldest snapshot in that kept set and then sends the kept snapshots in date order. Existing safe read-only cache children for those selected dates are reused; only missing cache children are created. Deleting only the destination therefore does not require rebuilding every surviving source-cache snapshot. Existing non-empty destinations still use the normal UUID-confirmed parent/floor safety logic.
+For both an empty destination and an existing incremental backup, normal sync applies the active retention rules to the current source Timeshift list and transfers the selected snapshots oldest-to-newest. Completed destination copies still have their changed tags, comments and `info.json` refreshed before pruning, even when they fall outside the current retention set. An explicit `sync --snapshot DATE` selects that date directly. For example, if retention keeps the newest 6 hourly, 5 daily, 2 weekly, and 6 monthly snapshots, the first seed starts at the oldest snapshot in that kept set and then sends the kept snapshots in date order. Existing safe read-only cache children for those selected dates are reused; only missing cache children are created. Deleting only the destination therefore does not require rebuilding every surviving source-cache snapshot. Existing non-empty destinations still use the normal UUID-confirmed parent/floor safety logic.
 
 ## Optional automatic on-demand snapshots
 
@@ -524,17 +609,17 @@ The create command intentionally omits `--tags O` because Timeshift creates on-d
 
 After creating the snapshot, the app re-reads `timeshift --list`. The new snapshot is not sent directly or prioritized. It is sent only when the normal oldest-to-newest snapshot loop reaches its timestamp, using the same full/incremental parent logic as every other snapshot.
 
-Interrupted-run behavior: if a previous run created an app on-demand snapshot and then failed before that snapshot was fully synced, the next normal `sync` detects the existing app-created pending snapshot by tag `O` plus `manual_snapshot.marker`. It keeps that older pending snapshot in the normal oldest-to-newest order, but it still creates a fresh on-demand snapshot for the current run because the older pending snapshot may no longer represent the current system state. Both the older pending snapshot and the new snapshot are sent only when the normal oldest-to-newest loop reaches their timestamps.
+Interrupted-run behavior: if a previous run created an app on-demand snapshot and then failed before that snapshot was fully synced, the next normal `sync` detects the existing app-created pending snapshot by tag `O` plus `manual_snapshot.marker`. It considers that older pending snapshot under the configured retention rules in normal oldest-to-newest order, and it still creates a fresh on-demand snapshot for the current run because the older pending snapshot may no longer represent the current system state. Pending app-created snapshots are considered in normal chronological order, subject to the current retention selection; an explicit `--snapshot` can select an otherwise excluded date.
 
 Automatic creation is skipped when `--snapshot <name>` is used, because that command targets one existing snapshot.
 
 ## Run summaries
 
-Every `sync` ends with three final human-readable blocks in this exact order: `TRANSFERRED SNAPSHOTS` (or `PLANNED SNAPSHOT TRANSFERS` in dry-run), `SYNC SUMMARY`, then `CLEANUP SUMMARY`. The transfer block explains that the listed snapshot/subvolume payloads are the ones transferred by that run and shows full/incremental mode plus parent/source/destination paths. `SYNC SUMMARY` stays compact and includes full/incremental counts, already-synced/skipped counts, transferred count, the total actual transferred data size when measurable, and `total backup time`. The data-size field is summed across all successful subvolume sends and automatically displayed as MB, GB, or TB. It uses mbuffer's live byte total when available, or an already-requested exact transfer-size preflight; estimate-mode values are never mislabeled as actual transferred bytes. The app launches mbuffer without a controlling TTY and mirrors its stderr back to the terminal, so interactive mbuffer progress/final summaries are captured for `.mbuffer` logging and transfer accounting instead of bypassing Python via `/dev/tty`. The timer uses a monotonic clock from sync-command start through retention completion, so it includes discovery, preflight, transfer work, and cleanup but excludes later notification delivery time.
+Every `sync` ends with five final human-readable blocks in this exact order: `TRANSFERRED SNAPSHOTS` (or `PLANNED SNAPSHOT TRANSFERS` in dry-run), `SYNC SUMMARY`, `CLEANUP SUMMARY`, `DESTINATION CLEANUP SUMMARY`, then `SOURCE SEND-CACHE CLEANUP SUMMARY`. The transfer block explains that the listed snapshot/subvolume payloads are the ones transferred by that run and shows full/incremental mode plus parent/source/destination paths. `SYNC SUMMARY` stays compact and includes full/incremental counts, already-synced/skipped counts, transferred count, the total actual transferred data size when measurable, and `total backup time`. The data-size field is summed across all successful subvolume sends and automatically displayed as MB, GB, or TB. It uses mbuffer's live byte total when available, or an already-requested exact transfer-size preflight; estimate-mode values are never mislabeled as actual transferred bytes. The app launches mbuffer without a controlling TTY and mirrors its stderr back to the terminal, so interactive mbuffer progress/final summaries are captured for `.mbuffer` logging and transfer accounting instead of bypassing Python via `/dev/tty`. The timer uses a monotonic clock from sync-command start through retention completion, so it includes discovery, preflight, transfer work, and cleanup but excludes later notification delivery time.
 
 The cleanup block is always present, even when zero snapshots were deleted. If retention ran and found nothing to remove it reports `SUCCESS - cleaned 0 snapshot(s)`. If retention was not requested, it explicitly reports that neither `--prune` nor `prune_after_sync=true` enabled cleanup and shows `cleaned snapshots: 0`. Dry-run and failed/not-completed cleanup are labeled separately instead of looking like successful deletion.
 
-When `log_dir` is enabled, terminal and `.log` finish with the same three-block order: transferred snapshots, `SYNC SUMMARY`, `CLEANUP SUMMARY`. The `.log` copy is queued until logger close so these are literally the last human-readable blocks after the internal `Logging finished` marker. `.succes` is rewritten at finalization into the mail-friendly order: configured run name first, then `SYNC SUMMARY`, then `CLEANUP SUMMARY`, followed by the transfer list. This guarantees the most important status and elapsed time appear at the top of success mail.
+When `log_dir` is enabled, terminal and `.log` finish with the same five-block order: transferred snapshots, `SYNC SUMMARY`, overall cleanup, destination cleanup, source send-cache cleanup. The `.log` copy is queued until logger close so these are literally the last human-readable blocks after the internal `Logging finished` marker. `.succes` is rewritten at finalization into the mail-friendly order: configured run name first, then `SYNC SUMMARY`, then all three cleanup blocks (overall, destination, source send-cache), followed by the transfer list. This guarantees the most important status and elapsed time appear at the top of success mail.
 
 If a transfer is interrupted while `btrfs receive` has already created the destination path, that path is not marked as complete in `state.json`. For a destination that was already populated when the next run starts, the app first requires at least one complete UUID-confirmed source/destination snapshot anchor. If no such anchor exists, it errors before deleting recovery data or sending anything; use an empty/separate target for a new full backup. After that guard passes, `destination.cleanup_incomplete_receive = true` makes the real sync treat the whole snapshot date as the recovery unit. If either configured source subvolume for that Timeshift date, for example `@` or `@home`, is incomplete, missing from state, or missing on destination, the app first live-checks every configured subvolume under `source.snapshot_root/<date>`. When all source subvolumes still exist, it removes the current failed `snapshots/<date>` destination version, removes the matching app-owned `source.cache_root/<date>` send-cache version, removes the stale state entry, refreshes the in-memory Btrfs indexes, and then transfers the snapshot again in the normal oldest-to-newest position.
 
@@ -546,7 +631,19 @@ The copied control file is required for every snapshot date processed by sync. I
 
 This also applies when the failed snapshot is an app-created on-demand snapshot. The app does not move the on-demand snapshot to the front of the queue. It keeps the already sorted source snapshot list, recovers or skips the failed snapshot only when that snapshot date is reached, and then continues in the existing oldest-to-newest order. If automatic on-demand creation is enabled, a fresh on-demand snapshot for the current run is still created and then added to the same sorted queue.
 
-Standalone `prune` still prints its detailed `RETENTION SUMMARY`, `RETENTION DELETE PLAN`, optional `SOURCE TIMESHIFT APP-SNAPSHOT RETENTION` block, and `RETENTION DELETE SUMMARY`. During `sync`, those retention details appear before the mandatory final three blocks: transfer list, `SYNC SUMMARY`, `CLEANUP SUMMARY`. Delete candidates are labeled as `WOULD DELETE` in dry-run mode or `DELETE` in real mode, and each entry includes the destination subvolumes, source send-cache subvolumes, Timeshift tags, and the reason it falls outside the active retention rules.
+Standalone `prune` still prints its detailed `RETENTION SUMMARY`, `RETENTION DELETE PLAN`, optional `SOURCE TIMESHIFT APP-SNAPSHOT RETENTION` block, and `RETENTION DELETE SUMMARY`. During `sync`, those retention details appear before the mandatory final five blocks: transfer list, `SYNC SUMMARY`, overall cleanup, destination cleanup and source send-cache cleanup. Delete candidates are labeled as `WOULD DELETE` in dry-run mode or `DELETE` in real mode, and each entry includes the destination subvolumes, source send-cache subvolumes, Timeshift tags, and the reason it falls outside the active retention rules.
+
+### Separate cleanup results
+
+`DESTINATION CLEANUP SUMMARY` and `SOURCE SEND-CACHE CLEANUP SUMMARY` report each side independently. They appear after the overall cleanup summary in terminal output, `.log` and the `.succes` mail body. Standalone `prune` also prints both side summaries.
+
+Each side reports retention candidates, attempted snapshot dates, `confirmed gone`, and `pending/skipped`. Counts refer to **snapshot dates**, so an `@` + `@home` pair counts once. `confirmed gone` means the existing cleanup routine verified that the required paths were removed or were already absent. It does not measure freed bytes or assert that every counted path existed before cleanup. A destination success remains visible even when later source-cache cleanup fails; its state entry stays available for retry under the existing safety policy.
+
+The source-cache block covers only tracked app-owned send-cache paths selected by retention. Direct sends from protected Timeshift originals do not count as cache cleanup. It reports `disabled; source send-cache left unchanged` when `source.cleanup_superseded_cache = false` or no cache root is configured. These counters describe this retention pass, not earlier cache maintenance during transfer preparation.
+
+The overall block separately labels `Timeshift app candidates`, `Timeshift app authorized` and `Timeshift app confirmed gone`. These refer only to verified app-created on-demand snapshots. Ordinary source snapshot retention remains Timeshift's responsibility. The overall `cleaned snapshots` count represents completed paired/state items plus source-only app items; it is not either side's deletion count.
+
+Dry-run reports candidates with zero actual attempts/confirmations. When cleanup is not requested, both side blocks say so. If cleanup aborts without returning a result, the side counts are `unknown` rather than claiming zero or successful deletion. Pending/skipped items include both failed cleanup and safety-protected work; the preceding retention diagnostics explain why.
 
 ## Pruning and retention
 
@@ -599,10 +696,10 @@ For `destroy-leftovers`, logs must survive the cleanup. If the configured `log_d
 *.err      real command/pipeline error output
 *.btrfs    Btrfs send/receive command headers and status/verbose output
 *.mbuffer  mbuffer progress and summary
-*.succes   final mail-friendly summary body: run name, sync summary, cleanup summary, transfer list
+*.succes   final mail-friendly summary body: run name, sync summary, overall/destination/source-cache cleanup, transfer list
 ```
 
-Email notifications can attach these log files when `mail.attach_logs = true`. Missing files and 0-byte files are skipped. `mail.max_attachment_bytes` can limit attachment size. When `.succes` exists and has content, its text is used as the plain-text email message body. For `sync`, finalization replaces any intermediate `.succes` retention text so the body always starts with the configured top-level `name`, followed immediately by `SYNC SUMMARY` and `CLEANUP SUMMARY`; the transferred-snapshots list follows those summaries. The full `.log` remains a separate attachment rather than being copied into the message body.
+Email notifications can attach these log files when `mail.attach_logs = true`. Missing files and 0-byte files are skipped. `mail.max_attachment_bytes` can limit attachment size. When `.succes` exists and has content, its text is used as the plain-text email message body. For `sync`, finalization replaces any intermediate `.succes` retention text so the body always starts with the configured top-level `name`, followed immediately by `SYNC SUMMARY` and the overall/destination/source-cache cleanup blocks; the transferred-snapshots list follows those summaries. The full `.log` remains a separate attachment rather than being copied into the message body.
 
 MQTT notifications publish simple JSON status to the configured topic. Failure messages include exit code, error text, and latest captured stderr. MQTT uses optional `paho-mqtt`; email uses Python standard library `smtplib` / `email`.
 
@@ -624,18 +721,32 @@ For example, configure the receiving mount outside this app with a Btrfs mount o
 
 Install instructions, editable install steps, and PyInstaller executable build commands are kept in [`INSTALL.md`](INSTALL.md).
 
-For a normal source install:
+From the extracted project root, create and activate a Python 3.11+ virtual environment, then install from `requirements.txt`:
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-python3 -m pip install -e .
+python -m pip install -r requirements.txt
+python -m pip check
 ts-btrfs --version
 ```
 
+`python -m pip` uses the activated environment. The requirements file installs this project in editable mode, creates `.venv/bin/ts-btrfs`, and installs both **paho-mqtt** and **PyInstaller** with their dependencies through the existing `pyproject.toml` extras. Run from the project root so `-e .[mqtt,pyinstaller]` resolves correctly. Installing MQTT support does not enable notifications; `[mqtt].enabled` still controls that behavior.
+
+Verify both modules and build with MQTT support:
+
+```bash
+python -c "import paho.mqtt.client; import PyInstaller; print('MQTT and PyInstaller imports passed')"
+python3 scripts/build_pyinstaller.py --mode onefile --with-mqtt
+```
+
+For a smaller source-only installation, use `python -m pip install -e .` instead of the full requirements file. That core application uses Python's standard library.
+
+External tools such as Btrfs, Timeshift and SSH are system packages; pip does not install them. Run `deactivate` when finished, and `. .venv/bin/activate` to reactivate this environment later. No sudo is needed for pip inside the venv. If `python3 -m venv` is unavailable, install your distribution's venv package as described in INSTALL.md.
+
 For PyInstaller builds, see the dedicated `INSTALL.md` section for both folder-style and one-file executables.
 
-The PyInstaller helper bundles the complete `timeshift_btrfs_sync/data/` directory, so executable builds include all three `init-config` profiles (`sync`, `restore-pull`, and `remote-roundtrip`). After building, verify them with the commands shown in `INSTALL.md`.
+The PyInstaller helper bundles the complete `timeshift_btrfs_sync/data/` directory, so executable builds include all eight current `init-config` profiles. After building, verify them with the commands shown in `INSTALL.md`.
 
 ## Usual test flow
 
@@ -736,6 +847,91 @@ Lists source Timeshift snapshots.
 | `--config`, `-c` | Loads the chosen TOML config. | Needed for source mode and source snapshot settings. |
 | `--verify-btrfs` | Runs slower Btrfs checks for every configured source subvolume during listing. | Useful when validating a new `snapshot_root` or subvolume layout. Omit it for faster normal listing. |
 
+### `list-snapshots`
+
+Prints three Timeshift-style snapshot tables, always in this order:
+
+1. **TIMESHIFT SNAPSHOTS** — original snapshots in `source.snapshot_root`, supplemented by `timeshift --list`.
+2. **CACHE_ROOT SNAPSHOTS** — physical send-cache snapshots in `source.cache_root`.
+3. **TARGET_ROOT SNAPSHOTS** — backup snapshots in `destination.target_root/snapshots`.
+
+Each table shows dates, O/H/D/W/M/B tags, descriptions, Btrfs payload flags (`ro`, `rw`, `?`), verification status, metadata origin, device/filesystem UUID when available and total/used/free space. A date containing both `@` and `@home` counts once.
+
+```bash
+ts-btrfs list-snapshots --config ./config.toml
+# Explicitly inspect the hosts used by restore:
+ts-btrfs list-snapshots --config ./restore.toml --workflow restore
+# Source checkout, including when the preserved executable is older:
+python3 -m timeshift_btrfs_sync list-snapshots --config ./config.toml
+```
+
+| Flag | Meaning |
+|---|---|
+| `--config`, `-c` | Required TOML file selecting paths, Btrfs/Timeshift commands, source/destination sudo prefixes and SSH settings. |
+| `--workflow auto` | Default: restore host rules when `restore.mode` is `ssh` or `ssh-target`, otherwise backup host rules. Covers all eight supplied profiles. |
+| `--workflow backup` | Timeshift/cache follows `source.mode`; target backup repository is local. |
+| `--workflow restore` | Both hosts follow `restore.mode`, exactly as `restore` does. With local restore, inspect local Timeshift even if backup uses an SSH source. |
+| `--include-timeshift` | Accepted for compatibility; all three tables are now always included, with Timeshift first. |
+| `--check-pairs` | Also exit 1 unless an enabled cache and destination have complete inventories and matching readonly send/Received UUIDs for every configured payload of every date. Comparison warnings are always displayed; this flag changes only the exit code. |
+| `--help`, `-h` | Describe flags, endpoint ownership, restricted sudo, metadata fallbacks and examples. |
+| `--version` | Show the installed source version without loading config or contacting hosts. |
+
+| Workflow | Timeshift/cache side | Target backup repository side |
+|---|---|---|
+| backup, `source.mode = "local"` | local | local |
+| backup, `source.mode = "ssh"` | configured SSH host | local |
+| restore, `restore.mode = "local"` | local | local |
+| restore, `restore.mode = "ssh"` (pull restore) | local | configured SSH host |
+| restore, `restore.mode = "ssh-target"` (push restore) | configured SSH host | local |
+
+Source/cache and target headings keep their configuration meanings during restore even though restored data flows from target backup into Timeshift. Every section prints the actual endpoint and path.
+
+#### Restricted service-account permissions
+
+Run the app as the normal local account and authenticate SSH as your service user. This command **honors `source.sudo` for source Btrfs/Timeshift reads and `destination.sudo` for target Btrfs reads**. For an account with passwordless sudo to these two programs, use `sudo = "sudo -n"` in the relevant sections. It does not require an SSH root login and never requests sudo access to `sh`, `ls`, `cat`, `base64`, `df` or Python.
+
+Snapshot discovery uses configured Btrfs `subvolume list` UUID and readonly views. Date containers are queried separately because a root-scoped list can omit nested payload subvolumes. Exact `btrfs property get -ts PATH ro` is used when a flag/ordinary-directory discovery needs verification. Captured reads are batched with bounded command size over the existing transport. Denied ordinary `ls`/directory traversal does not hide dates whose payloads are found through Btrfs. Direct readable directory entries supplement the Btrfs inventory and keep missing or symlinked payloads visible. Symlink date/payload/control-file entries are not used as verified payloads or read as metadata. Hidden receive chains and non-date helper files are excluded.
+
+`timeshift --list` runs through the configured source sudo/Timeshift command. Timeshift may mount its normal repository and write its own normal operational logs during listing. The application performs no explicit mount, snapshot creation/deletion, backup, restore, cleanup, app lock/state/log write or notification action. Observations can change during concurrent Timeshift/backup work; Complete proves configured Btrfs payload presence, not transfer/restore eligibility.
+
+#### Metadata and expired originals
+
+The Timeshift source table uses `timeshift --list` for tags and descriptions. Timeshift already reads its control files, so the app does not read `snapshot_root/<date>/info.json` again for dates supplied by that command. Direct source JSON reads remain useful for physically discovered dates omitted by Timeshift, or when its listing fails. A known filesystem-UUID mismatch blocks use of the Timeshift rows and reads the configured snapshot root's own JSON instead, while reporting the mismatch. Timeshift-listed dates not physically confirmed remain visible as unverified.
+
+Cache and target tables read their **own regular `info.json` files as the login user, without sudo**. Btrfs discovers physical payloads and readonly/UUID facts; ordinary JSON reads supply O/H/D/W/M/B tags and descriptions. Readable cache and target files take precedence over source metadata, preserving each repository's stored tags even when the source has changed them. The same readers run locally or through the existing SSH transport in every backup/restore direction. No root file-reader command is needed.
+
+Cache folders created by the app normally contain payload subvolumes and **do not automatically contain their own `info.json`**. For those dates, the report first uses available same-date source metadata (source JSON or current Timeshift listing). If the original expired, a cache row may use target metadata only when every configured payload is physically present, readonly, and its send UUID matches the target's Received UUID. The same proof can supply source metadata to an unreadable target row. Every fallback is labeled with its origin. A readable target control file retains its own stored tags even when current source tags differ. No stale state.json metadata is substituted.
+
+Readable control files need no additional privileges. Missing files, invalid JSON, absent originals or actual read failures remain `?` unless a supported live fallback supplies the metadata. The listing changes no permissions or sudoers, and uses no stale state.json metadata. Tags/description unknown alone do not fail an otherwise complete physical inventory. Metadata comments/control characters are sanitized for terminal output.
+
+#### Space, status and exit codes
+
+Normal GNU `df -h -P -T` reports filesystem availability without sudo. If path traversal prevents df, the command tries the configured sudo Btrfs `filesystem usage -b` reader. Its origin is labeled: statfs free space when available, otherwise the conservative estimated/minimum free value. Fallback total/used values are Btrfs-reported device/allocation figures, and mount/percentage can be unavailable rather than guessed. Device paths and UUID come from Btrfs `filesystem show` when available. A `df` type of `-` is unknown, not a non-Btrfs verdict: native Btrfs filesystem identity confirms the type while retaining df space figures, or the existing Btrfs usage reader supplies a labeled fallback. A disabled cache remains a separate DISABLED table using the source snapshot-root filesystem for its space report.
+
+Filesystem free space can be shared by multiple tables and is not exclusive snapshot usage or guaranteed receive capacity. Missing/inaccessible roots, wrong filesystem types, required Btrfs/Timeshift failures, incomplete payloads or unavailable space reports keep other tables visible, then exit **1**. Failed nested date queries retain successful dates and mark the section incomplete. **0** means required inventory/space reads completed, including empty repositories or disabled cache; **2** means invalid config/arguments. Counts distinguish dates with at least one verified payload from unverified entries, including incomplete pairs. Pair differences alone are warnings with the default exit policy; `--check-pairs` also exits 1 for any cache-only, destination-only or unproven shared date, incomplete discovery or disabled cache.
+
+#### Cache/destination comparison
+
+After the three tables, **CACHE / DESTINATION COMPARISON** always reports physical cache/destination totals, shared date names, proven readonly UUID pairs, cache-only dates, destination-only dates and unproven shared dates. It lists every differing date. Equal counts and date names alone are insufficient: every configured payload must be readonly and its send UUID must equal the receiver's Received UUID. Changed O/H/D/W/M/B tags do not invalidate that identity. Incomplete discovery is labeled; a date not observed in a partial inventory is not proof it is absent.
+
+Cache-only dates are classified inside/outside the oldest/newest proven shared-pair range. This observed range is diagnostic: actual redundant cleanup uses the latest verified state pair after reconciliation; older dates outside this observed range can also qualify. Listing does not read or rebuild state and never authorizes deletion. A disabled cache is explicitly labeled, and target-only dates can be legitimate when direct readonly originals were sent without caching.
+
+For example, 36 cache dates and 17 destination dates with all 17 shared and UUID-proven yields a warning with **19 cache-only dates**. July leftovers between a June 23 pair and an October 12 pair are inside the range, rather than newer snapshots waiting to be transferred. Ordinary Timeshift originals are a separate inventory and need not equal cache/destination counts.
+
+Preview reconciliation and safe cleanup using the same job config. Real redundant deletion is performed by successful sync with requested cleanup:
+
+```bash
+python3 -m timeshift_btrfs_sync prune --config ./config.toml --dry-run
+# Apply paired retention only (standalone prune skips redundant cache extras):
+python3 -m timeshift_btrfs_sync prune --config ./config.toml --run --yes-delete
+# Request cleanup after a real sync:
+python3 -m timeshift_btrfs_sync sync --config ./config.toml --run --prune --yes-delete
+# Read-only parity check for scripts:
+python3 -m timeshift_btrfs_sync list-snapshots --config ./config.toml --check-pairs
+```
+
+Sync without requested cleanup does not delete cache leftovers. Cleanup must have `[source].cleanup_superseded_cache = true` and `delete_redundant_snapshots = true` (default), complete inventories, verified ownership/lineage and provable destination absence. Protected/tracked dates, incomplete-transfer parents, uncertain native identities/layouts, and newer dates remain. Ordinary cache access is unnecessary only after complete native ownership proof. Therefore equality after sync is expected only when cleanup was requested and every extra cache date passes those checks. Review the source send-cache cleanup summary for confirmed deletion and blocked/retry counts.
+
 ### `sync`
 
 Pulls missing source snapshot subvolumes to the destination.
@@ -822,6 +1018,50 @@ Shows the local state tracking file.
 | `--config`, `-c` | Loads the chosen TOML config. | Needed to locate `state.json`. |
 | `--json` | Prints raw `state.json`. | Useful for debugging parent metadata or automation parsing. |
 
+### Reconcile and remove redundant cache dates
+
+```toml
+[source]
+cleanup_superseded_cache = true
+delete_redundant_snapshots = true
+```
+
+`delete_redundant_snapshots` defaults to **true**, including when omitted. Use a dedicated app-owned native Btrfs `cache_root` per backup job. A verified cache root authorizes removal of qualifying dated Btrfs trees and their contents; keep unrelated data elsewhere. Setting this option to false disables only extra cache cleanup. `cleanup_superseded_cache = false` remains the master switch for paired and redundant cache deletion. Reconciliation still runs with either switch disabled.
+
+**Real redundant cleanup runs only after a successful real sync**, followed by paired retention, with requested cleanup (`--prune` or `prune_after_sync = true`) and `--yes-delete`. A completed no-op sync can qualify when existing full cache/state/destination pairs are freshly proven. Failed sync does not call cleanup. Standalone `prune --dry-run` previews redundant cleanup; standalone real prune still applies paired retention but explicitly skips extra cache deletion because no sync succeeded in that invocation. Listing and restore never delete redundant caches.
+
+```bash
+python3 -m timeshift_btrfs_sync prune --config ./config.toml --dry-run
+python3 -m timeshift_btrfs_sync sync --config ./config.toml --run --prune --yes-delete
+```
+
+Reconciliation recovers missing complete matching dates into state before retention. After paired retention, refresh cache/destination inventories. Verify the native cache root UUID/ID and full numeric containment; reject native identity overlap with Timeshift originals. All cache-backed complete state records must resolve to canonical same-date cache paths and match fresh readonly sender UUIDs and receiver Received UUIDs. Require at least one complete cache-backed anchor. Incomplete transfer state, failed inventory or ambiguous ownership keeps extras.
+
+An untracked, unprotected cache-only **Timeshift-style date no newer than the latest confirmed pair** qualifies when it is a native readonly Btrfs snapshot or a native date container containing readonly snapshots. This includes dates older than the oldest retained pair and partial/legacy readonly layouts. Newer dates and referenced incomplete-transfer parents remain protected. A destination date that exists or whose absence cannot be proven blocks deletion. Known original lineage must match; writable, foreign received or changed native identities are preserved. Bare ordinary directories and non-date entries are never extra-delete candidates.
+
+Once that ownership is proven, ordinary cache listing, cache JSON and ordinary file-entry checks are not deletion prerequisites. Existing files/directories/symlinks inside an authorized dated Btrfs tree are removed as its subvolumes are deleted. No sudo shell/cat/ls/Python is added. The shared tree engine rechecks the exact UUID/ID/readonly lineage and subtree, then uses configured Btrfs `subvolume delete --commit-after --subvolid <id> <verified-cache-root>` deepest-first. Numeric IDs prevent path redirection. Final Btrfs ID enumeration on the unchanged surviving cache root proves the planned IDs are absent; ordinary permission failures are never used as absence proof. Unsupported ID-deletion flags or failed commands leave an explicit retry result. See the [Btrfs subvolume documentation](https://btrfs.readthedocs.io/en/latest/btrfs-subvolume.html).
+
+The source summary separates redundant candidates, confirmed deletion, blocked dates and skip reason from destination/state cleanup. Paired/state counters retain their meaning. For 36 cache dates and 17 UUID-proven retained destination/state pairs, 19 stale cache-only dates can be removed after successful sync without removing a destination or Timeshift original. Ambiguous or protected dates remain.
+
+### Remove redundant destination dates
+
+```toml
+[destination]
+delete_redundant_snapshots = true
+```
+
+This strict boolean defaults to **true** when omitted. It is independent of `[source].delete_redundant_snapshots` and `cleanup_superseded_cache`. Use a dedicated destination repository for this job. The existing sync cleanup command above previews/applies both sides; no new command is needed. Real receiver-only deletion requires successful sync in this invocation, requested cleanup and `--yes-delete`. Standalone real prune skips extra deletion; dry prune previews it. Restore and listing never delete extras.
+
+After missing complete pairs have been recovered into state and paired retention has run, refresh both native inventories. Derive the **newest complete live UUID-confirmed state pair as the inclusive upper limit**. Consider all untracked, unprotected destination dates no newer than that pair that have no native source-cache date/subtree. There is **no lower date limit**: dates older than the oldest retained pair are also checked. Anything newer than the latest confirmed pair remains protected for a future transfer. Require a calendar-valid `YYYY-MM-DD_HH-MM-SS` name and an unchanged native readonly snapshot, or a native date container whose snapshot children are readonly. Partial and bare readonly native snapshot layouts can qualify. Writable or unproven snapshot children block the entire date. Changed O/H/D/W/M/B tags do not affect UUID proof.
+
+Prove the dedicated native cache root, canonical cache-backed state paths and all matching sender/Received UUID pairs, plus the native destination snapshots-root identity and complete containment. Fresh receiver UUIDs/IDs must agree with state and inventory. Require at least one full cache-backed anchor; missing cache_root, partial discovery, incomplete state or uncertain roots preserve extras. Known source/cache snapshot identities, tracked dates, exclusions, active incomplete-transfer parents and dates newer than the latest confirmed pair remain protected. Ordinary Timeshift originals are never deleted by this option.
+
+Recheck the complete source-cache view immediately before deleting each receiver date; a newly appearing cache counterpart or failed read keeps it. The existing tree engine deletes exact native Btrfs IDs deepest-first with transaction commit and proves those IDs absent through the unchanged surviving destination root. No sudo shell/file reader, permission change or ordinary recursive deletion is used. Regular contents inside an authorized dated Btrfs tree disappear with its subvolumes.
+
+`list-snapshots --config ./config.toml` reports destination-only dates, counts at/before versus after the latest shared pair, and labels older-than-first and newer-than-latest dates. `--check-pairs` returns 1 for differences. Listing does not read state; its shared physical range is diagnostic, while actual deletion uses the freshly confirmed **state** upper limit. Older-than-first dates can qualify; newer-than-latest dates cannot qualify. Review `prune --dry-run` for the deletion decision and `DESTINATION CLEANUP SUMMARY` for redundant candidates, confirmed-gone, blocked and skipped counts. Paired/state cleanup counters keep their existing meaning.
+
+Qualifying stale destination dates no newer than the confirmed upper limit are removed when cleanup succeeds, including dates older than the oldest retained pair. **An equal cache/destination count is not guaranteed**: newer, tracked, excluded, writable or uncertain dates deliberately remain. Namespace disappearance is confirmed; asynchronous Btrfs space reclamation can take longer.
+
 ### `destroy-leftovers`
 
 Destroys configured source/destination leftovers when this app setup is being retired. This is not a prune command and does not use retention or `state.json` safety. Configured Btrfs roots are scanned recursively and their child subvolumes are deleted deepest-first before the root subvolume. There is no recursive ordinary-directory fallback. A configured ordinary non-empty source cache root or destination root is refused and must be inspected manually in both dry-run and real-run modes; an empty ordinary root may be removed with `rmdir`. Unexpected nested destination Btrfs subvolumes are also refused rather than treated as configured payload children. The command never deletes `source.snapshot_root`.
@@ -892,7 +1132,7 @@ Every option below is present in all packaged profiles. Commented entries are op
 | `to_addrs` | Recipient list. | Required when mail is enabled. |
 | `subject_prefix` | Prefix added to success/failure subjects. | Helps filter or recognize backup emails. |
 | `include_json` | Adds the JSON status payload to the email body. | Useful for debugging or parsing mail content. |
-| `attach_logs` | Attaches non-empty `.log`, `.err`, `.btrfs`, `.mbuffer`, and `.succes` files. | Useful for diagnostics without logging into the backup host. Requires `log_dir`. The `.succes` text is also used as the email body when present; sync mail is finalized as run name → SYNC SUMMARY → CLEANUP SUMMARY → transferred snapshots. |
+| `attach_logs` | Attaches non-empty `.log`, `.err`, `.btrfs`, `.mbuffer`, and `.succes` files. | Useful for diagnostics without logging into the backup host. Requires `log_dir`. The `.succes` text is also used as the email body when present; sync mail is finalized as run name → SYNC SUMMARY → overall/destination/source-cache cleanup → transferred snapshots. |
 | `max_attachment_bytes` | Per-file attachment size cap; `0` means no cap. | Prevents huge verbose logs from being mailed. |
 | `notify_on_success` | Sends success emails. | Disable if you only want failure mail. |
 | `notify_on_failure` | Sends failure emails. | Usually keep true so failed backups alert you. |
@@ -986,6 +1226,7 @@ Timeshift's native timestamp path remains an ordinary directory. Restore mode ch
 | `cache_root` | Source-side root for read-only send-cache snapshots. | Needed when Timeshift snapshots are writable and cannot be sent directly. Must be outside `source.snapshot_root`; do not point it at the Timeshift snapshots directory. If missing, real preflight creates it as a Btrfs subvolume when `create_readonly_cache = true`; its parent must already exist and be Btrfs-accessible. `destroy-leftovers --delete-source` checks this path with configured sudo+Btrfs before falling back to source-shell visibility. |
 | `create_readonly_cache` | Creates read-only cache snapshots for writable source snapshots. | Required for writable Timeshift snapshots because `btrfs send` needs read-only sources. |
 | `cleanup_superseded_cache` | Controls app-owned source send-cache cleanup during retention. | Applies to standalone `prune` and prune invoked after `sync`, in local and SSH modes. The cache date is deleted only after the matching destination date is confirmed gone; normal transfer keeps cache snapshots for incremental parents. |
+| `delete_redundant_snapshots` | Default true; remove proven stale readonly dated cache trees after successful sync. | Reconcile complete pairs, run paired retention, refresh native views and prove cache/state/receiver UUID ownership before deleting untracked dates no newer than the latest pair. Requires cleanup_superseded_cache, requested cleanup, real successful sync and --yes-delete; standalone prune only previews extras. Native ID deletion works without ordinary cache access and removes contents of qualifying Btrfs trees. Dedicated cache_root required; tracked/protected/newer dates, Timeshift originals and destinations stay protected. |
 | `send_compressed_data` | Adds `btrfs send --compressed-data`. | Attempts to preserve already-compressed source extents when supported. It does not configure destination compression; mount the receiving Btrfs filesystem/subvolume with compression enabled if you want destination compression. |
 | `send_proto` | Adds `btrfs send --proto <N>`. | Needed only when you intentionally want a specific Btrfs send protocol version. |
 
@@ -997,6 +1238,7 @@ Timeshift's native timestamp path remains an ordinary directory. Restore mode ch
 | `sudo` | Destination sudo prefix, normally `sudo -n`. | Required for local `btrfs receive` and subvolume delete commands. |
 | `btrfs_command` | Destination Btrfs command name/path. | Use an absolute path if needed by sudo or your distro. |
 | `create_target_root` | Allows preflight to create a missing `target_root` as a Btrfs subvolume and create internal metadata directories. | Convenient for first setup. Disable if you want missing paths to be an error. |
+| `delete_redundant_snapshots` | Default true; remove proven untracked destination-only readonly dated snapshots no newer than the latest confirmed state pair after successful sync, including older-than-first leftovers. | Requires native cache/state/receiver ownership and fresh cache absence, requested sync cleanup and --yes-delete. Independent of source cleanup switches; dry prune previews, standalone real prune skips extras. Tracked/protected/newer/writable/uncertain dates remain; there is no lower date limit. |
 | `cleanup_incomplete_receive` | Removes incomplete destination receives not recorded in state. | Allows safe retry after cancelled transfers only after a non-empty-at-start destination has a complete UUID-confirmed chain anchor. Only Btrfs subvolumes or empty dirs are auto-deleted. |
 
 ### `[stream]`
@@ -1025,5 +1267,190 @@ Timeshift's native timestamp path remains an ordinary directory. Restore mode ch
 | `ondemand` | Number of newest normal/user-created Timeshift `O` snapshots to keep when `cleanup_ondemand = true`. | Ignored unless normal on-demand cleanup is explicitly enabled. |
 | `cleanup_ondemand` | Allows pruning normal/user-created Timeshift `O` snapshots. | Default false protects manually created Timeshift snapshots. |
 | `keep_latest` | Always keeps the newest synced snapshot. | Extra safety so retention does not remove the newest backup. |
-| `keep_latest_common_parent` | Keeps the newest likely common parent for incremental safety. | Reduces risk of pruning the parent needed for future incrementals. |
+| `keep_latest_common_parent` | Before retention deletion, prove and protect the newest complete live UUID-matching read-only source/destination pair. | An older matching daily remains protected when newer hourly copies lack a matching source/cache. If no usable pair is proven, cleanup stops. Metadata-only first-seed selection provisionally includes its newest date. |
 | `protected_snapshots` | Snapshot names that are never pruned. | Use for important snapshots you want retention to ignore. |
+
+## Additional supplied commands and integrations
+
+### `scripts/build_pyinstaller.py`
+
+Build an executable from this source after installing the optional build dependency described in INSTALL.md. `--help` and `--version` exit without starting a build. The helper uses the existing CLI entry point and includes the entire current config-data directory, including all eight profiles.
+
+```bash
+python3 scripts/build_pyinstaller.py --help
+python3 scripts/build_pyinstaller.py --version
+python3 scripts/build_pyinstaller.py --mode onefile
+```
+
+### `delete-btrfs-tree.sh`
+
+This preserved standalone helper has broader deletion behavior than `ts-btrfs destroy-leftovers`: it deletes every subvolume and then ordinary files below a supplied destination while preserving the destination itself. It is independent of application state, retention and configured protected roots. Review its source before using it. It rejects `/`, requires root and a writable Btrfs filesystem, and refuses nested mounts. Default mode is a preview; both mode flags are accepted and the last supplied mode wins.
+
+```bash
+bash delete-btrfs-tree.sh --help
+bash delete-btrfs-tree.sh --version
+sudo bash delete-btrfs-tree.sh --dry-run /path/to/destination
+```
+
+| Argument | Meaning |
+|---|---|
+| `DESTINATION` | One existing destination directory on writable Btrfs; not `/`. |
+| `--dry-run` | Validate candidates and preview Btrfs deletion; default. |
+| `--yes-delete` | Permanently delete every subvolume and ordinary leftover below the destination. |
+| `-h`, `--help` | Show usage without checking privileges or paths. |
+| `--version` | Print this helper's release version without checking privileges or paths. |
+
+### systemd and sudoers examples
+
+Adapt `systemd/ts-btrfs-sync.service` and `systemd/ts-btrfs-sync.timer` to your installed executable and config paths before enabling them. The supplied service requests a real sync and authorized retention (`--run --prune --yes-delete`); the timer runs hourly with up to ten minutes of randomized delay and catches up missed runs. Validate permissions with the supplied `sudoers/source-minimal.example` and `visudo`. Restore needs additional narrowly scoped permissions documented above.
+
+### Home Assistant queue example
+
+The supplied file named `TimeShift-BTRFS-Sync - Sequential Backup Queue - With continue on failure` is a Home Assistant automation example. It powers on each configured machine, waits for connectivity, starts a backup through MQTT, waits for its result, reports status through Pushover, and continues the queue after failure or timeout. Adapt all machine names, entity/device IDs, topics, scripts and notification services before importing it. It is not run by the Python CLI.
+
+## Complete command flag help
+
+The tables below reproduce the current parser help. `--help` and `--version` work both globally and after every application command. Required combinations and examples are available with `ts-btrfs COMMAND --help`.
+
+### Global flags
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+
+### Flags for `init-config`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--path` | output TOML path; parent directories are created as needed; default: ./ts-btrfs.toml |
+| `--profile` | complete configuration workflow to write; default: sync.<br>  sync = SSH Timeshift source -> local backup; local restore default<br>  restore-pull = SSH backup -> local Timeshift restore<br>  remote-roundtrip = SSH Timeshift -> local backup -> SSH Timeshift restore<br>  local-backup = local Timeshift -> local backup<br>  remote-pull = SSH Timeshift -> local backup<br>  local-restore = local backup -> local Timeshift restore<br>  remote-push-restore = local backup -> SSH Timeshift restore<br>  remote-pull-restore = SSH backup -> local Timeshift restore Allowed values: `sync`, `restore-pull`, `remote-roundtrip`, `local-backup`, `remote-pull`, `local-restore`, `remote-push-restore`, `remote-pull-restore`. |
+| `--force` | overwrite FILE if it already exists; without this flag an existing file is left untouched and the command exits with code 2 |
+
+### Flags for `test-source`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+
+### Flags for `list-source`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--verify-btrfs` | slow verification mode: probe every configured source payload with Btrfs instead of only trusting the fast Timeshift inventory/expected paths |
+
+### Flags for `sync`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--dry-run` | force strict preview mode even when default_dry_run=false: no destination preparation, lock creation, receive, state write, automatic manual snapshot, or deletion |
+| `--run` | force real backup mode even when default_dry_run=true: prepare paths/lock and perform send/receive; pruning still cannot delete without --yes-delete |
+| `--limit` | transfer at most N individual configured subvolume payloads in this run (for example one @ or @home); useful for a first real test; does not mean N snapshot dates |
+| `--snapshot` | consider only this Timeshift timestamp (for example 2026-08-14_16-33-59); useful for a targeted retry/test; does not bypass normal safety checks |
+| `--resend` | do not skip a payload merely because state.json marks it complete; all UUID/lineage/path/conflict checks still apply, so this is not a force-overwrite option |
+| `--prune` | run retention after sync regardless of prune_after_sync=false; if prune_after_sync=true, pruning runs even without this flag; actual deletion also requires real-run mode and --yes-delete |
+| `--yes-delete` | authorize actual retention deletion during a real sync when --prune or prune_after_sync=true requests pruning; has no force/override effect on non-retention safety checks |
+
+### Flags for `prune`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--dry-run` | force preview mode: refresh/read metadata and show retention decisions, but do not create a lock, save state changes, or delete anything |
+| `--run` | force real prune mode: acquire the lock and apply retention; actual deletion still requires --yes-delete |
+| `--yes-delete` | explicit authorization for real retention deletes; required in addition to real-run mode whenever the plan contains destination/source deletions |
+
+### Flags for `restore`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--dry-run` | force restore preview: validate physical overlap, Btrfs/state/cache lineage, same-date info.json identity fallback, target collisions, and the receive plan without modifying Timeshift |
+| `--run` | force real restore: acquire the local configured lock and execute receive/commit work; also requires --i-understand-this-modifies-timeshift and typed confirmations |
+| `--snapshot` | restore exactly one backup timestamp with a full receive; mutually exclusive with --all; example DATE: 2026-08-14_16-33-59 |
+| `--all` | restore the complete safe chain newer than the newest confirmed timestamp physically present in both repositories; mutually exclusive with --snapshot |
+| `--create-pre-restore-snapshot` | before any receive in a real run, create and verify one on-demand/tag O Timeshift safety snapshot on the restore target; dry-run reports the action; never snapshots the backup repository |
+| `--allow-no-common-parent` | danger override valid only with --all: permit a full oldest-to-newest chain when no shared timestamp can be proven; real execution requires stronger typed confirmations and does not bypass OS-identity checks |
+| `--allow-os-identity-mismatch` | danger override when backup identity cannot be matched to the current Timeshift repository and exact Btrfs proof does not resolve it; real execution requires an additional exact typed acknowledgement |
+| `--i-understand-this-modifies-timeshift` | mandatory acknowledgement for --run; permits direct Timeshift modification but does not replace the later typed retention-risk confirmation or any no-common-parent/OS-identity confirmations |
+
+### Flags for `create-manual`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--comment` | required Timeshift comment passed to `timeshift --create --comments`; quote TEXT when it contains spaces; this does not automatically append manual_snapshot.marker |
+
+### Flags for `destroy-leftovers`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--delete-source` | select source.cache_root for recursive Btrfs-subvolume cleanup; never selects or deletes source.snapshot_root |
+| `--delete-destination` | select destination.target_root for destructive cleanup, including its received snapshots and app metadata; does not select source.cache_root |
+| `--delete-both` | select both source.cache_root and destination.target_root for cleanup; equivalent target set to the two individual selections together; source.snapshot_root remains protected |
+| `--dry-run` | force/express preview mode; show the selected destructive tree plan and validation results without deleting anything (also the default when --run is absent) |
+| `--run` | perform the selected destructive cleanup; also requires --i-understand-this-destroys-data and the command's typed confirmations |
+| `--i-understand-this-destroys-data` | mandatory acknowledgement for --run; confirms that selected configured app-owned trees will be permanently destroyed; does not bypass path/layout safety checks or typed confirmations |
+
+### Flags for `clear-state`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--dry-run` | force/express preview mode; show the exact configured state_file that would be removed without changing it (also the default when --run is absent) |
+| `--run` | remove the configured state_file after acquiring the existing app lock; also requires --i-understand-this-clears-state and typed confirmations |
+| `--i-understand-this-clears-state` | mandatory acknowledgement for --run; confirms that removing state may break incremental continuity unless later recovery can prove exact UUID matches; does not delete any snapshot |
+
+### Flags for `delete-lock`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--dry-run` | force/express preview mode; show the exact configured lock_file that would be removed without changing it (also the default when --run is absent) |
+| `--run` | remove the configured lock_file only if it is stale/not held; also requires --i-understand-this-deletes-lock and typed confirmations |
+| `--i-understand-this-deletes-lock` | mandatory acknowledgement for --run; confirms that deleting a stale file must never be used to bypass a currently running process or held lock |
+
+### Flags for `show-state`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--json` | print the complete parsed state.json as formatted JSON instead of the compact snapshot/tag/subvolume table; useful for UUID/parent-path diagnosis and machine parsing |
+
+### Build helper flags
+
+| Flag | Meaning |
+|---|---|
+| `--version` | Print the source release version and exit without building. |
+| `--mode` | Build folder-style executable, one-file executable, or both. Default: onedir. |
+| `--name` | Executable name. Default: ts-btrfs. |
+| `--with-mqtt` | Include optional paho-mqtt support in the executable. |
+| `--no-clean` | Do not pass --clean to PyInstaller. |
+| `--extra-pyinstaller-arg` | Extra raw argument passed to PyInstaller. Can be used more than once. |
+
+Project documentation: `VERSIONING.md` records release changes; `COMMENTED_CODE_MAP.md` explains the current functions and commands. These original capitalized filenames are the canonical documents.

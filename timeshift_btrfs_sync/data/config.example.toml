@@ -1,4 +1,8 @@
-# timeshift-btrfs-sync v0.1.84 config
+# timeshift-btrfs-sync v0.2.1 config
+# Inventory: ts-btrfs list-snapshots --config ./config.toml
+# Prints Timeshift, cache_root, target_root; uses configured sudo only for Btrfs/Timeshift reads.
+# Timeshift supplies source metadata; omitted dates use ordinary source info.json reads.
+# Cache/target own info.json and df are read without sudo; stored tags and reader failures stay visible.
 # Run this config on the BACKUP/DESTINATION machine for normal sync.
 # source.mode controls only normal source-side sync/list/prune/manual commands.
 # Sync always writes destination.target_root locally; it never sends the backup destination over SSH.
@@ -272,9 +276,10 @@ extra_args = ["-o", "BatchMode=yes"]
 #
 # Interrupted-run safety: if a previous run created an app on-demand snapshot and
 # failed before it was fully synced, the next normal sync detects that pending
-# app snapshot by tag O plus marker and keeps it in normal oldest-to-newest
-# order. It still creates a fresh on-demand snapshot for the current run because
+# app snapshot by tag O plus marker and considers it in normal oldest-to-newest
+# order under the active retention selection. It still creates a fresh on-demand snapshot for the current run because
 # the older pending snapshot may no longer represent the current system state.
+# Both new and pending dates are subject to retention selection; --snapshot selects one date directly.
 # Dry-run only prints what would happen. If --snapshot is used, automatic
 # creation is skipped because that command is a targeted sync.
 enabled = true
@@ -344,6 +349,9 @@ sudo = "sudo -n"
 
 # Source-side commands. Absolute paths are also valid, for example /usr/bin/btrfs.
 btrfs_command = "btrfs"
+# Source inventory/list/create waits on Timeshift startup lock denial, polling every 60 seconds.
+# After waiting, rebuild source names/tags/JSON and Btrfs identities before sync planning.
+# No automatic timeout; Ctrl+C cancels. SSH/permission/other errors still fail normally.
 timeshift_command = "timeshift"
 
 # Snapshot discovery command:
@@ -451,6 +459,22 @@ create_readonly_cache = true
 # Normal transfer keeps cache snapshots for future incremental parents.
 cleanup_superseded_cache = true
 
+# Default true: reconcile missing complete pairs before retention, then delete
+# redundant/stale cache dates only AFTER successful sync with requested cleanup.
+# Standalone prune --dry-run previews extras; standalone real prune skips extras.
+# Confirm the native cache_root against canonical state and received UUID pairs.
+# Untracked Timeshift-style date subvolumes no newer than the latest proven pair
+# qualify if they are RO native snapshots or containers of RO native snapshots.
+# Older-than-first retained dates and partial/legacy RO layouts are included.
+# Native Btrfs IDs/UUIDs authorize deletion without ordinary cache traversal;
+# contents inside qualifying dated Btrfs trees are removed with those subvolumes.
+# Use a dedicated cache_root; tracked/protected/newer dates, incomplete transfers,
+# existing receivers and changed/foreign/writable identities stay protected.
+# Requires cleanup_superseded_cache=true, real successful sync, --yes-delete,
+# and Btrfs subvolume delete --subvolid/--commit-after support on the source.
+# false disables extra cache cleanup but preserves safe state reconciliation.
+delete_redundant_snapshots = true
+
 # Optional Btrfs send compressed-data mode.
 # true adds: btrfs send --compressed-data
 # This preserves already-compressed source extents when supported.
@@ -514,6 +538,18 @@ create_target_root = true
 # the existing date subvolume. Ordinary destination paths are never deleted as
 # a fallback and require manual inspection.
 cleanup_incomplete_receive = true
+
+# Post-sync redundant receiver cleanup (independent of the source cache switch).
+# After successful sync and paired retention, consider only untracked native
+# Timeshift-date snapshots no newer than the latest UUID-confirmed state pair,
+# including dates older than the oldest retained pair (there is no lower limit).
+# They must be absent from the source cache. Verify dedicated native roots, full immutable
+# cache/state/received UUID anchors, exact RO snapshot trees and native IDs.
+# Protect tracked/excluded/active-parent dates, newer-than-latest dates and uncertainty.
+# Requires sync cleanup (--prune or prune_after_sync), --run and --yes-delete.
+# Standalone prune --dry-run previews; real standalone prune skips these extras.
+# Restore and list-snapshots never perform this cleanup. Default: true.
+delete_redundant_snapshots = true
 
 
 [stream]
@@ -602,6 +638,9 @@ cleanup_ondemand = false
 
 # Extra safety: always keep newest snapshot and latest likely incremental parent.
 keep_latest = true
+# Before prune deletes anything, require a complete live read-only UUID-matching parent.
+# Protect that actual date/cache pair even when newer unshared hourlies exist.
+# If no pair is proven, cleanup stops. Ordinary H/D/W/M/B source retention stays with Timeshift.
 keep_latest_common_parent = true
 
 # Names listed here are never pruned.

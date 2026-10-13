@@ -722,22 +722,40 @@ def _snapshots_in_sync_order(snapshots) -> list[SnapshotMeta]:
     return sorted(snapshots, key=lambda s: s.sort_key())
 
 
-def _select_initial_sync_snapshots(config: AppConfig, source_by_name: dict[str, SnapshotMeta]) -> list[SnapshotMeta]:
-    """Return retention-kept source snapshots for a fresh destination seed."""
+def _select_initial_sync_snapshots(
+    config: AppConfig,
+    source_by_name: dict[str, SnapshotMeta],
+    *,
+    state: dict | None = None,
+) -> list[SnapshotMeta]:
+    """Select retained snapshots for any sync, plus completed metadata refreshes.
+
+    The historical helper name is retained for callers. Existing destinations
+    use the same retention selection as full seeds, avoiding transfers of old
+    hourlies that pruning would immediately remove. Completed copies still get
+    current Timeshift tags/comments/info.json before retention is applied.
+    """
 
     keep_names = initial_sync_keep_names(config, source_by_name.values())
-    selected = [source_by_name[name] for name in sorted(keep_names) if name in source_by_name]
+    refresh_names = {
+        name for name in source_by_name
+        if state is not None
+        and snapshot_is_synced(state, name, config.source.subvolumes)
+        and _snapshot_destination_paths_exist(config, name, config.source.subvolumes)
+    }
+    selected = [source_by_name[name] for name in sorted(keep_names | refresh_names) if name in source_by_name]
     skipped = len(source_by_name) - len(selected)
     _human_blank()
-    print("FULL SYNC RETENTION SELECTION")
+    print("SYNC RETENTION SELECTION")
     print(f"  source snapshots:  {len(source_by_name)}")
-    print(f"  selected to send:  {len(selected)}")
+    print(f"  selected by rules: {len(keep_names)}")
+    print(f"  metadata refresh:  {len(refresh_names - keep_names)}")
     print(f"  skipped by rules:  {skipped}")
     if selected:
         print(f"  first selected:    {selected[0].name}")
         print(f"  newest selected:   {selected[-1].name}")
     print("  sending order:     oldest selected to newest selected")
-    print("  reason:            fresh destination only receives snapshots kept by retention")
+    print("  reason:            transfer retained snapshots; refresh metadata for existing completed copies")
     _human_rule("----")
     return selected
 
@@ -1435,22 +1453,22 @@ def _match_source_path_to_destination_received_uuid(
     if not remote_meta or not remote_send_uuid:
         return False, f"{label} not found or has no usable send-stream UUID: {source_path}"
 
-    allowed = set(expected_uuids or set())
-    if destination_meta.received_uuid:
-        allowed.add(destination_meta.received_uuid)
-    if not allowed:
+    # Saved state is a recovery hint, never authority over the live receiver.
+    # A stale state UUID must not authorize an unrelated or modified destination.
+    if not destination_meta.received_uuid:
         return False, "destination parent has no received_uuid; cannot prove matching source parent"
-    if remote_send_uuid not in allowed:
-        expected = ", ".join(sorted(allowed))
+    if remote_send_uuid != destination_meta.received_uuid:
         return False, (
-            f"{label} send UUID {remote_send_uuid} does not match destination/state UUID(s) "
-            f"{expected}: {source_path}"
+            f"{label} send UUID {remote_send_uuid} does not match destination received_uuid "
+            f"{destination_meta.received_uuid}: {source_path}"
         )
-    if require_readonly and remote_meta.readonly is False:
-        return False, f"{label} UUID matches, but it is not read-only: {source_path}"
+    if destination_meta.readonly is not True:
+        return False, "destination parent is not confirmed read-only"
+    if require_readonly and remote_meta.readonly is not True:
+        return False, f"{label} UUID matches, but it is not confirmed read-only: {source_path}"
 
-    readonly_note = "read-only confirmed" if remote_meta.readonly is True else "read-only flag not reported"
-    return True, f"destination received_uuid/state matches {label} send UUID ({readonly_note})"
+    readonly_note = "read-only confirmed" if remote_meta.readonly is True else "source read-only not required"
+    return True, f"destination received_uuid matches {label} send UUID ({readonly_note})"
 
 
 def _select_verified_parent_send_path(
@@ -1567,7 +1585,7 @@ def _state_uuid_values_for_path(
     source_path: str,
     send_path: str | None,
 ) -> set[str]:
-    """Return the current state UUID that identifies one source candidate."""
+    """Return a saved UUID hint for a candidate; never authorize receiver identity."""
 
     if path == send_path:
         value = state_subvol.get("send_source_uuid")
@@ -1587,7 +1605,7 @@ def _find_confirmed_sync_floor(
     source_snapshot_index: inventory.BtrfsIndex | None = None,
     destination_index: inventory.BtrfsIndex | None = None,
 ) -> tuple[str | None, str]:
-    """Return newest state snapshot that still exists on source and matches UUIDs.
+    """Return the newest complete state date with a proven immutable shared parent.
 
     After pruning, source snapshots can still exist when Timeshift/user retention
     keeps them or app-created source cleanup is disabled/blocked. Without a floor,
@@ -1595,13 +1613,13 @@ def _find_confirmed_sync_floor(
     send them again. Instead of adding a long list of tombstones, we walk
     state.json newest-to-oldest and find the newest snapshot that:
 
-    * is still listed by `timeshift --list` on the source,
+    * has an available original or UUID-matching send-cache on the source,
     * is fully synced locally for the configured subvolumes,
     * has matching Btrfs UUID identity between source and destination.
 
     Source snapshots older than or equal to this confirmed floor are skipped by
     normal sync. If the original Timeshift snapshot no longer exists, the search
-    can still confirm a floor through the saved app-created send_path in state.
+    can still confirm a floor through an indexed UUID-matching send-cache path.
     """
 
     state_snapshots = state.get("snapshots", {})
@@ -1643,55 +1661,30 @@ def _find_confirmed_sync_floor(
                 reasons.append(f"{subvolume_name}: invalid destination_path in state: {exc}")
                 break
 
-            sub_reasons: list[str] = []
-            source_path = source_subvol.path if source_subvol else ""
-            saved_send_path: str | None = None
-            if state_subvol.get("send_path"):
-                try:
-                    saved_send_path = resolve_state_send_path(
-                        state_subvol,
-                        snapshot_root=config.source.snapshot_root,
-                        cache_root=config.source.cache_root,
-                        snapshot_name=name,
-                        subvolume_name=subvolume_name,
-                    )
-                except ValueError as exc:
-                    sub_reasons.append(f"invalid saved send_path: {exc}")
-            candidate_paths = [path for path in (saved_send_path, source_path) if isinstance(path, str) and path]
-            if not candidate_paths:
-                ok = False
-                reasons.append(f"{subvolume_name}: no saved send_path and original source snapshot is not listed")
-                break
-            for path in dict.fromkeys(candidate_paths):
-                sub_ok, reason = _match_source_path_to_destination_received_uuid(
+            # Share the incremental-parent proof, including UUID-indexed cache
+            # recovery when Timeshift pruned the original or the saved path moved.
+            try:
+                parent_path, reason = _select_verified_parent_send_path(
                     config,
                     source,
-                    source_path=path,
+                    parent_name=name,
+                    parent_subvol=source_subvol,
                     subvolume_name=subvolume_name,
-                    destination_path=destination_path,
-                    label=path,
-                    expected_uuids=_state_uuid_values_for_path(
-                        state_subvol,
-                        path=path,
-                        source_path=source_path,
-                        send_path=saved_send_path,
-                    ),
+                    state_parent=state_subvol,
                     source_cache_index=source_cache_index,
                     source_snapshot_index=source_snapshot_index,
                     destination_index=destination_index,
                 )
-                sub_reasons.append(reason)
-                if sub_ok:
-                    reasons.append(f"{subvolume_name}: {reason}")
-                    break
-            else:
+            except SyncError as exc:
+                parent_path, reason = None, str(exc)
+            reasons.append(f"{subvolume_name}: {reason}")
+            if not parent_path:
                 ok = False
-                reasons.append(f"{subvolume_name}: {'; '.join(sub_reasons)}")
                 break
 
         if ok:
             if name not in source_names:
-                return name, "newest state snapshot is no longer in Timeshift, but saved source send-cache UUIDs are confirmed"
+                return name, "newest state snapshot is no longer in Timeshift, but source send-cache UUIDs are confirmed"
             if checked_missing:
                 return name, f"newest state snapshot was not on source; walked back {checked_missing} entr{'y' if checked_missing == 1 else 'ies'} and confirmed UUIDs"
             return name, "newest state/source snapshot confirmed by UUIDs"
@@ -1734,7 +1727,7 @@ def _source_cache_meta_by_uuid(
     if not uuid or source_cache_index is None:
         return None
     indexed = source_cache_index.find_send_uuid(uuid)
-    if indexed and indexed.path and indexed.readonly is not False:
+    if indexed and indexed.path and indexed.readonly is True:
         return indexed
     return None
 
@@ -1761,6 +1754,8 @@ def _match_existing_destination_to_source(
 
     if not destination_meta.received_uuid:
         return None, None, None, None, None, "destination has no Received UUID"
+    if destination_meta.readonly is not True:
+        return None, None, None, None, None, "destination is not confirmed read-only"
 
     source_snapshot = source_by_name.get(snapshot_name)
     source_subvol = source_snapshot.subvolumes.get(subvolume_name) if source_snapshot else None
@@ -1781,7 +1776,7 @@ def _match_existing_destination_to_source(
             )
         except Exception:
             original_meta = None
-        if original_meta and send_stream_uuid(original_meta) == destination_meta.received_uuid:
+        if original_meta and original_meta.readonly is True and send_stream_uuid(original_meta) == destination_meta.received_uuid:
             return (
                 source_snapshot,
                 original_subvol,
@@ -1827,120 +1822,120 @@ def _recover_state_from_existing_destination(
     source_cache_index: inventory.BtrfsIndex | None,
     source_snapshot_index: inventory.BtrfsIndex | None = None,
     destination_index: inventory.BtrfsIndex | None = None,
+    destination_records: dict | None = None,
 ) -> tuple[str | None, str]:
-    """Rebuild missing/empty state.json from proven source/destination matches.
+    """Merge missing complete UUID-proven dates into empty or populated state without inventing parents."""
 
-    This recovery is intentionally conservative. It never trusts names alone and
-    never invents a parent chain. A destination subvolume is adopted only when
-    Btrfs proves that its Received UUID equals a currently available source
-    UUID, either the original Timeshift snapshot subvolume or an existing
-    read-only source-cache subvolume. Once adopted, the normal sync-floor logic
-    can continue from the newest fully adopted snapshot.
-    """
+    from copy import deepcopy
+    from dataclasses import replace
+    from pathlib import PurePosixPath
+    from .listing import _read_listing_metadata, _snapshot_description
+    from .restore import BackupDirectoryRecord
 
-    if state.get("snapshots"):
-        return None, "state already has snapshot records"
-    if not _destination_has_existing_snapshots(config):
-        return None, "destination has no snapshots to adopt"
-
-    adopted_subvolumes = 0
-    adopted_full_snapshots: list[str] = []
-    skipped: list[str] = []
-    parent_by_subvolume: dict[str, tuple[str, str]] = {}
-
-    for snapshot_name in _destination_snapshot_names(config):
-        snapshot_any_adopted = False
-        snapshot_all_required = True
-        synthetic_snapshot: SnapshotMeta | None = None
-
-        for subvolume_name in config.source.subvolumes:
-            dest_path = _dest_subvolume_path(config, snapshot_name, subvolume_name)
-            dest_meta = destination_index.meta(dest_path) if destination_index is not None else None
-            if dest_meta is None and dest_path.exists():
-                try:
-                    dest_meta = _local_meta(config, dest_path, subvolume_name, required=False)
-                except Exception:
-                    dest_meta = None
-            if dest_meta is None:
-                snapshot_all_required = False
-                skipped.append(f"{snapshot_name}/{subvolume_name}: destination subvolume missing or unreadable")
+    if destination_index is not None:
+        if destination_index.errors or (source_cache_index is not None and source_cache_index.errors):
+            raise SyncError("Incomplete repository indexes; state adoption refused")
+        names = set()
+        root = PurePosixPath(str(config.destination.target_root / "snapshots"))
+        for path in destination_index.by_path:
+            try:
+                relative = PurePosixPath(path).relative_to(root)
+            except ValueError:
                 continue
-
-            (
-                source_snapshot,
-                original_subvol,
-                send_path,
-                original_meta,
-                send_meta,
-                reason,
-            ) = _match_existing_destination_to_source(
-                config,
-                source,
-                source_by_name,
-                snapshot_name=snapshot_name,
-                subvolume_name=subvolume_name,
-                destination_meta=dest_meta,
-                source_cache_index=source_cache_index,
+            if relative.parts and timeshift.SNAPSHOT_RE.fullmatch(relative.parts[0]):
+                names.add(relative.parts[0])
+    else:
+        names = {name for name in _destination_snapshot_names(config) if timeshift.SNAPSHOT_RE.fullmatch(name)}
+    missing = sorted(names - set(state.get("snapshots", {})))
+    if not missing:
+        return None, "no missing destination dates to reconcile"
+    skipped = []
+    safe_missing = []
+    for name in missing:
+        parent = _target_snapshot_dir(config, name)
+        if parent.is_symlink():
+            skipped.append(f"{name}: symlinked destination date preserved")
+            continue
+        container = destination_index.meta(parent) if destination_index is not None else None
+        if container is None:
+            container = _local_meta(config, parent, name, required=False)
+        if container is None:
+            skipped.append(f"{name}: destination date is not a verified Btrfs container")
+            continue
+        safe_missing.append(name)
+    missing = safe_missing
+    records = destination_records or {name: BackupDirectoryRecord(name, "directory", {}, None) for name in missing}
+    metadata_records = {name: records[name] for name in missing if name not in source_by_name and name in records}
+    _read_listing_metadata(CommandEndpoint.local(), str(config.destination.target_root / "snapshots"), metadata_records)
+    adopted = []
+    for name in missing:
+        matches = []
+        for payload in config.source.subvolumes:
+            path = _dest_subvolume_path(config, name, payload)
+            received = destination_index.meta(path) if destination_index is not None else _local_meta(config, path, payload, required=False)
+            if received is None:
+                skipped.append(f"{name}/{payload}: no verified destination payload")
+                break
+            match = _match_existing_destination_to_source(
+                config, source, source_by_name, snapshot_name=name, subvolume_name=payload,
+                destination_meta=received, source_cache_index=source_cache_index,
                 source_snapshot_index=source_snapshot_index,
             )
-            if not send_path or source_snapshot is None or original_subvol is None:
-                snapshot_all_required = False
-                skipped.append(f"{snapshot_name}/{subvolume_name}: {reason}")
+            snapshot, original, send_path, original_meta, send_meta, reason = match
+            if not send_path or snapshot is None or original is None or send_meta is None:
+                skipped.append(f"{name}/{payload}: {reason}")
+                break
+            # State paths must remain canonical same-date paths; a UUID found
+            # under another date is not permission to relabel that cache.
+            expected_paths = {_expected_original_source_path(config, name, payload)}
+            if config.source.cache_root:
+                expected_paths.add(cache_child_path(config.source.cache_root, name, payload))
+            if send_path not in expected_paths:
+                skipped.append(f"{name}/{payload}: matching stream is outside the canonical date/payload path")
+                break
+            is_cache = bool(config.source.cache_root and send_path == cache_child_path(config.source.cache_root, name, payload))
+            if is_cache and original_meta and original_meta.uuid and send_meta.parent_uuid != original_meta.uuid:
+                skipped.append(f"{name}/{payload}: cache lineage differs from current Timeshift original; pair preserved")
+                break
+            original_uuid = send_meta.parent_uuid if is_cache else (original_meta.uuid if original_meta else None) or original.uuid
+            if not original_uuid:
+                skipped.append(f"{name}/{payload}: original UUID cannot be recovered without guessing")
+                break
+            matches.append((replace(original, uuid=original_uuid), send_path, original_meta, send_meta, received))
+        if len(matches) != len(config.source.subvolumes):
+            continue
+        snapshot = source_by_name.get(name)
+        if snapshot is None:
+            tags, comment, error = _snapshot_description(records.get(name))
+            if error:
+                skipped.append(f"{name}: retention metadata unknown; complete pair preserved without adoption")
                 continue
-
-            synthetic_snapshot = source_snapshot
-            parent_snapshot, parent_source_path = parent_by_subvolume.get(subvolume_name, (None, None))
-            # Always adopt into the in-memory state. In dry-run this lets the
-            # remaining plan use the recovered high-watermark without writing
-            # state.json to disk.
+            snapshot = SnapshotMeta(name, str(Path(config.source.snapshot_root) / name),
+                                    tags=[] if tags == "-" else tags.split(), comment=comment,
+                                    created=name, subvolumes={meta.name: meta for meta, *_rest in matches})
+        draft = deepcopy(state)
+        for original, send_path, original_meta, send_meta, received in matches:
             mark_subvolume_synced(
-                state,
-                snapshot=source_snapshot,
-                subvolume=original_subvol,
-                destination_path=dest_path,
-                destination_root=config.destination.target_root,
-                snapshot_root=config.source.snapshot_root,
-                cache_root=config.source.cache_root,
-                parent_snapshot=parent_snapshot,
-                parent_source_path=parent_source_path,
-                send_path=send_path,
-                received_meta=dest_meta,
-                original_meta=original_meta,
-                send_meta=send_meta,
+                draft, snapshot=snapshot, subvolume=original,
+                destination_path=_dest_subvolume_path(config, name, original.name),
+                destination_root=config.destination.target_root, snapshot_root=config.source.snapshot_root,
+                cache_root=config.source.cache_root, parent_snapshot=None, parent_source_path=None,
+                send_path=send_path, received_meta=received, original_meta=original_meta, send_meta=send_meta,
             )
-            parent_by_subvolume[subvolume_name] = (snapshot_name, send_path)
-            adopted_subvolumes += 1
-            snapshot_any_adopted = True
-
-        if snapshot_any_adopted and snapshot_all_required:
-            adopted_full_snapshots.append(snapshot_name)
-
-    _human_blank()
-    print("STATE RECOVERY")
-    print("  trigger: state.json is missing or empty, but destination snapshots exist")
-    print("  rule:    adopt only exact Btrfs UUID matches; names alone are never trusted")
-    print(f"  adopted subvolume(s): {adopted_subvolumes}")
-    if adopted_full_snapshots:
-        print(f"  fully adopted snapshot(s): {', '.join(adopted_full_snapshots)}")
-    if skipped:
-        print(f"  skipped candidate(s): {len(skipped)}")
-        for line in skipped[:10]:
-            print(f"    - {line}")
-        if len(skipped) > 10:
-            print(f"    ... {len(skipped) - 10} more")
-    if dry_run:
-        print("  dry-run: recovered state.json would be written, but was not changed")
-    elif adopted_subvolumes:
+        # Commit a whole configured date only after every payload is proven.
+        state.setdefault("snapshots", {})[name] = draft["snapshots"][name]
+        state["version"] = draft["version"]
+        adopted.append(name)
+    print("STATE RECONCILIATION")
+    print("  rule: complete readonly UUID matches only; existing records preserved")
+    print(f"  recovered dates: {len(adopted)}; skipped dates/payloads: {len(skipped)}")
+    for reason in skipped:
+        print(f"  [KEEP] {reason}")
+    if adopted and not dry_run:
         save_state(config.state_file, state)
-        print("  state.json rebuilt from existing destination/source UUID matches")
-    else:
-        print("  state.json was not rebuilt because no safe UUID matches were found")
-    _human_rule("----")
-
-    if not adopted_full_snapshots:
-        return None, "no complete configured snapshot could be adopted"
-    newest = adopted_full_snapshots[-1]
-    return newest, f"rebuilt state from existing destination/source UUID matches through {newest}"
+    elif adopted:
+        print("  dry-run: recovered dates used in memory; state.json not written")
+    return (adopted[-1], "reconciled complete missing repository pairs") if adopted else (None, "no safe complete missing pairs")
 
 def _filesystem_parent_candidates(config: AppConfig, snapshot_name: str, subvolume_name: str, source_names: set[str]) -> list[str]:
     """Find local destination parent candidates by matching snapshot names.
@@ -1983,12 +1978,13 @@ def _select_parent(
 ) -> tuple[str | None, str | None]:
     """Choose the newest valid incremental parent.
 
-    The source parent path is chosen by UUID identity, not by recreating cache
-    snapshots. For each candidate destination parent, the app tries the saved
-    state send_path first, then the original Timeshift source path. One of those
-    paths must currently have a UUID matching the destination parent's
-    received_uuid. Otherwise the candidate is rejected and the next older parent
-    candidate is tried.
+    Source parent paths are selected by UUID identity without recreating cache
+    snapshots. All date candidates are searched newest-first across state and
+    filesystem discovery. Each candidate tries an indexed cache UUID match,
+    saved state path, indexed state-UUID cache and original Timeshift path.
+    The chosen source stream UUID must equal the destination Received UUID,
+    and both parents must be confirmed read-only. Missing or mismatching
+    candidates are rejected so the next older shared snapshot can be tried.
 
     If the destination was empty when this sync run started, missing parents are
     allowed to fall back to full send. This is needed while seeding the first
@@ -2025,6 +2021,7 @@ def _select_parent(
         if name not in candidate_names:
             candidate_names.append(name)
 
+    candidate_names.sort(reverse=True)
     candidate_failures: list[str] = []
     for parent_name in candidate_names:
         parent_snapshot = source_by_name.get(parent_name)
@@ -2067,17 +2064,23 @@ def _select_parent(
             _human_blank()
             return parent_name, saved_send_path
 
-        parent_send_path, reason = _select_verified_parent_send_path(
-            config,
-            source,
-            parent_name=parent_name,
-            parent_subvol=parent_subvol,
-            subvolume_name=subvolume_name,
-            state_parent=parent_state,
-            source_cache_index=source_cache_index,
-            source_snapshot_index=source_snapshot_index,
-            destination_index=destination_index,
-        )
+        try:
+            parent_send_path, reason = _select_verified_parent_send_path(
+                config,
+                source,
+                parent_name=parent_name,
+                parent_subvol=parent_subvol,
+                subvolume_name=subvolume_name,
+                state_parent=parent_state,
+                source_cache_index=source_cache_index,
+                source_snapshot_index=source_snapshot_index,
+                destination_index=destination_index,
+            )
+        except SyncError as exc:
+            # A missing/unreadable newer receive is one failed candidate, not
+            # evidence that all older shared snapshots are unusable.
+            parent_send_path, reason = None, str(exc)
+
         if parent_send_path:
             _human_blank()
             print(f"  {subvolume_name}: parent guard ok for {parent_name} ({reason})")
@@ -2336,16 +2339,16 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
     before_manual_snapshot_names = set(source_by_name)
 
     state_empty_at_start = not state.get("snapshots")
-    if state_empty_at_start and not destination_empty_at_start:
+    if not destination_empty_at_start:
+        from .reconciliation import refresh_repository_indexes
+        destination_index, destination_records = refresh_repository_indexes(config, source, source_inventory)
+        _validate_destination_snapshot_layout(config, destination_index)
+        source_cache_index = source_inventory.cache_index
+        snapshot_root_btrfs_index = source_inventory.snapshot_index
         _recover_state_from_existing_destination(
-            config,
-            source,
-            state,
-            source_by_name,
-            dry_run=dry_run,
-            source_cache_index=source_cache_index,
-            source_snapshot_index=snapshot_root_btrfs_index,
-            destination_index=destination_index,
+            config, source, state, source_by_name, dry_run=dry_run,
+            source_cache_index=source_cache_index, source_snapshot_index=snapshot_root_btrfs_index,
+            destination_index=destination_index, destination_records=destination_records,
         )
 
     # A destination that was already populated when this run started must have a
@@ -2450,10 +2453,10 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
                 selected_snapshots: list[SnapshotMeta] = []
             else:
                 selected_snapshots = [selected]
-        elif destination_empty_at_start:
-            selected_snapshots = _snapshots_in_sync_order(_select_initial_sync_snapshots(config, source_by_name))
         else:
-            selected_snapshots = _snapshots_in_sync_order(source_by_name.values())
+            selected_snapshots = _snapshots_in_sync_order(
+                _select_initial_sync_snapshots(config, source_by_name, state=state)
+            )
 
         plan = plan_sync_queue(
             source_by_name,

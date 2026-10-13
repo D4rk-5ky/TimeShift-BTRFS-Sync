@@ -84,9 +84,12 @@ class CleanupSupersededCacheModeTests(unittest.TestCase):
             for mode, expected_ssh in (("local", False), ("ssh", True)):
                 with self.subTest(mode=mode):
                     config = load_config(self._config_path(directory, mode=mode))
+                    # Isolate cache retention from the independent manual-snapshot cleanup.
+                    config.manual_snapshot.cleanup_enabled = False
+                    config.retention.keep_latest_common_parent = False
                     seen_runners: list[bool] = []
 
-                    def fake_delete(_config, _state, _plan, runner, _name, **_kwargs):
+                    def fake_delete(_config, _state, _plan, runner, _source_index, _allowed, _name, **_kwargs):
                         self.assertIsNotNone(runner)
                         seen_runners.append(runner.uses_ssh)
                         return True
@@ -175,9 +178,11 @@ class CleanupSupersededCacheModeTests(unittest.TestCase):
             for mode in ("local", "ssh"):
                 with self.subTest(mode=mode):
                     config = load_config(self._config_path(directory, mode=mode, enabled=False))
+                    config.manual_snapshot.cleanup_enabled = False
+                    config.retention.keep_latest_common_parent = False
                     seen_runners = []
 
-                    def fake_delete(_config, _state, _plan, runner, _name, **_kwargs):
+                    def fake_delete(_config, _state, _plan, runner, _source_index, _allowed, _name, **_kwargs):
                         seen_runners.append(runner)
                         return True
 

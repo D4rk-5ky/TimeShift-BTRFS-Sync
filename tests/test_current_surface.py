@@ -13,14 +13,14 @@ from timeshift_btrfs_sync.state import STATE_SUBVOLUME_KEYS, STATE_VERSION
 EXPECTED_COMMANDS = {
     "init-config", "test-source", "list-source", "sync", "prune",
     "restore", "create-manual", "show-state", "clear-state", "delete-lock",
-    "destroy-leftovers",
+    "destroy-leftovers", "list-snapshots",
 }
 EXPECTED_MODULES = {
     "__init__", "__main__", "btrfs_ops", "cache_ops", "cli", "commands",
     "config", "destroy", "endpoint", "executor", "inventory", "lock", "log",
-    "mail", "maintenance", "models", "mqtt", "notify", "paths",
+    "mail", "maintenance", "models", "mqtt", "notify", "paths", "listing",
     "payload_stats", "planning", "preflight", "restore", "retention",
-    "source", "ssh", "state", "sync", "timeshift", "topology", "tree_ops",
+    "source", "ssh", "state", "sync", "timeshift", "topology", "reconciliation", "transfer_size", "tree_ops",
 }
 EXPECTED_STATE_FIELDS = {
     "status", "name", "source_path", "send_path", "send_path_kind",

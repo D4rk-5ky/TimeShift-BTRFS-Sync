@@ -16,7 +16,8 @@ import pwd
 import re
 import shlex
 
-from .commands import quote_join, sudo_prefix
+from .commands import CommandError, quote_join, sudo_prefix
+from .timeshift import raise_if_timeshift_busy, wait_for_timeshift
 from .models import SubvolumeMeta, send_stream_uuid
 from .btrfs_ops import BtrfsOps, parse_subvolume_show
 from .endpoint import CommandEndpoint
@@ -166,6 +167,11 @@ def parse_subvolume_list(output: str, root_path: str | Path) -> list[SubvolumeMe
                 meta.parent_uuid = value
             elif key == "received_uuid":
                 meta.received_uuid = value
+            elif key == "id":
+                try:
+                    meta.subvolume_id = int(tokens[idx + 1])
+                except ValueError:
+                    pass
         metas.append(meta)
     return metas
 
@@ -709,6 +715,34 @@ def build_source_inventory(
     timeshift_command: str,
     required: bool = True,
 ) -> SourceInventory:
+    """Rebuild every source view after waiting for a busy local/SSH Timeshift.
+
+    Retrying the complete inventory discards outdated tags, JSON and native
+    identities collected while Timeshift is creating or expiring snapshots.
+    Even optional discovery waits on a known lock denial rather than returning
+    an empty Timeshift list as though no source snapshots existed.
+    """
+
+    return wait_for_timeshift(
+        lambda: _build_source_inventory_once(
+            source, snapshot_root=snapshot_root, cache_root=cache_root,
+            sudo=sudo, btrfs_command=btrfs_command,
+            timeshift_command=timeshift_command, required=required,
+        ),
+        label="Source inventory",
+    )
+
+
+def _build_source_inventory_once(
+    source: SourceRunner,
+    *,
+    snapshot_root: str,
+    cache_root: str | None,
+    sudo: str,
+    btrfs_command: str,
+    timeshift_command: str,
+    required: bool = True,
+) -> SourceInventory:
     """Build one coherent Timeshift/snapshot/cache source inventory.
 
     SSH mode uses one SSH command for all three views. Local mode uses the same
@@ -722,11 +756,16 @@ def build_source_inventory(
     if not source.uses_ssh:
         timeshift_result = source.run(
             quote_join(sudo_prefix(sudo) + [timeshift_command, "--list"]),
-            check=required,
-            log_stderr=required,
-            mirror_stderr=required,
-            mirror_stdout_on_failure=True,
+            check=False,
+            log_stderr=False,
+            mirror_stderr=False,
         )
+        raise_if_timeshift_busy(timeshift_result.returncode, timeshift_result.stdout, timeshift_result.stderr)
+        if timeshift_result.returncode != 0 and required:
+            raise CommandError(
+                quote_join(sudo_prefix(sudo) + [timeshift_command, "--list"]),
+                timeshift_result.returncode, timeshift_result.stdout, timeshift_result.stderr,
+            )
         snapshot_index = build_local_btrfs_index(
             snapshot_root_normalized,
             sudo=sudo,
@@ -784,6 +823,7 @@ def build_source_inventory(
         source_user_name,
         source_user_uid,
     ) = _split_remote_source_inventory_output(result.stdout)
+    raise_if_timeshift_busy(timeshift_status, timeshift_output)
     if timeshift_status != 0 and required:
         detail = timeshift_output.strip() or f"return code {timeshift_status}"
         raise RuntimeError(f"Source Timeshift --list failed while building inventory: {detail}")

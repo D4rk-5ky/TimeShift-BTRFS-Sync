@@ -13,11 +13,16 @@ Examples:
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ENTRY_SCRIPT = PROJECT_ROOT / "tools" / "pyinstaller_entry.py"
+
+# Use the source release version when building without an installed package.
+sys.path.insert(0, str(PROJECT_ROOT))
+from timeshift_btrfs_sync import __version__
 
 
 def build_args(*, mode: str, name: str, clean: bool, with_mqtt: bool, extra: list[str]) -> list[str]:
@@ -67,6 +72,8 @@ def main(argv: list[str] | None = None) -> int:
     """Parse arguments and run the requested build."""
 
     parser = argparse.ArgumentParser(description="Build ts-btrfs with PyInstaller.")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}",
+                        help="Print the source release version and exit without building.")
     parser.add_argument(
         "--mode",
         choices=("onedir", "onefile", "both"),

@@ -13,14 +13,15 @@ from . import __version__, timeshift
 from .commands import CommandError
 from .btrfs_ops import BtrfsOps
 from .endpoint import CommandEndpoint
-from .config import ConfigError, load_config
+from .listing import collect_snapshot_listings, format_snapshot_listings
+from .config import CONFIG_PROFILES, ConfigError, load_config
 from .lock import FileLock
 from .log import active_logger, create_run_logger, emit_final_terminal_summary, stage_final_run_summary
 from .mail import send_status as send_mail_status
 from .mqtt import publish_status
 from .models import SnapshotMeta
 from .notify import build_notification_payload
-from .retention import PruneResult, prune
+from .retention import PruneResult, format_prune_cleanup_summaries, prune
 from .restore import restore_backups
 from .destroy import destroy_leftovers
 from .maintenance import clear_state_file, delete_lock_file
@@ -333,11 +334,7 @@ def cmd_init_config(args) -> int:
     if path.exists() and not args.force:
         print(f"Refusing to overwrite existing file: {path}", file=sys.stderr)
         return 2
-    template_name = {
-        "sync": "config.example.toml",
-        "restore-pull": "config.restore-pull.example.toml",
-        "remote-roundtrip": "config.remote-roundtrip.example.toml",
-    }[args.profile]
+    template_name = CONFIG_PROFILES[args.profile][0]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         files("timeshift_btrfs_sync").joinpath(f"data/{template_name}").read_text(encoding="utf-8"),
@@ -356,7 +353,7 @@ def cmd_test_source(args) -> int:
             source.test()
         else:
             print("Source mode: local; SSH test skipped.")
-        source.run(timeshift.timeshift_cmd(config.source.sudo, config.source.timeshift_command, ["--list"]))
+        timeshift.run_source_timeshift_command(source, timeshift.timeshift_cmd(config.source.sudo, config.source.timeshift_command, ["--list"]))
         source_btrfs = BtrfsOps(
             CommandEndpoint.for_source(source), config.source.sudo, config.source.btrfs_command
         )
@@ -376,6 +373,20 @@ def _refresh_state_metadata_from_timeshift(config, state: dict, *, dry_run: bool
     source_by_name = source_snapshot_index(list_source_snapshots(config, source, include_btrfs_info=False))
     refresh_state_metadata_and_report(state, source_by_name.values(), config.state_file, dry_run=dry_run)
     return source_by_name
+
+def cmd_list_snapshots(args) -> int:
+    """Report repositories and pair differences using configured storage readers without state writes."""
+
+    config = load_config(args.config)
+    workflow, sections = collect_snapshot_listings(
+        config, workflow=args.workflow, include_timeshift=args.include_timeshift,
+    )
+    print(format_snapshot_listings(workflow, sections))
+    pair_check_failed = args.check_pairs and not any(
+        section.comparison is not None and section.comparison.parity_confirmed() for section in sections
+    )
+    return int(any(section.failed for section in sections) or pair_check_failed)
+
 
 def cmd_list_source(args) -> int:
     """List snapshots on the source machine.
@@ -407,12 +418,13 @@ def _format_cleanup_summary(
     dry_run: bool,
     error: BaseException | None = None,
 ) -> str:
-    """Return the mandatory final cleanup summary for a sync command."""
+    """Return overall retention and separate destination/cache cleanup summaries."""
 
     lines = [
         "CLEANUP SUMMARY",
         "===============",
     ]
+    side_summaries = format_prune_cleanup_summaries(result, requested=requested, dry_run=dry_run)
 
     if not requested:
         lines += [
@@ -422,7 +434,7 @@ def _format_cleanup_summary(
             "  reason:             neither --prune nor prune_after_sync=true requested retention",
             "  result:             SUCCESS - cleanup skipped; cleaned 0 snapshots",
         ]
-        return "\n".join(lines)
+        return "\n".join(lines) + "\n\n" + side_summaries
 
     lines.append("  requested:          yes")
     lines.append(f"  mode:               {'dry-run' if dry_run else 'real run'}")
@@ -435,23 +447,28 @@ def _format_cleanup_summary(
             f"  reason:             {reason}",
             "  result:             FAILED",
         ]
-        return "\n".join(lines)
+        return "\n".join(lines) + "\n\n" + side_summaries
 
     lines += [
         f"  retention candidates:{len(result.plan.delete):>5}",
-        f"  source candidates:   {result.source_delete_candidates:>5}",
-        f"  source authorized:   {result.source_delete_authorized:>5}",
+        f"  Timeshift app candidates:     {result.source_delete_candidates:>5}",
+        f"  Timeshift app authorized:     {result.source_delete_authorized:>5}",
+        f"  Timeshift app confirmed gone: {result.source_timeshift_cleanup_completed:>5}",
         f"  cleaned snapshots:   {result.cleaned_snapshots:>5}",
         f"  retry paired items:  {result.retry_destination_state_items:>5}",
-        f"  blocked source:      {result.blocked_source_candidates:>5}",
+        f"  blocked Timeshift app:{result.blocked_source_candidates:>5}",
         f"  remaining in state:  {result.remaining_state:>5}",
+        f"  redundant cache confirmed gone: {result.redundant_cache_completed}",
+        f"  redundant destination confirmed gone: {result.redundant_destination_completed}",
+        "  count basis:        completed paired/state items plus source-only app items",
+        "  ordinary source snapshots: retention managed by Timeshift",
     ]
     if result.dry_run:
         lines += [
             "  status:             dry-run only; no snapshots deleted",
             "  result:             SUCCESS - cleaned 0 snapshots (dry-run)",
         ]
-    elif result.retry_destination_state_items or result.blocked_source_candidates:
+    elif result.retry_destination_state_items or result.blocked_source_candidates or result.cache_delete_candidates > result.cache_cleanup_completed or result.redundant_destination_candidates > result.redundant_destination_completed:
         lines += [
             "  status:             completed with protected/retry items",
             f"  result:             SUCCESS - cleaned {result.cleaned_snapshots} snapshot(s); some candidates were retained safely",
@@ -461,7 +478,7 @@ def _format_cleanup_summary(
             "  status:             completed",
             f"  result:             SUCCESS - cleaned {result.cleaned_snapshots} snapshot(s)",
         ]
-    return "\n".join(lines)
+    return "\n".join(lines) + "\n\n" + side_summaries
 
 
 def _format_failed_sync_summary(exc: BaseException, *, elapsed_seconds: float | None = None) -> str:
@@ -559,7 +576,7 @@ def cmd_sync(args) -> int:
             only_missing=not args.resend,
         )
         if cleanup_requested:
-            final_state["cleanup"] = prune(config, state, dry_run=True, yes_delete=False)
+            final_state["cleanup"] = prune(config, state, dry_run=True, yes_delete=False, reconcile_inventory=True)
         return 0
 
     def _run_locked() -> int:
@@ -576,8 +593,10 @@ def cmd_sync(args) -> int:
             final_state["cleanup"] = prune(
                 config,
                 state,
+                reconcile_inventory=True,
                 dry_run=False,
                 yes_delete=args.yes_delete,
+                successful_sync=True,
             )
         return 0
 
@@ -599,26 +618,24 @@ def cmd_prune(args) -> int:
         print("Run mode: dry-run")
         print("Strict dry-run: no lock file and no destination deletion will be performed.")
         state = _load_config_state(config)
-        source_timeshift_index = _refresh_state_metadata_from_timeshift(config, state, dry_run=True)
         prune(
             config,
             state,
             dry_run=True,
             yes_delete=False,
-            source_timeshift_index=source_timeshift_index,
+            reconcile_inventory=True,
         )
         return 0
 
     def _run_locked() -> int:
         prepare_destination_helper_paths(config, dry_run=False)
         state = _load_config_state(config)
-        source_timeshift_index = _refresh_state_metadata_from_timeshift(config, state, dry_run=False)
         prune(
             config,
             state,
+            reconcile_inventory=True,
             dry_run=False,
             yes_delete=args.yes_delete,
-            source_timeshift_index=source_timeshift_index,
         )
         return 0
 
@@ -829,6 +846,7 @@ Exit codes:
 
 Typical diagnosis flow:
   ts-btrfs --version
+  ts-btrfs list-snapshots --config ./config.toml
   ts-btrfs test-source --config ./config.toml
   ts-btrfs list-source --config ./config.toml
   ts-btrfs sync --config ./config.toml --dry-run
@@ -869,17 +887,13 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         cmd_init_config,
         epilog=(
-            "Profiles:\n"
-            "  sync              Normal local/SSH Timeshift source -> local backup profile.\n"
-            "                    Restore mode defaults to local.\n"
-            "  restore-pull      SSH backup repository -> local Timeshift restore profile.\n"
-            "                    This is restore-oriented and normal sync refuses it.\n"
-            "  remote-roundtrip  SSH Timeshift source -> local backup -> SSH Timeshift restore target.\n\n"
-            "Examples:\n"
-            "  ts-btrfs init-config --profile sync --path ./config.toml\n"
-            "  ts-btrfs init-config --profile remote-roundtrip --path ./config.toml\n"
+            "Profiles (backup direction and restore direction are independent):\n"
+            + "\n".join(f"  {name}: {description}" for name, (_, description) in CONFIG_PROFILES.items())
+            + "\n\nExamples:\n"
+            "  ts-btrfs init-config --profile local-backup --path ./local-backup.toml\n"
+            "  ts-btrfs init-config --profile remote-push-restore --path ./restore.toml\n"
             "  ts-btrfs init-config --profile sync --path ./config.toml --force\n\n"
-            "If the destination file already exists, init-config refuses to overwrite it unless --force is supplied."
+            "An existing file is preserved unless --force is supplied. Edit all host/path settings before use."
         ),
     )
     p.add_argument(
@@ -890,20 +904,62 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--profile",
-        choices=("sync", "restore-pull", "remote-roundtrip"),
+        choices=tuple(CONFIG_PROFILES),
         default="sync",
         metavar="PROFILE",
         help=(
-            "profile to write; default: sync.\n"
-            "  sync             = normal local/SSH source backup profile\n"
-            "  restore-pull     = SSH backup -> local Timeshift restore profile\n"
-            "  remote-roundtrip = SSH Timeshift source -> local backup -> SSH-target restore profile"
+            "complete configuration workflow to write; default: sync.\n"
+            + "\n".join(f"  {name} = {description}" for name, (_, description) in CONFIG_PROFILES.items())
         ),
     )
     p.add_argument(
         "--force",
         action="store_true",
         help="overwrite FILE if it already exists; without this flag an existing file is left untouched and the command exits with code 2",
+    )
+
+    p = new_subparser(
+        sub, "list-snapshots", "list Timeshift, cache-root and target-root snapshots",
+        (
+            "Print Timeshift snapshots, cache_root snapshots, then target_root snapshots, with space on each side.\n"
+            "Use configured source/destination sudo prefixes only for Btrfs/Timeshift reads.\n"
+            "Timeshift --list supplies source tags/descriptions; omitted dates use ordinary JSON reads.\n"
+            "Btrfs lists discover protected paths and nested payloads without requiring sudo ls/cat.\n"
+            "Always compare cache/destination dates and full readonly send/Received UUID pairs.\n"
+            "No sudo shell/file-reader/df, app locks/state/log writes, notifications, transfers,\n"
+            "snapshot creation or cleanup are performed. Timeshift --list can mount its normal repository.\n"
+            "Permission/tool failures remain visible and exit 1 after reporting the other side.\n"
+            "Pair differences are warnings by default; --check-pairs also makes them exit 1."
+        ),
+        cmd_list_snapshots,
+        epilog=(
+            "Auto uses restore rules if restore.mode is ssh or ssh-target, otherwise backup rules.\n"
+            "Backup: source.mode chooses the Timeshift/cache host; destination is always local.\n"
+            "Restore: restore.mode chooses both hosts exactly as the restore command does.\n"
+            "Source/destination headings always identify Timeshift/cache and backup repositories,\n"
+            "even when data would flow from backup to Timeshift during restore.\n\n"
+            "Examples:\n"
+            "  ts-btrfs list-snapshots --config ./config.toml\n"
+            "  ts-btrfs list-snapshots --config ./restore.toml --workflow restore --include-timeshift\n\n"
+            "Rows are physical dates plus Timeshift-listed dates not confirmed below snapshot_root.\n"
+            "Metadata origins are labeled; missing originals may use an existing target copy only\n"
+            "when all configured live readonly payload UUIDs match. No state metadata is invented.\n"
+            "Free space prefers ordinary df; native Btrfs reads resolve denied reads/unknown types.\n"
+            "Cache/target own info.json is read without sudo; unresolved metadata remains unknown."
+        ),
+    )
+    add_config_arg(p)
+    p.add_argument(
+        "--check-pairs", action="store_true",
+        help="exit 1 unless enabled cache/destination inventories are complete and every date has a matching readonly UUID pair; comparison is always displayed, without cleanup or state writes",
+    )
+    p.add_argument(
+        "--workflow", choices=("auto", "backup", "restore"), default="auto",
+        help="endpoint interpretation; auto (default) follows non-local restore.mode, otherwise backup; backup follows source.mode with local destination; restore follows restore.mode for both hosts",
+    )
+    p.add_argument(
+        "--include-timeshift", action="store_true", default=True,
+        help="accepted for compatibility; Timeshift snapshots are now always included first, followed by cache_root and target_root",
     )
 
     p = new_subparser(
@@ -955,6 +1011,7 @@ def build_parser() -> argparse.ArgumentParser:
         (
             "Back up Timeshift snapshot payloads from the configured source into the local destination.target_root.\n"
             "source.mode selects local versus SSH source. Normal sync never writes a remote backup destination.\n"
+            "If source Timeshift reports its startup lock is busy, retry every 60 seconds and refresh the complete source inventory before planning transfers. Ctrl+C cancels the wait.\n"
             "Without --run or --dry-run, config.default_dry_run selects preview versus real execution."
         ),
         cmd_sync,
@@ -1008,7 +1065,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_yes_delete_arg(
         p,
-        "authorize actual retention deletion during a real sync when --prune or prune_after_sync=true requests pruning; has no force/override effect on non-retention safety checks",
+        "authorize actual paired retention and configured redundant cache/destination deletion during a real sync when --prune or prune_after_sync=true requests pruning; has no force/override effect on non-retention safety checks",
     )
 
     p = new_subparser(
@@ -1016,9 +1073,13 @@ def build_parser() -> argparse.ArgumentParser:
         "prune",
         "apply retention rules",
         (
-            "Apply retention without transferring new snapshots. Destination retention follows [retention].\n"
+            "Reconcile complete missing repository pairs, then apply retention without transferring snapshots.\n"
             "App-created tag O snapshots can also be retired from Timeshift only when they still match\n"
-            "manual_snapshot.marker and their required backup payloads are proven complete."
+            "manual_snapshot.marker and their required backup payloads are proven complete.\n"
+            "source.delete_redundant_snapshots (default true) previews proven stale readonly cache dates.\n"
+            "destination.delete_redundant_snapshots (default true) previews destination-only readonly dates\n"
+            "no newer than the latest confirmed state pair, including older leftovers; cache absence and UUID ownership are required.\n"
+            "Real redundant cache/destination deletion runs only after successful sync; standalone prune does not delete extras."
         ),
         cmd_prune,
         epilog=(
@@ -1035,12 +1096,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_config_arg(p)
     add_run_mode_args(
         p,
-        dry_run_help="force preview mode: refresh/read metadata and show retention decisions, but do not create a lock, save state changes, or delete anything",
+        dry_run_help="force preview mode: reconcile state in memory and show retention and redundant cache/destination decisions; no lock, state write or deletion",
         run_help="force real prune mode: acquire the lock and apply retention; actual deletion still requires --yes-delete",
     )
     add_yes_delete_arg(
         p,
-        "explicit authorization for real retention deletes; required in addition to real-run mode whenever the plan contains destination/source deletions",
+        "explicit authorization for real paired retention; post-sync extras require this consent and successful sync; requires real-run mode and never bypasses UUID/layout/ownership protections",
     )
 
     p = new_subparser(
@@ -1149,7 +1210,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  --delete-destination  destination.target_root only\n"
             "  --delete-both         both of the above; still never source.snapshot_root\n\n"
             "Real deletion requires ALL of: a delete selection, --run, --i-understand-this-destroys-data, and the command's typed confirmations.\n"
-            "--dry-run is optional because preview is already the default when --run is absent. Ordinary non-empty roots are refused; the app does not fall back to rm -rf.\n\n"
+            "--dry-run is optional because preview is already the default when --run is absent. Ordinary non-empty roots are refused; the app does not fall back to recursive ordinary-file removal.\n\n"
             "Examples:\n"
             "  ts-btrfs destroy-leftovers --config ./config.toml --delete-destination --dry-run\n"
             "  ts-btrfs destroy-leftovers --config ./config.toml --delete-both --run --i-understand-this-destroys-data"

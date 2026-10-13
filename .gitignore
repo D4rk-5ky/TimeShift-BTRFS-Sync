@@ -2,7 +2,9 @@
 *.config
 *.toml
 
-# Keep packaged example configs tracked
+# Keep packaging metadata and all packaged example configs tracked
+!pyproject.toml
+!timeshift_btrfs_sync/data/example-config-*.toml
 !config.example.config
 !config.example.toml
 !timeshift_btrfs_sync/data/config.example.toml

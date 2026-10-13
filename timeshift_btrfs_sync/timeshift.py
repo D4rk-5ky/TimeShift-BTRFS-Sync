@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
-from .commands import quote_join, remote_double_quote, sudo_prefix
+import time
+from typing import Callable, TypeVar
+from .commands import CommandError, Completed, quote_join, remote_double_quote, sudo_prefix
 from .btrfs_ops import BtrfsOps
 from .endpoint import CommandEndpoint
 from .models import SnapshotMeta, SubvolumeMeta
@@ -13,6 +15,83 @@ from .source import SourceRunner
 SNAPSHOT_RE = re.compile(r"(?P<name>\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})")
 TAG_CHARS = set("HDWMBO")
 DELETE_VERIFY_MARKER = "TSBTRFS_TIMESHIFT_DELETE_VERIFY"
+
+
+TIMESHIFT_RETRY_SECONDS = 60
+TIMESHIFT_BUSY_RE = re.compile(
+    r"Another instance of this application is running\s*\(PID=(\d+)\)",
+    re.IGNORECASE,
+)
+_Result = TypeVar("_Result")
+
+
+class TimeshiftBusyError(RuntimeError):
+    """Signal Timeshift's startup lock denial, before any command work occurs."""
+
+    def __init__(self, pid: str):
+        """Retain the reported PID solely for the normal wait message."""
+
+        self.pid = pid
+        super().__init__(f"Timeshift is busy (PID={pid})")
+
+
+def raise_if_timeshift_busy(returncode: int, stdout: str, stderr: str = "") -> None:
+    """Recognize only exit-1 startup lock denial; transport/other errors stay fatal.
+
+    The reported PID is diagnostic only. Never signal that process or modify
+    Timeshift locks. A running scheduler job and an open GUI share this lock.
+    """
+
+    if returncode == 1:
+        text = re.sub(r"\x1b\[[0-9;]*m", "", stdout + "\n" + stderr)
+        match = TIMESHIFT_BUSY_RE.search(text)
+        if match:
+            raise TimeshiftBusyError(match.group(1))
+
+
+def wait_for_timeshift(operation: Callable[[], _Result], *, label: str) -> _Result:
+    """Retry a complete operation every minute only after startup lock denial.
+
+    Discard each failed inventory and rebuild every view on the next attempt.
+    No timeout is imposed; Ctrl+C interrupts sleep and existing CLI handling
+    unwinds the app lock. Any different failure propagates immediately.
+    """
+
+    waited = False
+    while True:
+        try:
+            result = operation()
+        except TimeshiftBusyError as exc:
+            print(
+                f"{label}: Timeshift is busy (PID={exc.pid}). "
+                f"Waiting {TIMESHIFT_RETRY_SECONDS} seconds before retrying; Ctrl+C to cancel.",
+                flush=True,
+            )
+            waited = True
+            time.sleep(TIMESHIFT_RETRY_SECONDS)
+        else:
+            if waited:
+                print(f"{label}: Timeshift is available; continuing with fresh results.", flush=True)
+            return result
+
+
+def run_source_timeshift_command(source: SourceRunner, command: str) -> Completed:
+    """Wait for a single list/create command denied at Timeshift startup.
+
+    Only use this with standalone commands: replaying a delete-plus-list shell
+    could repeat a deletion that succeeded before its verification list failed.
+    """
+
+    def attempt() -> Completed:
+        """Capture one startup result and reject every non-busy command failure."""
+
+        result = source.run(command, check=False, log_stderr=False, mirror_stderr=False)
+        raise_if_timeshift_busy(result.returncode, result.stdout, result.stderr)
+        if result.returncode != 0:
+            raise CommandError(command, result.returncode, result.stdout, result.stderr)
+        return result
+
+    return wait_for_timeshift(attempt, label="Source Timeshift")
 
 
 def timeshift_cmd(sudo: str, timeshift_command: str, args: list[str]) -> str:
@@ -86,7 +165,7 @@ def list_source_snapshots(
     """
 
     if timeshift_output is None:
-        result = source.run(timeshift_cmd(sudo, timeshift_command, ["--list"]))
+        result = run_source_timeshift_command(source, timeshift_cmd(sudo, timeshift_command, ["--list"]))
         timeshift_output = result.stdout
     snapshots = parse_timeshift_list(timeshift_output, snapshot_root)
     for snap in snapshots:
@@ -127,7 +206,7 @@ def create_remote_manual_snapshot_cmd(sudo: str, timeshift_command: str, comment
 def create_source_manual_snapshot(source: SourceRunner, *, sudo: str, timeshift_command: str, comment: str) -> None:
     """Create a source Timeshift on-demand snapshot through SSH or locally."""
 
-    source.run(create_remote_manual_snapshot_cmd(sudo, timeshift_command, comment), mirror_stdout_on_failure=True)
+    run_source_timeshift_command(source, create_remote_manual_snapshot_cmd(sudo, timeshift_command, comment))
 
 
 def delete_remote_manual_snapshot_cmd(

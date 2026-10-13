@@ -13,17 +13,30 @@ from .mqtt import MQTTConfig
 from .mail import MailConfig
 from .transfer_size import parse_size_bytes
 
+# One registry drives packaged template selection and CLI help. Keep the three
+# original profile names as supported aliases alongside the explicit workflows.
+CONFIG_PROFILES = {
+    "sync": ("config.example.toml", "SSH Timeshift source -> local backup; local restore default"),
+    "restore-pull": ("config.restore-pull.example.toml", "SSH backup -> local Timeshift restore"),
+    "remote-roundtrip": ("config.remote-roundtrip.example.toml", "SSH Timeshift -> local backup -> SSH Timeshift restore"),
+    "local-backup": ("example-config-local-backup.toml", "local Timeshift -> local backup"),
+    "remote-pull": ("example-config-remote-pull.toml", "SSH Timeshift -> local backup"),
+    "local-restore": ("example-config-local-restore.toml", "local backup -> local Timeshift restore"),
+    "remote-push-restore": ("example-config-remote-push-restore.toml", "local backup -> SSH Timeshift restore"),
+    "remote-pull-restore": ("example-config-remote-pull-restore.toml", "SSH backup -> local Timeshift restore"),
+}
+
 TOP_LEVEL_KEYS = {
     "name", "default_dry_run", "prune_after_sync", "log_dir", "state_file", "lock_file",
     "source", "destination", "stream", "retention", "manual_snapshot", "mqtt", "mail", "ssh", "restore",
 }
 SOURCE_KEYS = {
     "snapshot_root", "mode", "subvolumes", "sudo", "btrfs_command", "timeshift_command",
-    "cache_root", "create_readonly_cache", "cleanup_superseded_cache",
+    "cache_root", "create_readonly_cache", "cleanup_superseded_cache", "delete_redundant_snapshots",
     "verify_subvolumes_at_discovery", "verify_incremental_parent_once_per_run",
     "source_change_retry_count", "send_compressed_data", "send_proto",
 }
-DESTINATION_KEYS = {"target_root", "sudo", "btrfs_command", "create_target_root", "cleanup_incomplete_receive"}
+DESTINATION_KEYS = {"target_root", "sudo", "btrfs_command", "create_target_root", "cleanup_incomplete_receive", "delete_redundant_snapshots"}
 STREAM_KEYS = {"use_mbuffer", "mbuffer_command", "mbuffer_size", "mbuffer_rate", "mbuffer_extra_args", "btrfs_verbose", "transfer_size_check", "transfer_size_mode", "transfer_size_safety_margin"}
 RETENTION_KEYS = {"hourly", "daily", "weekly", "monthly", "boot", "ondemand", "cleanup_ondemand", "keep_latest", "keep_latest_common_parent", "protected_snapshots"}
 MANUAL_SNAPSHOT_KEYS = {"enabled", "cleanup_enabled", "comment", "marker", "retention_count"}
@@ -101,6 +114,11 @@ class SourceConfig:
     # Normal transfer keeps cache snapshots for later incremental parents.
     cleanup_superseded_cache: bool = True
 
+    # After successful sync, remove native readonly stale cache dates no newer
+    # than the latest verified state pair. Ordinary cache access is not required
+    # after native ownership proof. Existing cache cleanup is the master switch.
+    delete_redundant_snapshots: bool = True
+
     # Speed option. False means discovery does not run btrfs subvolume show for
     # every snapshot. The app assumes configured subvolume names exist and only
     # runs Btrfs checks for snapshots that are actually going to be sent.
@@ -135,6 +153,9 @@ class DestinationConfig:
     # destination subvolume that is not recorded in state.json. When this is
     # true, the app deletes that incomplete destination subvolume and retries.
     cleanup_incomplete_receive: bool = True
+
+    # Post-sync cleanup of untracked destination-only dates no newer than the latest proven pair.
+    delete_redundant_snapshots: bool = True
 
 @dataclass(slots=True)
 class StreamConfig:
@@ -416,6 +437,7 @@ def load_config(path: str | Path) -> AppConfig:
         cache_root=cache_root,
         create_readonly_cache=_bool(source_raw, "source", "create_readonly_cache", True),
         cleanup_superseded_cache=_bool(source_raw, "source", "cleanup_superseded_cache", True),
+        delete_redundant_snapshots=_bool(source_raw, "source", "delete_redundant_snapshots", True),
         verify_subvolumes_at_discovery=_bool(source_raw, "source", "verify_subvolumes_at_discovery", False),
         verify_incremental_parent_once_per_run=_bool(source_raw, "source", "verify_incremental_parent_once_per_run", True),
         source_change_retry_count=int(_int(source_raw, "source", "source_change_retry_count", 5)),
@@ -432,6 +454,7 @@ def load_config(path: str | Path) -> AppConfig:
         btrfs_command=str(destination_raw.get("btrfs_command", "btrfs")),
         create_target_root=_bool(destination_raw, "destination", "create_target_root", True),
         cleanup_incomplete_receive=_bool(destination_raw, "destination", "cleanup_incomplete_receive", True),
+        delete_redundant_snapshots=_bool(destination_raw, "destination", "delete_redundant_snapshots", True),
     )
 
     stream_raw = _table(raw, "stream")

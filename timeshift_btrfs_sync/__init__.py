@@ -1,3 +1,3 @@
 """Timeshift Btrfs sync package."""
 
-__version__ = "0.1.84"
+__version__ = "0.2.1"
