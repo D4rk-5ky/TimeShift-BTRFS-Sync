@@ -1,0 +1,38 @@
+# Optional automation examples. Replace BACKUP_ID, tune the runtime threshold,
+# then import/edit in HA. All examples start DISABLED to avoid new alerts.
+# Notifications are local persistent HA notices; no Pushover dependency.
+- id: timeshift_BACKUP_ID_heartbeat_lost
+  alias: TimeShift backup heartbeat lost
+  initial_state: false
+  triggers:
+    - trigger: state
+      entity_id: sensor.BACKUP_ID_status
+      to: unavailable
+  conditions:
+    # Normal idle expiry after success must not alert. Only a last-seen running
+    # status that expires is an unknown/interrupted run, not a confirmed failure.
+    - condition: template
+      value_template: "{{ state_attr('sensor.BACKUP_ID_status', 'status') == 'running' }}"
+  actions:
+    - action: persistent_notification.create
+      data:
+        title: TimeShift backup heartbeat lost
+        message: >-
+          Backup heartbeat expired while last seen running. Its current outcome
+          is unknown; check the process, network and MQTT broker.
+- id: timeshift_BACKUP_ID_long_run
+  alias: TimeShift backup taking longer than expected
+  initial_state: false
+  triggers:
+    - trigger: numeric_state
+      entity_id: sensor.BACKUP_ID_runtime_seconds
+      above: 7200
+  conditions:
+    - condition: state
+      entity_id: sensor.BACKUP_ID_status
+      state: running
+  actions:
+    - action: persistent_notification.create
+      data:
+        title: TimeShift backup runtime alert
+        message: This backup has exceeded the configured two-hour example limit.

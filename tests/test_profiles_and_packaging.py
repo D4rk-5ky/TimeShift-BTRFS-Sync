@@ -65,6 +65,7 @@ class ConfigProfileTests(unittest.TestCase):
             config_module.RESTORE_KEYS,
             config_module.SSH_KEYS,
             config_module.MQTT_KEYS,
+            config_module.MONITOR_KEYS,
             config_module.MAIL_KEYS,
         ]
         expected = set().union(*groups)

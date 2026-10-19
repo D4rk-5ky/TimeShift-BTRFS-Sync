@@ -14,6 +14,7 @@ from timeshift_btrfs_sync.config import (
     MAIL_KEYS,
     MANUAL_SNAPSHOT_KEYS,
     MQTT_KEYS,
+    MONITOR_KEYS,
     RETENTION_KEYS,
     RESTORE_KEYS,
     SOURCE_KEYS,
@@ -110,7 +111,7 @@ class ConfigProfileTests(unittest.TestCase):
         expected = {
             None: TOP_LEVEL_KEYS - {
                 "source", "destination", "stream", "retention", "manual_snapshot",
-                "mqtt", "mail", "ssh", "restore",
+                "mqtt", "mqtt_monitor", "mail", "ssh", "restore",
             },
             "source": SOURCE_KEYS,
             "destination": DESTINATION_KEYS,
@@ -118,6 +119,7 @@ class ConfigProfileTests(unittest.TestCase):
             "retention": RETENTION_KEYS,
             "manual_snapshot": MANUAL_SNAPSHOT_KEYS,
             "mqtt": MQTT_KEYS,
+            "mqtt_monitor": MONITOR_KEYS,
             "mail": MAIL_KEYS,
             "ssh": SSH_KEYS,
             "restore": RESTORE_KEYS,

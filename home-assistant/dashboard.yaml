@@ -1,0 +1,43 @@
+# Paste as a manual dashboard view. Replace BACKUP_ID with the ID printed by
+# the README command, e.g. ts_btrfs_backup_host_0123456789abcdef.
+# Match entity IDs in HA if you have renamed them; duplicate cards for each job.
+title: TimeShift Backup Monitor
+path: timeshift-backups
+cards:
+  - type: markdown
+    title: Snapshot backup
+    content: >-
+      {% set live = 'sensor.BACKUP_ID_status' %}
+      {% set result = 'sensor.BACKUP_ID_last_result' %}
+      {% if states(live) not in ['unknown', 'unavailable'] %}
+      **{{ state_attr(live, 'backup_name') }} — {{ states(live) | upper }}**
+
+      {{ state_attr(live, 'progress') }} snapshots
+
+      Phase: {{ state_attr(live, 'phase') }}
+
+      Current: {{ state_attr(live, 'current_snapshot') or '—' }}
+      {{ state_attr(live, 'current_subvolume') or '' }}
+      {% else %}
+      **Live heartbeat unavailable.** This alone does not prove backup failure.
+
+      Last completed run: {{ states(result) }}
+
+      {{ state_attr(result, 'progress') or 'No completed run recorded' }}
+      {% endif %}
+  - type: entities
+    title: Live run (expires without heartbeat)
+    entities:
+      - sensor.BACKUP_ID_status
+      - sensor.BACKUP_ID_progress
+      - sensor.BACKUP_ID_completed_snapshots
+      - sensor.BACKUP_ID_total_snapshots
+      - sensor.BACKUP_ID_remaining_snapshots
+      - sensor.BACKUP_ID_current_snapshot
+      - sensor.BACKUP_ID_runtime_seconds
+      - sensor.BACKUP_ID_data_transferred_bytes
+      - sensor.BACKUP_ID_last_heartbeat
+  - type: entities
+    title: Last completed run (retained)
+    entities:
+      - sensor.BACKUP_ID_last_result

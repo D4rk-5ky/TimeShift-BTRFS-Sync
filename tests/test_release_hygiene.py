@@ -54,7 +54,7 @@ class ReleaseHygieneTests(unittest.TestCase):
         with (PROJECT_ROOT / "pyproject.toml").open("rb") as handle:
             pyproject = tomllib.load(handle)
         self.assertEqual(pyproject["project"]["version"], __version__)
-        self.assertEqual(__version__, "0.2.1")
+        self.assertEqual(__version__, "0.2.2")
 
     def test_readme_documents_every_cli_command(self) -> None:
         readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")

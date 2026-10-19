@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.2.1 config
+# timeshift-btrfs-sync v0.2.2 config
 # Inventory: ts-btrfs list-snapshots --config ./config.toml
 # Prints Timeshift, cache_root, target_root; uses configured sudo only for Btrfs/Timeshift reads.
 # Timeshift supplies source metadata; omitted dates use ordinary source info.json reads.
@@ -116,6 +116,27 @@ timeout = 10
 notify_on_success = true
 notify_on_failure = true
 
+
+[mqtt_monitor]
+# Independent live monitoring of real sync only; dry-runs/restore/prune do not
+# replace backup status. Broker/auth/QoS/timeout come from [mqtt], even if its
+# legacy completion notifications have enabled=false. Optional paho-mqtt is needed.
+enabled = false
+# Each canonical config path + hostname gets its own stable hashed backup ID.
+# Topics: <topic_prefix>/<backup_id>/{status,last_result,events}.
+topic_prefix = "timeshift-btrfs-sync"
+# Live status is NEVER retained. Publish every 60s plus snapshot/phase changes.
+heartbeat_interval = 60
+# HA live sensors become unavailable after this many seconds without messages.
+# This must exceed heartbeat_interval. Last result remains separately retained.
+expire_after = 180
+# Retained MQTT Discovery creates one HA device per backup, with live metrics
+# and last-result sensors. The supplied dashboard example explains entity IDs.
+discovery = true
+discovery_prefix = "homeassistant"
+# Non-retained start/completion/failure/duplicate events; no extra mail/start alerts.
+# Duplicate launches publish events only, preserving the owner's live/result state.
+events = true
 
 [mail]
 # Optional email notifications using Python standard library smtplib/email.
