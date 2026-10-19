@@ -1,4 +1,4 @@
-# Commented code map — TimeShift-BTRFS-Sync 0.2.1
+# Commented code map — TimeShift-BTRFS-Sync 0.2.2
 
 This file explains every Python class, function, method and nested callback in the current project, plus application commands and supplied shell/integration commands. Line numbers refer to this release. COMMENTED_CODE_MAP.md is the canonical code map; VERSIONING.md is the canonical version ledger.
 
@@ -144,27 +144,27 @@ Runtime layers reuse CommandEndpoint, BtrfsOps, CacheManager, inventory, Workflo
 
 **Why:** Keeps test fixtures and assertions close to the behavior they verify so regressions can be reproduced without production data.
 
-- `ConfigProfileTests` (class, line 42): Groups ConfigProfile regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+- `ConfigProfileTests` (class, line 43): Groups ConfigProfile regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
 
-- `ConfigProfileTests._write_profile` (function/method, line 43): Test support: write profile; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
+- `ConfigProfileTests._write_profile` (function/method, line 44): Test support: write profile; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
 
-- `ConfigProfileTests.test_all_profiles_are_packaged_resources` (function/method, line 55): Regression assertion: all profiles are packaged resources. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
+- `ConfigProfileTests.test_all_profiles_are_packaged_resources` (function/method, line 56): Regression assertion: all profiles are packaged resources. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
 
-- `ConfigProfileTests.test_init_config_sync_profile_matches_packaged_template` (function/method, line 63): Regression assertion: init config sync profile matches packaged template. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
+- `ConfigProfileTests.test_init_config_sync_profile_matches_packaged_template` (function/method, line 64): Regression assertion: init config sync profile matches packaged template. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
 
-- `ConfigProfileTests.test_init_config_restore_pull_profile_matches_packaged_template` (function/method, line 69): Regression assertion: init config restore pull profile matches packaged template. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
+- `ConfigProfileTests.test_init_config_restore_pull_profile_matches_packaged_template` (function/method, line 70): Regression assertion: init config restore pull profile matches packaged template. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
 
-- `ConfigProfileTests.test_init_config_remote_roundtrip_profile_matches_packaged_template` (function/method, line 76): Regression assertion: init config remote roundtrip profile matches packaged template. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
+- `ConfigProfileTests.test_init_config_remote_roundtrip_profile_matches_packaged_template` (function/method, line 77): Regression assertion: init config remote roundtrip profile matches packaged template. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
 
-- `ConfigProfileTests.test_remote_roundtrip_profile_uses_same_ssh_host_for_sync_and_push_restore` (function/method, line 82): Regression assertion: remote roundtrip profile uses same ssh host for sync and push restore. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
+- `ConfigProfileTests.test_remote_roundtrip_profile_uses_same_ssh_host_for_sync_and_push_restore` (function/method, line 83): Regression assertion: remote roundtrip profile uses same ssh host for sync and push restore. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
 
-- `ConfigProfileTests.test_restore_pull_profile_loads_remote_backup_ssh_settings` (function/method, line 88): Regression assertion: restore pull profile loads remote backup ssh settings. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
+- `ConfigProfileTests.test_restore_pull_profile_loads_remote_backup_ssh_settings` (function/method, line 89): Regression assertion: restore pull profile loads remote backup ssh settings. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
 
-- `ConfigProfileTests.test_sync_profile_keeps_local_backup_transport_default` (function/method, line 105): Regression assertion: sync profile keeps local backup transport default. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
+- `ConfigProfileTests.test_sync_profile_keeps_local_backup_transport_default` (function/method, line 106): Regression assertion: sync profile keeps local backup transport default. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
 
-- `ConfigProfileTests.test_every_current_option_is_documented_in_all_profiles` (function/method, line 109): Regression assertion: every current option is documented in all profiles. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
+- `ConfigProfileTests.test_every_current_option_is_documented_in_all_profiles` (function/method, line 110): Regression assertion: every current option is documented in all profiles. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
 
-- `ConfigProfileTests.test_ssh_password_and_connection_examples_are_commented` (function/method, line 146): Regression assertion: ssh password and connection examples are commented. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
+- `ConfigProfileTests.test_ssh_password_and_connection_examples_are_commented` (function/method, line 148): Regression assertion: ssh password and connection examples are commented. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
 
 ## `tests/test_current_surface.py`
 
@@ -306,6 +306,146 @@ Runtime layers reuse CommandEndpoint, BtrfsOps, CacheManager, inventory, Workflo
 
 - `IncrementalParentRecoveryTests.test_completed_outside_retention_is_kept_in_queue_for_metadata_refresh` (function/method, line 213): Regression assertion: completed outside retention is kept in queue for metadata refresh. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `IncrementalParentRecoveryTests` to use its existing endpoint, state or callback context.
 
+## `tests/test_live_monitor.py`
+
+**Role:** Regression tests. Regressions for dynamic snapshot totals and independent MQTT monitoring.
+
+**Why:** Keeps test fixtures and assertions close to the behavior they verify so regressions can be reproduced without production data.
+
+- `ProgressTests` (class, line 15): Groups Progress regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `ProgressTests.test_unknown_total_until_inventory_ready` (function/method, line 16): Regression assertion: unknown total until inventory ready. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ProgressTests` to use its existing endpoint, state or callback context.
+
+- `ProgressTests.test_two_payloads_count_only_one_complete_date` (function/method, line 18): Regression assertion: two payloads count only one complete date. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ProgressTests` to use its existing endpoint, state or callback context.
+
+- `ProgressTests.test_shrinking_plan_finishes_22_of_22` (function/method, line 23): Regression assertion: shrinking plan finishes 22 of 22. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ProgressTests` to use its existing endpoint, state or callback context.
+
+- `ProgressTests.test_growing_plan_keeps_completed_history` (function/method, line 29): Regression assertion: growing plan keeps completed history. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ProgressTests` to use its existing endpoint, state or callback context.
+
+- `ProgressTests.test_changed_completed_tags_and_duplicate_plans_do_not_reset_or_double_count` (function/method, line 35): Regression assertion: changed completed tags and duplicate plans do not reset or double count. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ProgressTests` to use its existing endpoint, state or callback context.
+
+- `ProgressTests.test_recovery_invalidates_only_failed_version_bytes` (function/method, line 38): Regression assertion: recovery invalidates only failed version bytes. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ProgressTests` to use its existing endpoint, state or callback context.
+
+- `ProgressTests.test_unknown_byte_measurements_stay_labeled` (function/method, line 41): Regression assertion: unknown byte measurements stay labeled. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ProgressTests` to use its existing endpoint, state or callback context.
+
+- `ProgressTests.test_source_unavailable_is_skipped_not_transferred` (function/method, line 43): Regression assertion: source unavailable is skipped not transferred. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ProgressTests` to use its existing endpoint, state or callback context.
+
+- `ProgressTests.test_observer_failure_does_not_fail_backup` (function/method, line 46): Regression assertion: observer failure does not fail backup. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ProgressTests` to use its existing endpoint, state or callback context.
+
+- `MonitorConfigTests` (class, line 49): Groups MonitorConfig regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `MonitorConfigTests.load_extra` (function/method, line 50): Test support: load extra; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorConfigTests` to use its existing endpoint, state or callback context.
+
+- `MonitorConfigTests.test_old_config_opts_out_and_filename_is_name_fallback` (function/method, line 53): Regression assertion: old config opts out and filename is name fallback. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorConfigTests` to use its existing endpoint, state or callback context.
+
+- `MonitorConfigTests.test_live_monitor_is_independent_of_completion_enablement` (function/method, line 55): Regression assertion: live monitor is independent of completion enablement. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorConfigTests` to use its existing endpoint, state or callback context.
+
+- `MonitorConfigTests.test_enabled_requires_broker` (function/method, line 57): Regression assertion: enabled requires broker. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorConfigTests` to use its existing endpoint, state or callback context.
+
+- `MonitorConfigTests.test_strict_schema_types_expiry_and_topic_prefixes` (function/method, line 59): Regression assertion: strict schema types expiry and topic prefixes. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorConfigTests` to use its existing endpoint, state or callback context.
+
+- `MonitorConfigTests.test_identity_is_canonical_path_and_hostname_not_filename_only` (function/method, line 62): Regression assertion: identity is canonical path and hostname not filename only. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorConfigTests` to use its existing endpoint, state or callback context.
+
+- `MonitorConfigTests.test_every_profile_contains_exact_monitor_options` (function/method, line 67): Regression assertion: every profile contains exact monitor options. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorConfigTests` to use its existing endpoint, state or callback context.
+
+- `MonitorLifecycleTests` (class, line 72): Groups MonitorLifecycle regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `MonitorLifecycleTests.setUp` (function/method, line 73): Test support: setUp; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorLifecycleTests` to use its existing endpoint, state or callback context.
+
+- `MonitorLifecycleTests.publish` (function/method, line 75): Test support: publish; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorLifecycleTests` to use its existing endpoint, state or callback context.
+
+- `MonitorLifecycleTests.last` (function/method, line 77): Test support: last; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorLifecycleTests` to use its existing endpoint, state or callback context.
+
+- `MonitorLifecycleTests.test_discovery_groups_live_expiring_and_durable_result_sensors` (function/method, line 79): Regression assertion: discovery groups live expiring and durable result sensors. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorLifecycleTests` to use its existing endpoint, state or callback context.
+
+- `MonitorLifecycleTests.test_live_and_events_nonretained_last_result_retained` (function/method, line 85): Regression assertion: live and events nonretained last result retained. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorLifecycleTests` to use its existing endpoint, state or callback context.
+
+- `MonitorLifecycleTests.test_failure_preserves_truthful_21_of_22` (function/method, line 93): Regression assertion: failure preserves truthful 21 of 22. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorLifecycleTests` to use its existing endpoint, state or callback context.
+
+- `MonitorLifecycleTests.test_unfinished_work_is_never_labeled_success` (function/method, line 100): Regression assertion: unfinished work is never labeled success. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorLifecycleTests` to use its existing endpoint, state or callback context.
+
+- `MonitorLifecycleTests.test_cleanup_failure_preserves_completed_transfers` (function/method, line 104): Regression assertion: cleanup failure preserves completed transfers. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorLifecycleTests` to use its existing endpoint, state or callback context.
+
+- `MonitorLifecycleTests.test_keyboard_interrupt_is_130` (function/method, line 109): Regression assertion: keyboard interrupt is 130. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorLifecycleTests` to use its existing endpoint, state or callback context.
+
+- `MonitorLifecycleTests.test_duplicate_event_never_replaces_live_or_last_result` (function/method, line 113): Regression assertion: duplicate event never replaces live or last result. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorLifecycleTests` to use its existing endpoint, state or callback context.
+
+- `MonitorLifecycleTests.test_missing_paho_or_broker_does_not_escape` (function/method, line 117): Regression assertion: missing paho or broker does not escape. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorLifecycleTests` to use its existing endpoint, state or callback context.
+
+- `MonitorLifecycleTests.test_heartbeat_without_transfer_callbacks` (function/method, line 121): Regression assertion: heartbeat without transfer callbacks. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorLifecycleTests` to use its existing endpoint, state or callback context.
+
+- `MonitorLifecycleTests.test_heartbeat_without_transfer_callbacks.record` (function/method, line 123): Test support: record; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorLifecycleTests.test_heartbeat_without_transfer_callbacks` to use its existing endpoint, state or callback context.
+
+- `MonitorLifecycleTests.test_network_worker_final_drain_is_bounded` (function/method, line 128): Regression assertion: network worker final drain is bounded. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorLifecycleTests` to use its existing endpoint, state or callback context.
+
+- `MonitorLifecycleTests.test_network_worker_final_drain_is_bounded.block` (function/method, line 130): Test support: block; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorLifecycleTests.test_network_worker_final_drain_is_bounded` to use its existing endpoint, state or callback context.
+
+- `MonitorLifecycleTests.test_worker_start_failure_does_not_fail_finalization` (function/method, line 134): Regression assertion: worker start failure does not fail finalization. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorLifecycleTests` to use its existing endpoint, state or callback context.
+
+- `MonitorLifecycleTests.test_payload_excludes_credentials_and_config_path` (function/method, line 138): Regression assertion: payload excludes credentials and config path. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `MonitorLifecycleTests` to use its existing endpoint, state or callback context.
+
+- `fake_paho` (function/method, line 142): Provide one isolated Paho module tree for both supported callback APIs. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `PublisherTests` (class, line 149): Groups Publisher regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `PublisherTests.test_shared_publisher_has_network_loop_qos_credentials_and_retention` (function/method, line 150): Regression assertion: shared publisher has network loop qos credentials and retention. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `PublisherTests` to use its existing endpoint, state or callback context.
+
+- `PublisherTests.test_disabled_legacy_notifications_do_not_connect` (function/method, line 158): Regression assertion: disabled legacy notifications do not connect. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `PublisherTests` to use its existing endpoint, state or callback context.
+
+- `PublisherTests.test_connect_failure_disconnects_without_starting_network_thread` (function/method, line 162): Regression assertion: connect failure disconnects without starting network thread. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `PublisherTests` to use its existing endpoint, state or callback context.
+
+- `PublisherTests.test_publish_ack_timeout_stops_network_loop` (function/method, line 167): Regression assertion: publish ack timeout stops network loop. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `PublisherTests` to use its existing endpoint, state or callback context.
+
+- `PublisherTests.test_cancelled_slow_connection_cannot_publish_after_drain_deadline` (function/method, line 172): Regression assertion: cancelled slow connection cannot publish after drain deadline. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `PublisherTests` to use its existing endpoint, state or callback context.
+
+- `PublisherTests.test_legacy_callback_api_still_uses_unique_live_client_suffix` (function/method, line 177): Regression assertion: legacy callback api still uses unique live client suffix. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `PublisherTests` to use its existing endpoint, state or callback context.
+
+- `SyncReplanTests` (class, line 182): Groups SyncReplan regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `SyncReplanTests.ident` (function/method, line 183): Test support: ident; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncReplanTests` to use its existing endpoint, state or callback context.
+
+- `SyncReplanTests.exercise` (function/method, line 185): Exercise actual sync, state and refreshed queues with isolated stream readers. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncReplanTests` to use its existing endpoint, state or callback context.
+
+- `SyncReplanTests.exercise.scan` (function/method, line 191): Return the next fresh flags/JSON/native generation at a real boundary. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncReplanTests.exercise` to use its existing endpoint, state or callback context.
+
+- `SyncReplanTests.exercise.meta` (function/method, line 198): Provide immutable sender/receiver identities for existing validation. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncReplanTests.exercise` to use its existing endpoint, state or callback context.
+
+- `SyncReplanTests.exercise.receive` (function/method, line 202): Model namespace appearance after a confirmed stream or raise its failure. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncReplanTests.exercise` to use its existing endpoint, state or callback context.
+
+- `SyncReplanTests.exercise.ensure` (function/method, line 209): Create an ordinary date container, never a native Btrfs subvolume. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncReplanTests.exercise` to use its existing endpoint, state or callback context.
+
+- `SyncReplanTests.exercise.info` (function/method, line 212): Copy fixture control metadata before the date completion callback. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncReplanTests.exercise` to use its existing endpoint, state or callback context.
+
+- `SyncReplanTests.test_new_date_grows_total_without_losing_changed_completed_date` (function/method, line 223): Regression assertion: new date grows total without losing changed completed date. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncReplanTests` to use its existing endpoint, state or callback context.
+
+- `SyncReplanTests.test_expired_pending_date_shrinks_total_and_keeps_completed` (function/method, line 227): Regression assertion: expired pending date shrinks total and keeps completed. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncReplanTests` to use its existing endpoint, state or callback context.
+
+- `SyncReplanTests.test_two_payloads_count_once_and_soft_limit_keeps_whole_date` (function/method, line 231): Regression assertion: two payloads count once and soft limit keeps whole date. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncReplanTests` to use its existing endpoint, state or callback context.
+
+- `SyncReplanTests.test_second_payload_failure_keeps_unfinished_snapshot_visible` (function/method, line 236): Regression assertion: second payload failure keeps unfinished snapshot visible. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncReplanTests` to use its existing endpoint, state or callback context.
+
+- `SyncReplanTests.test_metadata_failure_does_not_count_a_received_date_complete` (function/method, line 241): Regression assertion: metadata failure does not count a received date complete. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncReplanTests` to use its existing endpoint, state or callback context.
+
+- `SyncReplanTests.test_actual_22_date_workflow_keeps_completed_date_after_source_expiry` (function/method, line 245): Regression assertion: actual 22 date workflow keeps completed date after source expiry. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncReplanTests` to use its existing endpoint, state or callback context.
+
+- `SyncReplanTests.test_noop_is_zero_of_zero` (function/method, line 249): Regression assertion: noop is zero of zero. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `SyncReplanTests` to use its existing endpoint, state or callback context.
+
+- `LockedCLITests` (class, line 253): Groups LockedCLI regression cases and their isolated fixtures. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed.
+
+- `LockedCLITests.run_cli` (function/method, line 257): Run actual CLI logging/lock/monitor lifetimes with a simulated sync body. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `LockedCLITests` to use its existing endpoint, state or callback context.
+
+- `LockedCLITests.run_cli.publish` (function/method, line 264): Test support: publish; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `LockedCLITests.run_cli` to use its existing endpoint, state or callback context.
+
+- `LockedCLITests.run_cli.work` (function/method, line 270): Test support: work; prepares, simulates or formats the isolated data used by these regression cases. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `LockedCLITests.run_cli` to use its existing endpoint, state or callback context.
+
+- `LockedCLITests.test_live_status_is_published_only_while_actual_lock_is_owned` (function/method, line 280): Regression assertion: live status is published only while actual lock is owned. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `LockedCLITests` to use its existing endpoint, state or callback context.
+
+- `LockedCLITests.test_duplicate_launch_never_replaces_original_status_or_result` (function/method, line 282): Regression assertion: duplicate launch never replaces original status or result. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `LockedCLITests` to use its existing endpoint, state or callback context.
+
+- `LockedCLITests.test_dry_run_never_publishes_live_status` (function/method, line 284): Regression assertion: dry run never publishes live status. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `LockedCLITests` to use its existing endpoint, state or callback context.
+
+- `LockedCLITests.test_work_io_error_is_failed_backup_not_duplicate_launch` (function/method, line 286): Regression assertion: work io error is failed backup not duplicate launch. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `LockedCLITests` to use its existing endpoint, state or callback context.
+
 ## `tests/test_manual_snapshot_retention.py`
 
 **Role:** Regression tests. Keeps test fixtures and assertions close to the behavior they verify so regressions can be reproduced without production data.
@@ -432,15 +572,15 @@ Runtime layers reuse CommandEndpoint, BtrfsOps, CacheManager, inventory, Workflo
 
 - `ConfigProfileTests.test_every_profile_mentions_every_current_config_option` (function/method, line 57): Regression assertion: every profile mentions every current config option. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
 
-- `ConfigProfileTests.test_init_config_generates_every_profile` (function/method, line 77): Regression assertion: init config generates every profile. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
+- `ConfigProfileTests.test_init_config_generates_every_profile` (function/method, line 78): Regression assertion: init config generates every profile. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
 
-- `ConfigProfileTests.test_init_config_help_describes_every_profile` (function/method, line 107): Regression assertion: init config help describes every profile. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
+- `ConfigProfileTests.test_init_config_help_describes_every_profile` (function/method, line 108): Regression assertion: init config help describes every profile. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
 
-- `ConfigProfileTests.test_pyproject_package_data_lists_every_profile` (function/method, line 121): Regression assertion: pyproject package data lists every profile. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
+- `ConfigProfileTests.test_pyproject_package_data_lists_every_profile` (function/method, line 122): Regression assertion: pyproject package data lists every profile. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
 
-- `ConfigProfileTests.test_pyinstaller_bundles_the_complete_data_directory` (function/method, line 130): Regression assertion: pyinstaller bundles the complete data directory. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
+- `ConfigProfileTests.test_pyinstaller_bundles_the_complete_data_directory` (function/method, line 131): Regression assertion: pyinstaller bundles the complete data directory. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
 
-- `ConfigProfileTests.test_profile_headers_match_package_version` (function/method, line 151): Regression assertion: profile headers match package version. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
+- `ConfigProfileTests.test_profile_headers_match_package_version` (function/method, line 152): Regression assertion: profile headers match package version. **Why:** Preserves regression coverage for the stated behavior; fixtures simulate commands or use temporary data so production snapshots are not needed. Scoped within `ConfigProfileTests` to use its existing endpoint, state or callback context.
 
 ## `tests/test_recursive_bulk_deletion.py`
 
@@ -1658,103 +1798,103 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `add_version_arg` (function/method, line 39): Expose the installed package version from the top level and every subcommand. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `add_version_arg` (function/method, line 41): Expose the installed package version from the top level and every subcommand. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `new_subparser` (function/method, line 50): Create one self-contained command parser with version and troubleshooting help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `new_subparser` (function/method, line 52): Create one self-contained command parser with version and troubleshooting help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `add_config_arg` (function/method, line 73): Add the required TOML --config/-c option consistently to config-based commands. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `add_config_arg` (function/method, line 75): Add the required TOML --config/-c option consistently to config-based commands. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `add_run_mode_args` (function/method, line 87): Add mutually exclusive --dry-run and --run options with command-specific help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `add_run_mode_args` (function/method, line 89): Add mutually exclusive --dry-run and --run options with command-specific help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `add_yes_delete_arg` (function/method, line 93): Add the separate retention deletion authorization flag. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `add_yes_delete_arg` (function/method, line 95): Add the separate retention deletion authorization flag. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_load_config_state` (function/method, line 97): Load state and resolve all root-relative paths against this config. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_load_config_state` (function/method, line 99): Load state and resolve all root-relative paths against this config. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_failure_exit_code` (function/method, line 103): Return a stable CLI exit code for failure notifications. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_failure_exit_code` (function/method, line 105): Return a stable CLI exit code for failure notifications. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_stderr_tail_for_exception` (function/method, line 119): Return the best available recent stderr text for failure notifications. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_stderr_tail_for_exception` (function/method, line 121): Return the best available recent stderr text for failure notifications. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_send_notifications` (function/method, line 129): Send optional MQTT/email status without changing the command exit code. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_send_notifications` (function/method, line 131): Send optional MQTT/email status without changing the command exit code. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_mail_attachment_paths` (function/method, line 169): Return current run log paths for optional email attachment. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_mail_attachment_paths` (function/method, line 171): Return current run log paths for optional email attachment. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_safe_destroy_log_dir` (function/method, line 179): Return a log directory that will survive a destructive cleanup. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_safe_destroy_log_dir` (function/method, line 181): Return a log directory that will survive a destructive cleanup. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_with_logging` (function/method, line 220): Run a command with optional logging, notifications, and final summary. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_with_logging` (function/method, line 222): Run a command with optional logging, notifications, and final summary. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_with_logging._summary_text` (function/method, line 241): Call the terminal finalizer safely and report formatting failures without hiding the original outcome. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `_with_logging` to use its existing endpoint, state or callback context.
+- `_with_logging._summary_text` (function/method, line 243): Call the terminal finalizer safely and report formatting failures without hiding the original outcome. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `_with_logging` to use its existing endpoint, state or callback context.
 
-- `_with_logging._mail_summary_text` (function/method, line 250): Call the mail finalizer safely, falling back to the normal summary. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `_with_logging` to use its existing endpoint, state or callback context.
+- `_with_logging._mail_summary_text` (function/method, line 252): Call the mail finalizer safely, falling back to the normal summary. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `_with_logging` to use its existing endpoint, state or callback context.
 
-- `_with_logging._stage` (function/method, line 259): Stage nonempty final summaries in the log and success-mail streams. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `_with_logging` to use its existing endpoint, state or callback context.
+- `_with_logging._stage` (function/method, line 261): Stage nonempty final summaries in the log and success-mail streams. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `_with_logging` to use its existing endpoint, state or callback context.
 
-- `_with_logging._emit_terminal` (function/method, line 263): Emit the final terminal summary after notification handling. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `_with_logging` to use its existing endpoint, state or callback context.
+- `_with_logging._emit_terminal` (function/method, line 265): Emit the final terminal summary after notification handling. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `_with_logging` to use its existing endpoint, state or callback context.
 
-- `_resolve_dry_run` (function/method, line 324): Prefer explicit --dry-run or --run and otherwise use config.default_dry_run. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_resolve_dry_run` (function/method, line 326): Prefer explicit --dry-run or --run and otherwise use config.default_dry_run. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_init_config` (function/method, line 332): Write the selected packaged config profile; refuse overwriting an existing file without --force. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_init_config` (function/method, line 334): Write the selected packaged config profile; refuse overwriting an existing file without --force. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_test_source` (function/method, line 347): Load config and run source connectivity, Timeshift listing and Btrfs version checks with logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_test_source` (function/method, line 349): Load config and run source connectivity, Timeshift listing and Btrfs version checks with logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_test_source._run` (function/method, line 350): Test SSH when selected, then run source Timeshift listing and Btrfs version through configured privilege. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_test_source` to use its existing endpoint, state or callback context.
+- `cmd_test_source._run` (function/method, line 352): Test SSH when selected, then run source Timeshift listing and Btrfs version through configured privilege. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_test_source` to use its existing endpoint, state or callback context.
 
-- `_refresh_state_metadata_from_timeshift` (function/method, line 368): Refresh mutable state metadata and return the same current Timeshift index. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_refresh_state_metadata_from_timeshift` (function/method, line 370): Refresh mutable state metadata and return the same current Timeshift index. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_list_snapshots` (function/method, line 377): Report repositories and pair differences using configured storage readers without state writes. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_list_snapshots` (function/method, line 379): Report repositories and pair differences using configured storage readers without state writes. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_list_source` (function/method, line 391): List snapshots on the source machine. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_list_source` (function/method, line 393): List snapshots on the source machine. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_list_source._run` (function/method, line 401): Discover and print source snapshots with the requested optional Btrfs verification. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_list_source` to use its existing endpoint, state or callback context.
+- `cmd_list_source._run` (function/method, line 403): Discover and print source snapshots with the requested optional Btrfs verification. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_list_source` to use its existing endpoint, state or callback context.
 
-- `_format_cleanup_summary` (function/method, line 414): Return overall retention and separate destination/cache cleanup summaries. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_format_cleanup_summary` (function/method, line 416): Return overall retention and separate destination/cache cleanup summaries. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `_format_failed_sync_summary` (function/method, line 484): Return a final sync block when sync failed before a normal summary existed. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `_format_failed_sync_summary` (function/method, line 486): Return a final sync block when sync failed before a normal summary existed. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_sync` (function/method, line 501): Reject invalid sync topology, resolve run mode, coordinate the local lock and run shared sync/optional retention with final summaries. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_sync` (function/method, line 503): Reject invalid sync topology, resolve run mode, coordinate the local lock and run shared sync/optional retention with final summaries. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_sync._final_blocks` (function/method, line 522): Finalize elapsed time and produce transfer, sync and cleanup blocks, including early failures. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._final_blocks` (function/method, line 524): Finalize elapsed time and produce transfer, sync and cleanup blocks, including early failures. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_sync._finalize` (function/method, line 548): Join final terminal blocks in transfer-list, sync-summary, cleanup-summary order. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._finalize` (function/method, line 550): Join final terminal blocks in transfer-list, sync-summary, cleanup-summary order. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_sync._mail_finalize` (function/method, line 552): Place the configured job name and sync/cleanup summaries before the transfer list in mail. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._mail_finalize` (function/method, line 554): Place the configured job name and sync/cleanup summaries before the transfer list in mail. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_sync._run_dry` (function/method, line 566): Run sync and optional retention previews using in-memory state without acquiring a mutation lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._run_dry` (function/method, line 568): Run sync and optional retention previews using in-memory state without acquiring a mutation lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_sync._run_locked` (function/method, line 582): Run real sync and requested retention against state while the caller holds the local lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
+- `cmd_sync._run_locked` (function/method, line 584): Run real sync and requested retention against state while the caller holds the local lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_sync` to use its existing endpoint, state or callback context.
 
-- `cmd_prune` (function/method, line 613): Refresh current source metadata and apply shared retention under the real-run lock or in preview. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_prune` (function/method, line 627): Refresh current source metadata and apply shared retention under the real-run lock or in preview. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_prune._run_dry` (function/method, line 617): Refresh state metadata in memory and preview retention without saving or deleting. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_prune` to use its existing endpoint, state or callback context.
+- `cmd_prune._run_dry` (function/method, line 631): Refresh state metadata in memory and preview retention without saving or deleting. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_prune` to use its existing endpoint, state or callback context.
 
-- `cmd_prune._run_locked` (function/method, line 630): Prepare helper paths, refresh state metadata and execute authorized retention under the local lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_prune` to use its existing endpoint, state or callback context.
+- `cmd_prune._run_locked` (function/method, line 644): Prepare helper paths, refresh state metadata and execute authorized retention under the local lock. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_prune` to use its existing endpoint, state or callback context.
 
-- `cmd_restore` (function/method, line 652): Restore one snapshot or the complete post-common backup chain into Timeshift. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_restore` (function/method, line 666): Restore one snapshot or the complete post-common backup chain into Timeshift. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_restore._run` (function/method, line 658): Pass selection, direction and explicit safety choices to the shared restore_backups workflow. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_restore` to use its existing endpoint, state or callback context.
+- `cmd_restore._run` (function/method, line 672): Pass selection, direction and explicit safety choices to the shared restore_backups workflow. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_restore` to use its existing endpoint, state or callback context.
 
-- `cmd_create_manual` (function/method, line 688): Verify source paths, identity and parent viability before requesting an on-demand Timeshift snapshot. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_create_manual` (function/method, line 702): Verify source paths, identity and parent viability before requesting an on-demand Timeshift snapshot. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_create_manual._run` (function/method, line 691): Check source connectivity/paths and identity, then call the existing manual-snapshot creator. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_create_manual` to use its existing endpoint, state or callback context.
+- `cmd_create_manual._run` (function/method, line 705): Check source connectivity/paths and identity, then call the existing manual-snapshot creator. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_create_manual` to use its existing endpoint, state or callback context.
 
-- `cmd_clear_state` (function/method, line 717): Guardedly remove the configured state_file with normal run logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_clear_state` (function/method, line 731): Guardedly remove the configured state_file with normal run logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_clear_state._run` (function/method, line 723): Preview state removal, or hold the existing lock while confirmed state-file removal runs. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_clear_state` to use its existing endpoint, state or callback context.
+- `cmd_clear_state._run` (function/method, line 737): Preview state removal, or hold the existing lock while confirmed state-file removal runs. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_clear_state` to use its existing endpoint, state or callback context.
 
-- `cmd_delete_lock` (function/method, line 745): Guardedly remove the configured lock_file if it is stale, with logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_delete_lock` (function/method, line 759): Guardedly remove the configured lock_file if it is stale, with logging. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_delete_lock._run` (function/method, line 751): Call guarded stale-lock removal with the selected preview and danger confirmation. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_delete_lock` to use its existing endpoint, state or callback context.
+- `cmd_delete_lock._run` (function/method, line 765): Call guarded stale-lock removal with the selected preview and danger confirmation. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_delete_lock` to use its existing endpoint, state or callback context.
 
-- `cmd_destroy_leftovers` (function/method, line 762): Destroy configured leftovers with normal run logging enabled. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_destroy_leftovers` (function/method, line 776): Destroy configured leftovers with normal run logging enabled. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_destroy_leftovers._run` (function/method, line 776): Call the shared retirement workflow for only the selected source-cache/destination roots. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_destroy_leftovers` to use its existing endpoint, state or callback context.
+- `cmd_destroy_leftovers._run` (function/method, line 790): Call the shared retirement workflow for only the selected source-cache/destination roots. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_destroy_leftovers` to use its existing endpoint, state or callback context.
 
-- `cmd_show_state` (function/method, line 788): Print validated state as JSON or a compact snapshot/tag/subvolume table. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `cmd_show_state` (function/method, line 802): Print validated state as JSON or a compact snapshot/tag/subvolume table. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `cmd_show_state._run` (function/method, line 791): Load validated state and print JSON, a compact table or an empty-state message. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_show_state` to use its existing endpoint, state or callback context.
+- `cmd_show_state._run` (function/method, line 805): Load validated state and print JSON, a compact table or an empty-state message. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations. Scoped within `cmd_show_state` to use its existing endpoint, state or callback context.
 
-- `build_parser` (function/method, line 857): Create the argparse parser and complete command-specific flag help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `build_parser` (function/method, line 871): Create the argparse parser and complete command-specific flag help. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
-- `main` (function/method, line 1330): Parse and dispatch CLI arguments; translate configuration, lock, runtime and interruption errors to documented exit codes. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
+- `main` (function/method, line 1345): Parse and dispatch CLI arguments; translate configuration, lock, runtime and interruption errors to documented exit codes. **Why:** Connects user flags to existing workflow functions, logging and explicit confirmation gates before real operations.
 
 ## `timeshift_btrfs_sync/commands.py`
 
@@ -1798,55 +1938,55 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_reject_unknown_keys` (function/method, line 49): Reject configuration entries that are not part of the current schema. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_reject_unknown_keys` (function/method, line 51): Reject configuration entries that are not part of the current schema. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `ManualSnapshotConfig` (class, line 57): Optional source-side Timeshift on-demand snapshot creation and cleanup. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `ManualSnapshotConfig` (class, line 59): Optional source-side Timeshift on-demand snapshot creation and cleanup. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `SourceConfig` (class, line 93): Timeshift source/restore-target paths that always share one endpoint. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `SourceConfig` (class, line 95): Timeshift source/restore-target paths that always share one endpoint. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `DestinationConfig` (class, line 144): Backup repository and normal local receive settings. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `DestinationConfig` (class, line 146): Backup repository and normal local receive settings. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `StreamConfig` (class, line 161): Optional pipeline display/buffering settings. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `StreamConfig` (class, line 163): Optional pipeline display/buffering settings. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `StreamConfig.command` (function/method, line 189): Return mbuffer command argv or None when disabled. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration. Scoped within `StreamConfig` to use its existing endpoint, state or callback context.
+- `StreamConfig.command` (function/method, line 191): Return mbuffer command argv or None when disabled. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration. Scoped within `StreamConfig` to use its existing endpoint, state or callback context.
 
-- `RetentionConfig` (class, line 203): Backup retention counts by Timeshift tag. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `RetentionConfig` (class, line 205): Backup retention counts by Timeshift tag. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `RetentionConfig.counts_by_tag` (function/method, line 222): Return retention counts keyed by Timeshift tag letters. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration. Scoped within `RetentionConfig` to use its existing endpoint, state or callback context.
+- `RetentionConfig.counts_by_tag` (function/method, line 224): Return retention counts keyed by Timeshift tag letters. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration. Scoped within `RetentionConfig` to use its existing endpoint, state or callback context.
 
-- `RestoreConfig` (class, line 228): Restore-only transport direction. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `RestoreConfig` (class, line 230): Restore-only transport direction. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `RestoreConfig.backup_uses_ssh` (property, line 238): Return True when restore reads the backup repository over SSH. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration. Scoped within `RestoreConfig` to use its existing endpoint, state or callback context.
+- `RestoreConfig.backup_uses_ssh` (property, line 240): Return True when restore reads the backup repository over SSH. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration. Scoped within `RestoreConfig` to use its existing endpoint, state or callback context.
 
-- `RestoreConfig.timeshift_uses_ssh` (property, line 244): Return True when snapshot_root and cache_root are on the SSH Timeshift host. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration. Scoped within `RestoreConfig` to use its existing endpoint, state or callback context.
+- `RestoreConfig.timeshift_uses_ssh` (property, line 246): Return True when snapshot_root and cache_root are on the SSH Timeshift host. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration. Scoped within `RestoreConfig` to use its existing endpoint, state or callback context.
 
-- `AppConfig` (class, line 251): Complete validated app configuration. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `AppConfig` (class, line 253): Complete validated app configuration. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `ConfigError` (class, line 270): Raised when the TOML config is invalid. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `ConfigError` (class, line 273): Raised when the TOML config is invalid. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_table` (function/method, line 273): Read a config section or an empty default and reject values that are not TOML tables. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_table` (function/method, line 276): Read a config section or an empty default and reject values that are not TOML tables. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_optional_str` (function/method, line 279): Return a nonempty string option or None for an absent/blank/non-string optional value. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_optional_str` (function/method, line 282): Return a nonempty string option or None for an absent/blank/non-string optional value. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_positive_int` (function/method, line 282): Accept a positive integer or default and reject nonpositive/invalid values. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_positive_int` (function/method, line 285): Accept a positive integer or default and reject nonpositive/invalid values. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_stripped` (function/method, line 289): Read an option/default as stripped text for normalized config handling. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_stripped` (function/method, line 292): Read an option/default as stripped text for normalized config handling. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_bool` (function/method, line 292): Validate a section boolean through the shared typed boolean helper. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_bool` (function/method, line 295): Validate a section boolean through the shared typed boolean helper. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_int` (function/method, line 295): Validate a section count through the shared nonnegative integer helper. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_int` (function/method, line 298): Validate a section count through the shared nonnegative integer helper. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_as_str` (function/method, line 298): Require a nonempty string and include the field name in validation errors. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_as_str` (function/method, line 301): Require a nonempty string and include the field name in validation errors. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_as_path` (function/method, line 303): Validate nonempty path text and expand the local user-home shortcut. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_as_path` (function/method, line 306): Validate nonempty path text and expand the local user-home shortcut. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_as_bool` (function/method, line 306): Use the default for None and otherwise require an actual boolean. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_as_bool` (function/method, line 309): Use the default for None and otherwise require an actual boolean. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_as_int` (function/method, line 313): Use the default for None and otherwise require a nonnegative integer. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_as_int` (function/method, line 316): Use the default for None and otherwise require a nonnegative integer. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `_string_list` (function/method, line 320): Require a list of nonempty strings, or return an empty list when absent. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `_string_list` (function/method, line 323): Require a list of nonempty strings, or return an empty list when absent. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
-- `load_config` (function/method, line 328): Read and validate the current TOML configuration. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
+- `load_config` (function/method, line 331): Read and validate the current TOML configuration. **Why:** Validates the TOML schema before commands interpret paths, credentials or cleanup settings; rejects unknown or incompatible configuration.
 
 ## `timeshift_btrfs_sync/destroy.py`
 
@@ -2188,17 +2328,77 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 - `tags_text` (function/method, line 51): Return compact human text for Timeshift tags. **Why:** Provides shared snapshot identities and tag formatting so inventory, state, planning and workflows interpret the same data.
 
+## `timeshift_btrfs_sync/monitor.py`
+
+**Role:** Current source/build entry. Optional per-config MQTT monitoring and honest snapshot-date progress.
+
+**Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events.
+
+- `MonitorConfig` (class, line 24): Independent live status options; broker/auth/QoS come from [mqtt]. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events.
+
+- `utc_now` (function/method, line 38): Return an offset-aware UTC timestamp for consumers in any timezone. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events.
+
+- `backup_identity` (function/method, line 43): Hash hostname plus canonical config path so equal filenames stay distinct. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events.
+
+- `SnapshotProgress` (class, line 50): Track completed dates plus the current remaining plan, without byte probes. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events.
+
+- `SnapshotProgress.__init__` (function/method, line 53): Start with an unknown total until the existing inventory/plan is ready. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events. Scoped within `SnapshotProgress` to use its existing endpoint, state or callback context.
+
+- `SnapshotProgress.replan` (function/method, line 64): Replace only remaining work; changed tags cannot erase completed dates. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events. Scoped within `SnapshotProgress` to use its existing endpoint, state or callback context.
+
+- `SnapshotProgress.current` (function/method, line 70): Expose the active date/payload while a long send is running. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events. Scoped within `SnapshotProgress` to use its existing endpoint, state or callback context.
+
+- `SnapshotProgress.payload_done` (function/method, line 75): Count confirmed payload bytes once; a partial date is not completed. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events. Scoped within `SnapshotProgress` to use its existing endpoint, state or callback context.
+
+- `SnapshotProgress.complete` (function/method, line 80): Count a date only after all configured payloads and info.json succeed. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events. Scoped within `SnapshotProgress` to use its existing endpoint, state or callback context.
+
+- `SnapshotProgress.drop` (function/method, line 87): Record a source-unavailable/skipped date without pretending it transferred. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events. Scoped within `SnapshotProgress` to use its existing endpoint, state or callback context.
+
+- `SnapshotProgress.invalidate` (function/method, line 95): Remove a failed whole-date version before existing recovery retries it. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events. Scoped within `SnapshotProgress` to use its existing endpoint, state or callback context.
+
+- `SnapshotProgress.view` (function/method, line 101): Build the same immutable counter view for CLI, heartbeat and last result. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events. Scoped within `SnapshotProgress` to use its existing endpoint, state or callback context.
+
+- `SnapshotProgress._emit` (function/method, line 115): Observers cannot turn monitoring problems into failed backup operations. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events. Scoped within `SnapshotProgress` to use its existing endpoint, state or callback context.
+
+- `report_progress` (function/method, line 123): Forward main-thread progress to its active per-run monitor, when enabled. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events.
+
+- `report_phase` (function/method, line 130): Keep heartbeats alive during inventory, Timeshift waiting and cleanup. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events.
+
+- `discovery_messages` (function/method, line 135): Describe one HA device per backup, with expiring live and durable result sensors. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events.
+
+- `LiveMonitor` (class, line 172): Publish status asynchronously; flock and backup success never depend on MQTT. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events.
+
+- `LiveMonitor.__init__` (function/method, line 175): Capture public identity and metrics without connecting on the backup thread. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events. Scoped within `LiveMonitor` to use its existing endpoint, state or callback context.
+
+- `LiveMonitor.payload` (function/method, line 197): Snapshot public metrics under the lock without including config secrets/paths. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events. Scoped within `LiveMonitor` to use its existing endpoint, state or callback context.
+
+- `LiveMonitor.update` (function/method, line 205): Coalesce progress immediately; socket work stays on one bounded worker. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events. Scoped within `LiveMonitor` to use its existing endpoint, state or callback context.
+
+- `LiveMonitor.event` (function/method, line 211): Queue a non-retained lifecycle event, independently from notifications. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events. Scoped within `LiveMonitor` to use its existing endpoint, state or callback context.
+
+- `LiveMonitor.__enter__` (function/method, line 220): Activate only after the real sync lock has been acquired. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events. Scoped within `LiveMonitor` to use its existing endpoint, state or callback context.
+
+- `LiveMonitor._start_worker` (function/method, line 227): Launch at most one daemon; missing paho/broker access cannot block sync. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events. Scoped within `LiveMonitor` to use its existing endpoint, state or callback context.
+
+- `LiveMonitor.__exit__` (function/method, line 236): Publish the truthful terminal result and bound final drain to one second. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events. Scoped within `LiveMonitor` to use its existing endpoint, state or callback context.
+
+- `LiveMonitor._worker` (function/method, line 264): Emit heartbeat/changes with retryable, rate-limited broker failures. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events. Scoped within `LiveMonitor` to use its existing endpoint, state or callback context.
+
+- `duplicate_event` (function/method, line 298): Report a refused launch on events only; never overwrite its live owner/result. **Why:** Counts complete snapshot dates and replans remaining work without resetting completed history; publishes per-config MQTT/HA telemetry on a daemon worker after flock succeeds, with bounded final drain and duplicate-only events.
+
 ## `timeshift_btrfs_sync/mqtt.py`
 
-**Role:** Current source/build entry. Optional MQTT notifications for timeshift-btrfs-sync.
+**Role:** Current source/build entry. Shared optional MQTT notification and live-monitor batch publishing.
 
 **Why:** Publishes optional JSON status through a lazily imported MQTT dependency so installations without MQTT remain usable.
 
-- `MQTTConfig` (class, line 19): MQTT broker and publish settings. **Why:** Publishes optional JSON status through a lazily imported MQTT dependency so installations without MQTT remain usable.
+- `MQTTConfig` (class, line 17): MQTT broker and publish settings. **Why:** Publishes optional JSON status through a lazily imported MQTT dependency so installations without MQTT remain usable.
 
-- `MQTTConfig.resolved_password` (function/method, line 41): Return password from config value or password_file. **Why:** Publishes optional JSON status through a lazily imported MQTT dependency so installations without MQTT remain usable. Scoped within `MQTTConfig` to use its existing endpoint, state or callback context.
+- `MQTTConfig.resolved_password` (function/method, line 39): Return password from config value or password_file. **Why:** Publishes optional JSON status through a lazily imported MQTT dependency so installations without MQTT remain usable. Scoped within `MQTTConfig` to use its existing endpoint, state or callback context.
 
-- `publish_status` (function/method, line 51): Publish one JSON MQTT status message. **Why:** Publishes optional JSON status through a lazily imported MQTT dependency so installations without MQTT remain usable.
+- `publish_status` (function/method, line 49): Publish one JSON MQTT status message. **Why:** Publishes optional JSON status through a lazily imported MQTT dependency so installations without MQTT remain usable.
+
+- `publish_messages` (function/method, line 62): Publish a batch through one broker connection with its network loop active. **Why:** Publishes optional JSON status through a lazily imported MQTT dependency so installations without MQTT remain usable.
 
 ## `timeshift_btrfs_sync/notify.py`
 
@@ -2686,143 +2886,145 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `SyncError` (class, line 56): Raised for sync safety errors. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `SyncError` (class, line 57): Raised for sync safety errors. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_local_meta` (function/method, line 60): Read optional exact local Btrfs metadata through the destination command endpoint. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_local_meta` (function/method, line 61): Read optional exact local Btrfs metadata through the destination command endpoint. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_source_meta` (function/method, line 66): Return source metadata, preferring bulk indexes over one-off probes. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_source_meta` (function/method, line 67): Return source metadata, preferring bulk indexes over one-off probes. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_human_blank` (function/method, line 90): Print one blank line to separate human-readable status blocks. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_human_blank` (function/method, line 91): Print one blank line to separate human-readable status blocks. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_human_rule` (function/method, line 96): Print a visual separator with blank lines around it. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_human_rule` (function/method, line 97): Print a visual separator with blank lines around it. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_transfer_size_preflight` (function/method, line 104): Measure one planned send and refuse it when Btrfs free space is too small. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_transfer_size_preflight` (function/method, line 105): Measure one planned send and refuse it when Btrfs free space is too small. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_record_sync_event` (function/method, line 192): Add one planned or completed transfer to the run summary. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_record_sync_event` (function/method, line 193): Add one planned or completed transfer to the run summary. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `SyncRunSummary` (class, line 226): Completed sync statistics retained until the final end-of-run report. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `SyncRunSummary` (class, line 227): Completed sync statistics retained until the final end-of-run report. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `format_duration` (function/method, line 236): Format a monotonic elapsed duration as human-readable wall time. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `format_duration` (function/method, line 238): Format a monotonic elapsed duration as human-readable wall time. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `format_transferred_snapshots` (function/method, line 248): Return the transfer list that must be third-from-last in sync output. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `format_transferred_snapshots` (function/method, line 250): Return the transfer list that must be third-from-last in sync output. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `format_transferred_bytes_total` (function/method, line 278): Format an actual successful-transfer total as MB, GB, or TB. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `format_transferred_bytes_total` (function/method, line 280): Format an actual successful-transfer total as MB, GB, or TB. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_summary_transferred_bytes` (function/method, line 294): Return known bytes, known transfer count, and unknown transfer count. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_summary_transferred_bytes` (function/method, line 296): Return known bytes, known transfer count, and unknown transfer count. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `format_sync_summary` (function/method, line 303): Return the compact sync summary that is second-from-last in sync output. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `format_sync_summary` (function/method, line 305): Return the compact sync summary that is second-from-last in sync output. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `prepare_destination` (function/method, line 338): Create/validate destination helper folders before writes. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `prepare_destination` (function/method, line 348): Create/validate destination helper folders before writes. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `list_source_snapshots` (function/method, line 358): Discover source Timeshift snapshots. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `list_source_snapshots` (function/method, line 368): Discover source Timeshift snapshots. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `source_snapshot_index` (function/method, line 381): Index discovered Timeshift snapshots by timestamp name for shared workflow lookups. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `source_snapshot_index` (function/method, line 391): Index discovered Timeshift snapshots by timestamp name for shared workflow lookups. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_snapshots_from_source_inventory` (function/method, line 385): Build Timeshift snapshot objects from one coherent source inventory. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_snapshots_from_source_inventory` (function/method, line 395): Build Timeshift snapshot objects from one coherent source inventory. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_required_pipeline_source_changes` (function/method, line 403): Return identity changes to source paths required by current work. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_required_pipeline_source_changes` (function/method, line 413): Return identity changes to source paths required by current work. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_terminal_destination_receive_failure_reason` (function/method, line 450): Return a clear destination-side reason that must not be source-retried. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_terminal_destination_receive_failure_reason` (function/method, line 460): Return a clear destination-side reason that must not be source-retried. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_revalidate_missing_required_pipeline_paths` (function/method, line 469): Exact-probe required source paths omitted by the refreshed bulk index. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_revalidate_missing_required_pipeline_paths` (function/method, line 479): Exact-probe required source paths omitted by the refreshed bulk index. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `confirm_source_identity_before_manual_snapshot` (function/method, line 537): Print and enforce the shared manual-snapshot source identity guard. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `confirm_source_identity_before_manual_snapshot` (function/method, line 547): Print and enforce the shared manual-snapshot source identity guard. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_is_app_manual_snapshot` (function/method, line 589): Return True for source Timeshift O snapshots created by this app. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_is_app_manual_snapshot` (function/method, line 599): Return True for source Timeshift O snapshots created by this app. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_pending_app_manual_snapshots` (function/method, line 605): Return app-created on-demand snapshots that still need syncing. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_pending_app_manual_snapshots` (function/method, line 615): Return app-created on-demand snapshots that still need syncing. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_maybe_create_manual_snapshot` (function/method, line 630): Optionally create a source Timeshift tag O snapshot before sync. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_maybe_create_manual_snapshot` (function/method, line 640): Optionally create a source Timeshift tag O snapshot before sync. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_snapshots_in_sync_order` (function/method, line 719): Return source snapshots oldest-to-newest for Btrfs send. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_snapshots_in_sync_order` (function/method, line 729): Return source snapshots oldest-to-newest for Btrfs send. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_select_initial_sync_snapshots` (function/method, line 725): Select retained snapshots for any sync, plus completed metadata refreshes. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_select_initial_sync_snapshots` (function/method, line 735): Select retained snapshots for any sync, plus completed metadata refreshes. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `print_snapshot_table` (function/method, line 762): Print source snapshots in table form. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `print_snapshot_table` (function/method, line 772): Print source snapshots in table form. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_dest_subvolume_path` (function/method, line 773): Return the final local path for one received subvolume. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_dest_subvolume_path` (function/method, line 783): Return the final local path for one received subvolume. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_target_snapshot_dir` (function/method, line 783): Return the managed destination date subvolume passed to `btrfs receive`. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_target_snapshot_dir` (function/method, line 793): Return the managed destination date subvolume passed to `btrfs receive`. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_destination_info_json_path` (function/method, line 793): Return the destination Timeshift control-file path for one snapshot. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_destination_info_json_path` (function/method, line 803): Return the destination Timeshift control-file path for one snapshot. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_ensure_destination_snapshot_subvolume` (function/method, line 799): Create or validate one managed destination date subvolume. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_ensure_destination_snapshot_subvolume` (function/method, line 809): Create or validate one managed destination date subvolume. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_validate_destination_snapshot_layout` (function/method, line 849): Refuse ordinary/symlinked date entries after exact Btrfs verification. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_validate_destination_snapshot_layout` (function/method, line 859): Refuse ordinary/symlinked date entries after exact Btrfs verification. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_atomic_write_snapshot_info_json` (function/method, line 910): Atomically write one captured Timeshift ``info.json`` file. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_atomic_write_snapshot_info_json` (function/method, line 920): Atomically write one captured Timeshift ``info.json`` file. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_require_snapshot_info_json` (function/method, line 943): Return captured control-file content or raise a precise sync error. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_require_snapshot_info_json` (function/method, line 953): Return captured control-file content or raise a precise sync error. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_sync_snapshot_info_json` (function/method, line 977): Create or refresh destination ``info.json`` for one complete snapshot. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_sync_snapshot_info_json` (function/method, line 987): Create or refresh destination ``info.json`` for one complete snapshot. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_destination_has_existing_snapshots` (function/method, line 1017): Return true only when a date directory contains a configured payload subvolume. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_destination_has_existing_snapshots` (function/method, line 1027): Return true only when a date directory contains a configured payload subvolume. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_snapshot_destination_paths_exist` (function/method, line 1038): Return True only when every expected destination subvolume path exists. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_snapshot_destination_paths_exist` (function/method, line 1048): Return True only when every expected destination subvolume path exists. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_preview_send_path` (function/method, line 1043): Return the send path that would be used, without creating cache snapshots. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_preview_send_path` (function/method, line 1053): Return the send path that would be used, without creating cache snapshots. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_send_path_kind_text` (function/method, line 1057): Return human text explaining who owns the selected send path. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_send_path_kind_text` (function/method, line 1067): Return human text explaining who owns the selected send path. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_ensure_source_send_path` (function/method, line 1067): Resolve one real send path through the shared cache operation. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_ensure_source_send_path` (function/method, line 1077): Resolve one real send path through the shared cache operation. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_cleanup_incomplete_destination_receive` (function/method, line 1094): Delete one exact incomplete destination Btrfs child before retrying. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_cleanup_incomplete_destination_receive` (function/method, line 1104): Delete one exact incomplete destination Btrfs child before retrying. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_cleanup_source_cache_snapshot_version` (function/method, line 1124): Delete one app-owned cache date through the shared tree engine. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_cleanup_source_cache_snapshot_version` (function/method, line 1134): Delete one app-owned cache date through the shared tree engine. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_cleanup_destination_snapshot_version` (function/method, line 1155): Delete one destination date through the shared tree engine. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_cleanup_destination_snapshot_version` (function/method, line 1165): Delete one destination date through the shared tree engine. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_refresh_snapshot_source_subvolumes_live` (function/method, line 1184): Return configured source subvolumes, preferring the bulk index. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_refresh_snapshot_source_subvolumes_live` (function/method, line 1194): Return configured source subvolumes, preferring the bulk index. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_snapshot_destination_has_any_path` (function/method, line 1213): Return True when the destination date folder or configured children exist. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_snapshot_destination_has_any_path` (function/method, line 1223): Return True when the destination date folder or configured children exist. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_snapshot_state_is_complete_with_destination` (function/method, line 1222): Return True only when state and destination contain every configured subvolume. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_snapshot_state_is_complete_with_destination` (function/method, line 1232): Return True only when state and destination contain every configured subvolume. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_recover_snapshot_version` (function/method, line 1229): Remove stale current-version traces from cache, destination, and state. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_recover_snapshot_version` (function/method, line 1239): Remove stale current-version traces from cache, destination, and state. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_recover_snapshot_version.handle` (function/method, line 1262): Dispatch cache, destination and state recovery actions in the planned whole-date order. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery. Scoped within `_recover_snapshot_version` to use its existing endpoint, state or callback context.
+- `_recover_snapshot_version.handle` (function/method, line 1272): Dispatch cache, destination and state recovery actions in the planned whole-date order. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery. Scoped within `_recover_snapshot_version` to use its existing endpoint, state or callback context.
 
-- `_prepare_snapshot_for_transfer_or_recover` (function/method, line 1284): Return True when a snapshot can be transferred, False when skipped. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_prepare_snapshot_for_transfer_or_recover` (function/method, line 1294): Return True when a snapshot can be transferred, False when skipped. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_recover_stale_state_snapshots_missing_from_source` (function/method, line 1358): Clean incomplete state entries whose Timeshift source name is gone. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_recover_stale_state_snapshots_missing_from_source` (function/method, line 1368): Clean incomplete state entries whose Timeshift source name is gone. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_read_local_destination_parent_metadata` (function/method, line 1390): Read metadata for the destination snapshot that would be the receiver parent. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_read_local_destination_parent_metadata` (function/method, line 1400): Read metadata for the destination snapshot that would be the receiver parent. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_match_source_path_to_destination_received_uuid` (function/method, line 1412): Check whether a source send-stream UUID matches destination identity. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_match_source_path_to_destination_received_uuid` (function/method, line 1422): Check whether a source send-stream UUID matches destination identity. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_select_verified_parent_send_path` (function/method, line 1474): Select a safe source parent path for incremental send without recreating it. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_select_verified_parent_send_path` (function/method, line 1484): Select a safe source parent path for incremental send without recreating it. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_select_verified_parent_send_path.add_candidate` (function/method, line 1503): Add distinct candidate send paths with metadata and an origin label before exact parent UUID validation. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery. Scoped within `_select_verified_parent_send_path` to use its existing endpoint, state or callback context.
+- `_select_verified_parent_send_path.add_candidate` (function/method, line 1513): Add distinct candidate send paths with metadata and an origin label before exact parent UUID validation. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery. Scoped within `_select_verified_parent_send_path` to use its existing endpoint, state or callback context.
 
-- `_state_uuid_values_for_path` (function/method, line 1581): Return a saved UUID hint for a candidate; never authorize receiver identity. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_state_uuid_values_for_path` (function/method, line 1591): Return a saved UUID hint for a candidate; never authorize receiver identity. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_find_confirmed_sync_floor` (function/method, line 1598): Return the newest complete state date with a proven immutable shared parent. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_find_confirmed_sync_floor` (function/method, line 1608): Return the newest complete state date with a proven immutable shared parent. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_destination_snapshot_names` (function/method, line 1701): Return destination snapshot folder names sorted oldest-to-newest. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_destination_snapshot_names` (function/method, line 1711): Return destination snapshot folder names sorted oldest-to-newest. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_expected_original_source_path` (function/method, line 1710): Return the Timeshift-owned original source path for one snapshot/subvolume. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_expected_original_source_path` (function/method, line 1720): Return the Timeshift-owned original source path for one snapshot/subvolume. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_source_cache_meta_by_uuid` (function/method, line 1716): Return indexed read-only source-cache metadata for one send UUID. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_source_cache_meta_by_uuid` (function/method, line 1726): Return indexed read-only source-cache metadata for one send UUID. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_match_existing_destination_to_source` (function/method, line 1735): Match one existing destination subvolume to an exact source/cache UUID. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_match_existing_destination_to_source` (function/method, line 1745): Match one existing destination subvolume to an exact source/cache UUID. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_recover_state_from_existing_destination` (function/method, line 1815): Merge missing complete UUID-proven dates into empty or populated state without inventing parents. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_recover_state_from_existing_destination` (function/method, line 1825): Merge missing complete UUID-proven dates into empty or populated state without inventing parents. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_filesystem_parent_candidates` (function/method, line 1940): Find local destination parent candidates by matching snapshot names. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_filesystem_parent_candidates` (function/method, line 1950): Find local destination parent candidates by matching snapshot names. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_select_parent` (function/method, line 1964): Choose the newest valid incremental parent. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_select_parent` (function/method, line 1974): Choose the newest valid incremental parent. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_verify_sync_viability_before_manual_snapshot` (function/method, line 2116): Prove sync can start before asking Timeshift to create a snapshot. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `_verify_sync_viability_before_manual_snapshot` (function/method, line 2126): Prove sync can start before asking Timeshift to create a snapshot. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `_verify_sync_viability_before_manual_snapshot.verify_parent_for` (function/method, line 2173): Verify a pending or future manual snapshot can use a safe incremental parent; abort source creation on failure. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery. Scoped within `_verify_sync_viability_before_manual_snapshot` to use its existing endpoint, state or callback context.
+- `_verify_sync_viability_before_manual_snapshot.verify_parent_for` (function/method, line 2183): Verify a pending or future manual snapshot can use a safe incremental parent; abort source creation on failure. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery. Scoped within `_verify_sync_viability_before_manual_snapshot` to use its existing endpoint, state or callback context.
 
-- `sync_once` (function/method, line 2244): Run one sync pass. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
+- `sync_once` (function/method, line 2254): Run one sync pass. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery.
 
-- `sync_once.load_source_inventory` (function/method, line 2286): Build and report one coherent source inventory generation. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery. Scoped within `sync_once` to use its existing endpoint, state or callback context.
+- `sync_once.load_source_inventory` (function/method, line 2296): Build and report one coherent source inventory generation. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery. Scoped within `sync_once` to use its existing endpoint, state or callback context.
 
-- `sync_once.build_snapshot_queue` (function/method, line 2445): Build one pure oldest-to-newest sync plan, then return its snapshot queue. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery. Scoped within `sync_once` to use its existing endpoint, state or callback context.
+- `sync_once.pending_snapshot_names` (function/method, line 2459): Count only dates needing sends, respecting floor, completed work and limit. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery. Scoped within `sync_once` to use its existing endpoint, state or callback context.
 
-- `sync_once.recover_from_source_inventory_change` (function/method, line 2488): Recover one failed snapshot version and rebuild all source lists. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery. Scoped within `sync_once` to use its existing endpoint, state or callback context.
+- `sync_once.build_snapshot_queue` (function/method, line 2481): Build one pure oldest-to-newest sync plan, then return its snapshot queue. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery. Scoped within `sync_once` to use its existing endpoint, state or callback context.
+
+- `sync_once.recover_from_source_inventory_change` (function/method, line 2526): Recover one failed snapshot version and rebuild all source lists. **Why:** Orchestrates oldest-to-newest backup, run-start full-seed authorization, UUID-proven incremental parents, metadata completion and bounded relevant-source recovery. Scoped within `sync_once` to use its existing endpoint, state or callback context.
 
 ## `timeshift_btrfs_sync/timeshift.py`
 
@@ -3014,6 +3216,7 @@ Use --verify-btrfs when diagnosing a wrong snapshot_root, missing @/@home payloa
 Back up Timeshift snapshot payloads from the configured source into the local destination.target_root.
 source.mode selects local versus SSH source. Normal sync never writes a remote backup destination.
 If source Timeshift reports its startup lock is busy, retry every 60 seconds and refresh the complete source inventory before planning transfers. Ctrl+C cancels the wait.
+Real sync refreshes the inventory between completed snapshot dates and recalculates completed + remaining progress. Optional [mqtt_monitor] publishes live status and Home Assistant discovery. Dry-run does not publish live monitoring.
 Without --run or --dry-run, config.default_dry_run selects preview versus real execution.
 
 Flag relationships:
@@ -3163,6 +3366,8 @@ Use --json when you need the complete stored structure for diagnosis or automati
 ## Systemd, sudoers and Home Assistant commands
 
 - `systemd/ts-btrfs-sync.service` invokes `ts-btrfs sync --config … --run --prune --yes-delete` to run backup and authorized retention; its configured path must be adapted before enabling.
+- `home-assistant/dashboard.yaml` defines built-in Markdown/entity cards: replace BACKUP_ID with the stable identity command output, repeat cards per job, and use retained last_result when live state expires.
+- `home-assistant/automations.yaml` has disabled heartbeat-loss and runtime examples. persistent_notification.create makes a local HA notice only after their state/template conditions; normal post-success idle expiry does not alert.
 - `systemd/ts-btrfs-sync.timer` schedules the service hourly, randomizes by up to ten minutes and catches missed runs with Persistent=true.
 - `sudoers/source-minimal.example` permits only configured Btrfs/Timeshift source commands; ordinary info.json reading uses normal user permissions.
 - The supplied Home Assistant queue uses time/MQTT triggers, switch.turn_on for power, connectivity waits, mqtt.publish for job start, MQTT result waits, status parsing, Pushover notifications and script calls. Each configured machine has its own status handling and continuation after timeout/failure. These are external integration examples; none is invoked by the CLI.
@@ -3172,7 +3377,7 @@ Use --json when you need the complete stored structure for diagnosis or automati
 - `dist/ts-btrfs`: original executable, independently verified to report 0.1.84. Kept unchanged; rebuild to obtain an executable for the source release.
 - The older nested project and its duplicate docs/tests/helpers were removed. Root documents describe current usage; REMOVED_NESTED_SOURCES.md lists every former path.
 
-Coverage: 580 current source/build symbols; 662 root test symbols.
+Coverage: 608 current source/build symbols; 729 root test symbols.
 
 ## Python environment installation
 

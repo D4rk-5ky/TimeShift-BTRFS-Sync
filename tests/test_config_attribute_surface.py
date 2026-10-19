@@ -18,6 +18,7 @@ class ConfigAttributeSurfaceTests(unittest.TestCase):
             "retention": config_module.RetentionConfig,
             "manual_snapshot": config_module.ManualSnapshotConfig,
             "mqtt": config_module.MQTTConfig,
+            "mqtt_monitor": config_module.MonitorConfig,
             "mail": config_module.MailConfig,
             "ssh": config_module.SSHConfig,
         }

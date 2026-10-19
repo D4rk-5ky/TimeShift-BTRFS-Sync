@@ -1,16 +1,14 @@
-"""Optional MQTT notifications for timeshift-btrfs-sync.
+"""Shared optional MQTT notification and live-monitor batch publishing.
 
-This module intentionally contains all MQTT publishing logic. The rest of the
-project only builds a small status payload and calls publish_status().
-
-The implementation imports paho-mqtt lazily. That keeps the main backup tool
-usable without paho-mqtt installed when [mqtt].enabled is false.
+Legacy completion notifications use publish_status; the asynchronous monitor
+uses publish_messages with independent enablement/topics. Paho imports remain
+lazy, so installing the optional module is unnecessary when both are disabled.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 import json
 import socket
 
@@ -58,18 +56,37 @@ def publish_status(config: MQTTConfig, payload: dict[str, Any]) -> None:
 
     if not config.enabled:
         return
+    publish_messages(config, [(config.topic, payload, config.retain)])
+
+
+def publish_messages(
+    config: MQTTConfig,
+    messages: list[tuple[str, dict[str, Any], bool]],
+    *,
+    client_suffix: str = "",
+    cancelled: Callable[[], bool] | None = None,
+) -> None:
+    """Publish a batch through one broker connection with its network loop active.
+
+    Both legacy notifications and independent live monitoring reuse credentials,
+    serialization and QoS handling. The caller decides enablement. Monitoring
+    calls this only on a daemon worker so DNS/socket timeouts cannot stall sends.
+    """
+
+    if cancelled is not None and cancelled():
+        return
     if not config.host:
-        raise RuntimeError("mqtt.host is required when mqtt.enabled = true")
+        raise RuntimeError("mqtt.host is required for MQTT publishing")
 
     try:
         import paho.mqtt.client as mqtt_client
     except ImportError as exc:
         raise RuntimeError(
-            "paho-mqtt is required for MQTT notifications. Install with: "
+            "paho-mqtt is required for MQTT publishing. Install with: "
             "python3 -m pip install -e '.[mqtt]'"
         ) from exc
 
-    client_id = config.client_id or f"timeshift-btrfs-sync-{socket.gethostname()}"
+    client_id = (config.client_id or f"timeshift-btrfs-sync-{socket.gethostname()}") + client_suffix
 
     # paho-mqtt 2.x supports callback_api_version. paho-mqtt 1.x does not.
     try:
@@ -83,13 +100,27 @@ def publish_status(config: MQTTConfig, payload: dict[str, Any]) -> None:
     if config.username:
         client.username_pw_set(config.username, config.resolved_password())
 
-    data = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-
-    client.connect(config.host, config.port, keepalive=max(config.timeout, 5))
+    # paho 2.x bounds TCP connection setup; older releases may not expose it.
+    if hasattr(client, "connect_timeout"):
+        client.connect_timeout = config.timeout
+    started = False
     try:
-        info = client.publish(config.topic, payload=data, qos=config.qos, retain=config.retain)
-        info.wait_for_publish(timeout=config.timeout)
-        if not info.is_published():
-            raise RuntimeError("MQTT publish did not finish before timeout")
+        client.connect(config.host, config.port, keepalive=max(config.timeout, 5))
+        client.loop_start()
+        started = True
+        for topic, payload, retain in messages:
+            if cancelled is not None and cancelled():
+                return
+            info = client.publish(
+                topic, payload=json.dumps(payload, sort_keys=True, separators=(",", ":")),
+                qos=config.qos, retain=retain,
+            )
+            info.wait_for_publish(timeout=config.timeout)
+            if not info.is_published():
+                raise RuntimeError("MQTT publish did not finish before timeout")
     finally:
-        client.disconnect()
+        try:
+            client.disconnect()
+        finally:
+            if started:
+                client.loop_stop()

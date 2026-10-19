@@ -18,6 +18,7 @@ from dataclasses import dataclass
 import os
 import tempfile
 from . import timeshift
+from .monitor import SnapshotProgress, report_phase
 from .btrfs_ops import BtrfsOps
 from .cache_ops import CacheManager, cache_parent_path, cache_child_path
 from .endpoint import CommandEndpoint
@@ -231,6 +232,7 @@ class SyncRunSummary:
     dry_run: bool
     skipped_by_floor: int
     already_synced: int
+    snapshot_progress: dict | None = None
 
 
 def format_duration(seconds: float) -> str:
@@ -318,6 +320,14 @@ def format_sync_summary(summary: SyncRunSummary, *, elapsed_seconds: float | Non
         f"  skipped by floor:  {summary.skipped_by_floor}",
         f"  transferred:       {summary.transferred}",
     ]
+    if summary.snapshot_progress is not None:
+        progress = summary.snapshot_progress
+        if summary.dry_run:
+            lines.append(f"  planned snapshots: {progress['total_snapshots']}")
+        else:
+            lines.append(f"  snapshot progress: {progress['progress']}")
+        lines.append(f"  snapshot skipped:  {progress['skipped_snapshots']} (source unavailable)")
+        lines.append("  count basis:       snapshot dates; transferred/full/incremental above count payloads")
     known_bytes, known_count, unknown_count = _summary_transferred_bytes(summary)
     if summary.dry_run:
         lines.append("  total transferred: 0.00 MB (dry-run; no data transferred)")
@@ -2442,6 +2452,32 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
         print("Source snapshots older than or equal to this floor are skipped, so pruned destination snapshots are not re-sent.")
         _human_rule("----")
 
+    progress = SnapshotProgress()
+    processed_names: set[str] = set()
+    transferred = 0
+
+    def pending_snapshot_names(queue: list[SnapshotMeta]) -> list[str]:
+        """Count only dates needing sends, respecting floor, completed work and limit.
+
+        Uses existing state/path checks and metadata only, without measuring a
+        stream. The historical --limit applies at date boundaries to payload
+        count; one multi-payload date can cross that limit and still counts once.
+        """
+        pending = []
+        payload_count = transferred
+        for item in queue:
+            if item.name in progress.completed or item.name in processed_names:
+                continue
+            if sync_floor_name and item.name <= sync_floor_name:
+                continue
+            if _snapshot_state_is_complete_with_destination(config, state, item.name):
+                continue
+            if limit is not None and payload_count >= limit:
+                break
+            pending.append(item.name)
+            payload_count += len(config.source.subvolumes)
+        return pending
+
     def build_snapshot_queue(*, require_requested_snapshot: bool) -> list[SnapshotMeta]:
         """Build one pure oldest-to-newest sync plan, then return its snapshot queue."""
 
@@ -2467,10 +2503,12 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
         for action in plan.actions:
             if action.snapshot and action.snapshot not in ordered_names:
                 ordered_names.append(action.snapshot)
-        return [source_by_name[name] for name in ordered_names if name in source_by_name]
+        queue = [source_by_name[name] for name in ordered_names if name in source_by_name
+                 and name not in progress.completed and name not in processed_names]
+        progress.replan(pending_snapshot_names(queue))
+        return queue
 
     snapshot_queue = build_snapshot_queue(require_requested_snapshot=True)
-    transferred = 0
     already_synced = 0
     sync_events: list[dict] = []
 
@@ -2560,6 +2598,7 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             )
         )
 
+        progress.invalidate(failed_snapshot.name)
         removed_events = [event for event in sync_events if event.get("snapshot") == failed_snapshot.name]
         removed_transfers = sum(1 for event in removed_events if event.get("status") == "synced")
         if removed_events:
@@ -2617,6 +2656,7 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
 
         if sync_floor_name and snapshot.name <= sync_floor_name:
             skipped_by_floor_names.add(snapshot.name)
+            processed_names.add(snapshot.name)
             continue
 
         if only_missing and snapshot_is_synced(state, snapshot.name, expected):
@@ -2624,12 +2664,15 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
                 for subvolume_name in expected:
                     counted_already.add((snapshot.name, subvolume_name))
                 already_synced = len(counted_already)
+                processed_names.add(snapshot.name)
                 continue
             print(f"Snapshot {snapshot.name}: state says synced, but at least one destination path is missing; recovering the whole date version before retry.")
             _human_blank()
         if limit is not None and transferred >= limit:
             break
 
+        progress.current(snapshot.name)
+        report_phase("transfer")
         _require_snapshot_info_json(source_inventory, snapshot.name)
         target_dir = _target_snapshot_dir(config, snapshot.name)
         print(f"Snapshot {snapshot.name} tags={''.join(snapshot.tags) or '-'}")
@@ -2649,6 +2692,8 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             source_snapshot_index=snapshot_root_btrfs_index,
             destination_index=destination_index,
         ):
+            processed_names.add(snapshot.name)
+            progress.drop(snapshot.name)
             continue
 
         for subvol_name in config.source.subvolumes:
@@ -2661,6 +2706,7 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             subvolume = snapshot.subvolumes.get(subvol_name)
             if not subvolume:
                 continue
+            progress.current(snapshot.name, subvol_name)
             dest_path = _dest_subvolume_path(config, snapshot.name, subvol_name)
             already = state.get("snapshots", {}).get(snapshot.name, {}).get("subvolumes", {}).get(subvol_name)
             if already and already.get("status") == "ok" and dest_path.exists():
@@ -3099,6 +3145,7 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             # short-lived hourly parent was superseded during sync.
 
             transferred += 1
+            progress.payload_done(snapshot.name, subvol_name, transferred_bytes)
 
         if _snapshot_state_is_complete_with_destination(config, state, snapshot.name):
             _sync_snapshot_info_json(
@@ -3107,6 +3154,33 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
                 snapshot.name,
                 dry_run=dry_run,
             )
+            if not dry_run:
+                processed_names.add(snapshot.name)
+            if not dry_run and snapshot.name in progress.pending:
+                progress.complete(snapshot.name)
+                if limit is not None and transferred >= limit:
+                    progress.replan([])
+                else:
+                    # A successful date can overlap Timeshift creation/expiry.
+                    # Reuse complete inventory/queue builders before the next
+                    # date; keep all completed dates in run progress even if
+                    # they no longer appear in the current retention selection.
+                    report_phase("inventory-refresh")
+                    previous_inventory = source_inventory
+                    source_inventory, source_by_name = load_source_inventory(
+                        f"after completed snapshot {snapshot.name}"
+                    )
+                    snapshot_root_btrfs_index = source_inventory.snapshot_index
+                    source_cache_index = source_inventory.cache_index
+                    trusted_parent_send_paths.intersection_update(
+                        path for path in tuple(trusted_parent_send_paths)
+                        if (before := previous_inventory.meta(path)) is not None
+                        and (after := source_inventory.meta(path)) is not None
+                        and after.readonly is True
+                        and (before.uuid, before.received_uuid, before.parent_uuid)
+                        == (after.uuid, after.received_uuid, after.parent_uuid)
+                    )
+                    snapshot_queue = build_snapshot_queue(require_requested_snapshot=False)
 
     _human_rule("----")
     skipped_by_floor = len(skipped_by_floor_names)
@@ -3120,4 +3194,5 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
         dry_run=dry_run,
         skipped_by_floor=skipped_by_floor,
         already_synced=already_synced,
+        snapshot_progress=progress.view(),
     )

@@ -18,7 +18,7 @@ EXPECTED_COMMANDS = {
 EXPECTED_MODULES = {
     "__init__", "__main__", "btrfs_ops", "cache_ops", "cli", "commands",
     "config", "destroy", "endpoint", "executor", "inventory", "lock", "log",
-    "mail", "maintenance", "models", "mqtt", "notify", "paths", "listing",
+    "mail", "maintenance", "models", "monitor", "mqtt", "notify", "paths", "listing",
     "payload_stats", "planning", "preflight", "restore", "retention",
     "source", "ssh", "state", "sync", "timeshift", "topology", "reconciliation", "transfer_size", "tree_ops",
 }

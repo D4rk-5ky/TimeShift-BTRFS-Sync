@@ -6,10 +6,12 @@ from pathlib import Path
 from .paths import is_local_same_or_under as _path_is_same_or_under
 from importlib.resources import files
 import argparse
+from contextlib import ExitStack
 import json
 import sys
 import time
 from . import __version__, timeshift
+from .monitor import LiveMonitor, duplicate_event, report_phase
 from .commands import CommandError
 from .btrfs_ops import BtrfsOps
 from .endpoint import CommandEndpoint
@@ -580,6 +582,7 @@ def cmd_sync(args) -> int:
         return 0
 
     def _run_locked() -> int:
+        report_phase("inventory")
         state = _load_config_state(config)
         final_state["sync"] = sync_once(
             config,
@@ -590,6 +593,7 @@ def cmd_sync(args) -> int:
             only_missing=not args.resend,
         )
         if cleanup_requested:
+            report_phase("cleanup")
             final_state["cleanup"] = prune(
                 config,
                 state,
@@ -606,7 +610,17 @@ def cmd_sync(args) -> int:
     print("Run mode: real run")
     prepare_lock_path(config, dry_run=False)
     print(f"Acquiring lock: {config.lock_file}")
-    with FileLock(config.lock_file):
+    with ExitStack() as stack:
+        try:
+            stack.enter_context(FileLock(config.lock_file))
+        except BlockingIOError:
+            duplicate_event(config, args.config)
+            raise
+        if config.mqtt_monitor.enabled:
+            try:
+                stack.enter_context(LiveMonitor(config, args.config))
+            except Exception as exc:
+                print(f"WARNING: live MQTT monitoring could not start: {exc}", file=sys.stderr)
         return _with_logging(config, "sync", _run_locked, finalizer=_finalize, mail_finalizer=_mail_finalize)
 
 
@@ -1012,6 +1026,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Back up Timeshift snapshot payloads from the configured source into the local destination.target_root.\n"
             "source.mode selects local versus SSH source. Normal sync never writes a remote backup destination.\n"
             "If source Timeshift reports its startup lock is busy, retry every 60 seconds and refresh the complete source inventory before planning transfers. Ctrl+C cancels the wait.\n"
+            "Real sync refreshes the inventory between completed snapshot dates and recalculates completed + remaining progress. Optional [mqtt_monitor] publishes live status and Home Assistant discovery. Dry-run does not publish live monitoring.\n"
             "Without --run or --dry-run, config.default_dry_run selects preview versus real execution."
         ),
         cmd_sync,

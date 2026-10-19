@@ -1,11 +1,25 @@
 # Installation
 
-Current source release: **0.2.1**. Install from the project root. The included original `dist/ts-btrfs` reports **0.1.84** and has not been rebuilt; use `python3 -m timeshift_btrfs_sync` or rebuild the executable from this source before treating it as the current release. The active package is timeshift_btrfs_sync/; project documentation and helpers live at the project root.
+Current source release: **0.2.2**. Install from the project root. The included original `dist/ts-btrfs` reports **0.1.84** and has not been rebuilt; use `python3 -m timeshift_btrfs_sync` or rebuild the executable from this source before treating it as the current release. The active package is timeshift_btrfs_sync/; project documentation and helpers live at the project root.
 
 Normal sync runs on the backup/destination machine. The Timeshift source is reached over SSH or selected locally. Restore may also run on the Timeshift machine and pull a backup repository over SSH when `[restore] mode = "ssh"` is selected. The selected endpoints need the commands and minimal permissions described in the README. `cat` and `id` are not run through sudo during normal discovery. The configured source account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
 
 
 The executable or Python install does **not** include system tools such as `btrfs`, `timeshift`, `ssh`, `sudo`, `wc`, `mbuffer`, or `sshpass`. Those must be installed on the relevant machines.
+
+## Enable live MQTT and Home Assistant monitoring
+
+The existing `requirements.txt` already installs `paho-mqtt` and PyInstaller through `-e .[mqtt,pyinstaller]`; this release adds no Python dependency. In the project root, activate your venv and run:
+
+```bash
+. .venv/bin/activate
+python -m pip install -r requirements.txt
+python -c "import paho.mqtt.client; print('MQTT module available')"
+```
+
+Set `[mqtt]` broker/auth/QoS settings, then enable `[mqtt_monitor].enabled = true` in the relevant complete example config. `[mqtt].enabled` controls existing completion notifications separately. Real sync alone publishes live monitoring; dry-runs and restore/prune/list commands do not replace backup status. A daemon handles the network, with a bounded final drain; monitoring outages do not change backup exit status. The existing exclusive job lock is acquired before live status starts.
+
+See [README.md](README.md#live-mqtt-snapshot-progress-and-home-assistant) for every option, dynamic snapshot-date counter semantics, topics, stable identity and limitations. `home-assistant/dashboard.yaml` uses built-in HA cards; replace `BACKUP_ID` with the README identity command's output. `home-assistant/automations.yaml` provides optional disabled examples. No extra Btrfs/sudo permission, Pushover module or frontend package is required. The preserved old executable must be rebuilt to use this source feature.
 
 ## Source Timeshift concurrency
 

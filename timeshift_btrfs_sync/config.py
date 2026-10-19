@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, field
 from pathlib import Path
 from .paths import normalize_source_path as _normalize_source_path, is_same_or_under as _source_path_is_same_or_under
 from typing import Any
@@ -10,6 +10,7 @@ import tomllib
 
 from .ssh import SSHConfig, validate_control_path_safety
 from .mqtt import MQTTConfig
+from .monitor import MonitorConfig
 from .mail import MailConfig
 from .transfer_size import parse_size_bytes
 
@@ -28,7 +29,7 @@ CONFIG_PROFILES = {
 
 TOP_LEVEL_KEYS = {
     "name", "default_dry_run", "prune_after_sync", "log_dir", "state_file", "lock_file",
-    "source", "destination", "stream", "retention", "manual_snapshot", "mqtt", "mail", "ssh", "restore",
+    "source", "destination", "stream", "retention", "manual_snapshot", "mqtt", "mqtt_monitor", "mail", "ssh", "restore",
 }
 SOURCE_KEYS = {
     "snapshot_root", "mode", "subvolumes", "sudo", "btrfs_command", "timeshift_command",
@@ -43,6 +44,7 @@ MANUAL_SNAPSHOT_KEYS = {"enabled", "cleanup_enabled", "comment", "marker", "rete
 RESTORE_KEYS = {"mode"}
 SSH_KEYS = {"host", "user", "port", "identity_file", "identity_passphrase", "identity_passphrase_file", "password", "password_file", "compression", "cipher", "control_master", "control_persist", "control_path", "extra_args"}
 MQTT_KEYS = {"enabled", "host", "port", "topic", "username", "password", "password_file", "client_id", "qos", "retain", "timeout", "notify_on_success", "notify_on_failure"}
+MONITOR_KEYS = {"enabled", "topic_prefix", "heartbeat_interval", "expire_after", "discovery", "discovery_prefix", "events"}
 MAIL_KEYS = {"enabled", "smtp_host", "smtp_port", "smtp_ssl", "starttls", "username", "password", "password_file", "from_addr", "to_addrs", "subject_prefix", "timeout", "notify_on_success", "notify_on_failure", "include_json", "attach_logs", "max_attachment_bytes"}
 
 
@@ -266,6 +268,7 @@ class AppConfig:
     log_dir: Path | None
     default_dry_run: bool = True
     prune_after_sync: bool = False
+    mqtt_monitor: MonitorConfig = field(default_factory=MonitorConfig)
 
 class ConfigError(ValueError):
     """Raised when the TOML config is invalid."""
@@ -334,7 +337,7 @@ def load_config(path: str | Path) -> AppConfig:
     if not isinstance(raw, dict):
         raise ConfigError("Config must be a TOML table")
 
-    name = str(raw.get("name") or "timeshift-btrfs-sync")
+    name = str(raw.get("name") or Path(path).stem).strip() or Path(path).stem
 
     _reject_unknown_keys(raw, "top level", TOP_LEVEL_KEYS)
     source_raw = _table(raw, "source")
@@ -547,6 +550,30 @@ def load_config(path: str | Path) -> AppConfig:
         notify_on_failure=_bool(mqtt_raw, "mqtt", "notify_on_failure", True),
     )
 
+    monitor_raw = _table(raw, "mqtt_monitor")
+    _reject_unknown_keys(monitor_raw, "[mqtt_monitor]", MONITOR_KEYS)
+    monitor_values = {}
+    for key, default in (("heartbeat_interval", 60), ("expire_after", 180)):
+        value = monitor_raw.get(key, default)
+        if type(value) is not int or value <= 0:
+            raise ConfigError(f"mqtt_monitor.{key} must be a positive integer")
+        monitor_values[key] = value
+    if monitor_values["expire_after"] <= monitor_values["heartbeat_interval"]:
+        raise ConfigError("mqtt_monitor.expire_after must exceed heartbeat_interval")
+    for key, default in (("topic_prefix", "timeshift-btrfs-sync"), ("discovery_prefix", "homeassistant")):
+        value = monitor_raw.get(key, default)
+        if not isinstance(value, str) or not value.strip().strip("/") or any(ch in value for ch in ("+", "#", "\0")):
+            raise ConfigError(f"mqtt_monitor.{key} must be a nonempty MQTT prefix without wildcards or NUL")
+        monitor_values[key] = value.strip().rstrip("/")
+    mqtt_monitor = MonitorConfig(
+        **monitor_values,
+        enabled=_bool(monitor_raw, "mqtt_monitor", "enabled", False),
+        discovery=_bool(monitor_raw, "mqtt_monitor", "discovery", True),
+        events=_bool(monitor_raw, "mqtt_monitor", "events", True),
+    )
+    if mqtt_monitor.enabled and not mqtt_host:
+        raise ConfigError("mqtt.host is required when mqtt_monitor.enabled = true")
+
     mail_raw = _table(raw, "mail")
     _reject_unknown_keys(mail_raw, "[mail]", MAIL_KEYS)
     mail_port = _positive_int(mail_raw.get("smtp_port"), "mail.smtp_port", 587)
@@ -611,6 +638,7 @@ def load_config(path: str | Path) -> AppConfig:
         stream=stream,
         retention=retention,
         mqtt=mqtt,
+        mqtt_monitor=mqtt_monitor,
         mail=mail,
         manual_snapshot=manual_snapshot,
         restore=restore,

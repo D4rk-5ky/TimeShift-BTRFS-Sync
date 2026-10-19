@@ -29,7 +29,7 @@ You are responsible for reviewing the code, testing it in a safe environment, ma
 
 ## Choose the current source application
 
-This source release is **0.2.1**. Run it from the project root with Python 3.11 or newer:
+This source release is **0.2.2**. Run it from the project root with Python 3.11 or newer:
 
 ```bash
 python3 -m timeshift_btrfs_sync --version
@@ -112,6 +112,70 @@ python3 -m timeshift_btrfs_sync init-config --profile remote-pull-restore --path
 ```
 
 Edit mount paths, SSH host/account, privileges and retention before use. The new examples use `/mnt/system/timeshift-btrfs/snapshots` on the Timeshift side and `/mnt/backup/timeshift-btrfs` on the backup side. For pull restore the backup path and optional state file are remote, while `lock_file` and `log_dir` stay local. Restore requires the local lock parent to exist; prepare the explicitly configured local directory before running it. Native Timeshift restore requires `@`, optionally `@home`, under one snapshot root on one filesystem. A home-only/custom backup is not a Timeshift system snapshot, and split-filesystem root/home restore is outside the supported layout.
+
+## Live MQTT snapshot progress and Home Assistant
+
+Live monitoring is optional and independent of existing completion mail/MQTT notifications. Install the MQTT dependency through `python -m pip install -r requirements.txt` in your activated venv (see INSTALL.md), then configure:
+
+```toml
+name = "Desktop Timeshift backup"
+
+[mqtt]
+host = "homeassistant.local"
+port = 1883
+username = "mqtt-user"
+password_file = "/home/backup/.config/ts-btrfs-mqtt.password"
+qos = 1
+timeout = 10
+enabled = false  # Existing completion notifications; independent of live status.
+
+[mqtt_monitor]
+enabled = true
+topic_prefix = "timeshift-btrfs-sync"
+heartbeat_interval = 60
+expire_after = 180
+discovery = true
+discovery_prefix = "homeassistant"
+events = true
+```
+
+This is a fragment to merge into your complete configuration; do not duplicate tables. All eight complete examples include every monitoring option, disabled by default. `[mqtt_monitor]` reuses `[mqtt]` host/port/username/password/password_file/client_id/QoS/timeout. Its enablement, topics and retention are separate from `[mqtt].enabled`, `.topic`, `.retain` and notification filters. Leave existing completion notification settings as you prefer. A missing `name` falls back to the TOML filename without its suffix. Canonical config path plus local hostname determine the stable hashed backup ID, so equal filenames in different directories and jobs on different machines stay separate. Symlinks to the same config share its ID; moving a config or changing hostname creates a new HA device.
+
+Run your ordinary real backup command, for example:
+
+```bash
+python3 -m timeshift_btrfs_sync sync --config ./config.toml --run --prune --yes-delete
+```
+
+Monitoring starts after the existing exclusive local backup lock is acquired, before inventory or transfer work. A duplicate launch emits only a `duplicate_run` event and cannot replace the owner's live status or last result. Dry-runs and other commands (including restore, prune and listing) do not publish live backup status. Existing completion notifications retain their own behavior for those commands.
+
+The initial total comes from the existing source inventory and retained queue: no stream-size estimate, send dry pass or extra byte preflight is needed. A real sync refreshes the complete Timeshift/JSON/Btrfs inventory after every completed date, before replanning the next one. This metadata refresh works with local and SSH sources and uses the existing Timeshift busy wait. It adds metadata reads, not data reads for stream sizing. New dates and changed O/H/D/W/M/B retention selection can grow or shrink remaining work. Already completed dates stay counted even if removed from the source or no longer selected by their tags. Valid immutable completed backups are not resent just to update a progress count. Changed or non-readonly parent identities lose their in-run trust and must pass the existing lineage checks again.
+
+**A snapshot is one Timeshift date**, with all configured payloads (such as `@` and `@home`) and `info.json` complete. Two payload sends count as one completed snapshot. Source/destination dates already fully synced before this run and dates below the established sync floor are excluded from the transfer total. Existing `--limit` remains a payload limit checked between whole dates: a two-payload date can cross `--limit 1` and still appears as `1 / 1` snapshots. Confirmed unavailable source dates are counted separately as skipped, never as transferred. Dry-run reports planned snapshot dates without claiming completion. Existing `transferred`, `full syncs`, `incremental syncs` and transfer-list entries still count payloads; the new `snapshot progress` line counts dates.
+
+The current total is always **completed dates + remaining planned dates**. For example, `5 / 23` becomes `5 / 22` if an unsent date is no longer retained, then finishes `22 / 22`. If a new date becomes eligible it can become `5 / 24` and finish `24 / 24`. Completed work is retained throughout these updates. A failed second payload or failed metadata copy does not complete the date. Whole-date recovery invalidates its failed version's metrics before retrying. Failures keep truthful partial counts, such as `21 / 22`; the app never turns an actual failure into `22 / 22`. Unexpected unfinished work with a normal CLI return is labeled `incomplete` by monitoring. A cleanup failure can correctly report `failed` with all snapshot transfers complete.
+
+| Topic under `<topic_prefix>/<backup_id>/` | Meaning | Retained |
+|---|---|---|
+| `status` | Running/terminal state, heartbeat and current counters | Never |
+| `last_result` | Most recent completed real run, including failures/interruption | Yes |
+| `events` | Started, completed, failed or duplicate launch | Never |
+
+Payloads contain `backup_id`, `backup_name`, `hostname`, unique `run_id`, version, timestamps, status/phase, current snapshot/subvolume, total/completed/remaining/skipped/failed snapshot counts, runtime and confirmed transferred bytes. The total is `null` and progress is `planning` until inventory is ready. Known bytes are summed only after validated payload success; they exclude an active stream and invalidated retry versions. `bytes_complete = false` means some successful payload sizes were unavailable; this is a snapshot-count progress bar, not a byte percentage. Runtime includes inventory, Timeshift waiting, cleanup and completion-notification time while the job lock remains held. Status is `running`, `success`, `failed`, `interrupted` or `incomplete`; Ctrl+C retains CLI exit 130.
+
+A daemon worker publishes every `heartbeat_interval` seconds, plus coalesced snapshot/phase changes. Inventory and a long send can block the backup thread while heartbeats continue. Network/DNS failures or missing paho do not fail replication. Final publishing gets at most one second to drain before the app releases its lock. If that expires, the worker is cancelled from issuing further publishes, including when a slow connect later returns; packets already on the wire can still arrive late. Delivery is best effort: an outage, slow broker or abrupt process exit can lose events/final packets; there is no on-disk MQTT queue or guaranteed last-will failure assertion. Consumers can use run IDs/timestamps to distinguish runs. Existing completion notification timeouts remain independent. No extra mail/Pushover/start alerts are enabled by this feature; `events = false` disables lifecycle events while retaining live status.
+
+When `discovery = true`, retained MQTT Discovery creates one Home Assistant device per config with twelve sensors: live status/progress/completed/expected/remaining/failed snapshots, confirmed bytes, runtime, current snapshot, started time, heartbeat and last result. Live sensors expire after `expire_after` seconds without updates, including normal idle expiry after completion. This means **unknown/unavailable**, not proof of backup failure; check the separate retained last result. Keep `expire_after` greater than `heartbeat_interval`. Non-retained live state prevents stale running state being replayed after a restart. These settings follow [Home Assistant MQTT sensor expiry](https://www.home-assistant.io/integrations/sensor.mqtt/) and [MQTT Discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery).
+
+Use the built-in-card view in [home-assistant/dashboard.yaml](home-assistant/dashboard.yaml). No custom cards are required. Get this config's ID without contacting the broker:
+
+```bash
+python3 -c 'import socket,sys; from timeshift_btrfs_sync.monitor import backup_identity; print(backup_identity(sys.argv[1], socket.gethostname()))' ./config.toml
+```
+
+Replace `BACKUP_ID` in the dashboard with that exact ID and paste it as a manual HA dashboard view. Discovery suggests entity IDs `sensor.<backup_id>_<field>`; check actual entity IDs if HA has renamed them or added a collision suffix. Duplicate the cards with each other config's ID for a multi-backup dashboard. Broker credentials must allow writes to your status prefix and `homeassistant/sensor/<backup_id>/.../config` (or your discovery prefix). Monitoring does not change sudo/Btrfs permissions.
+
+[home-assistant/automations.yaml](home-assistant/automations.yaml) supplies optional heartbeat-loss and long-runtime notices, both **disabled initially**. Replace IDs, tune the two-hour runtime example and enable only the automations you want. The heartbeat-loss condition requires a last-seen running status, so normal post-success expiry does not alert. The examples use [Home Assistant automation YAML](https://www.home-assistant.io/docs/automation/yaml/) and the dashboard uses its [built-in Markdown card](https://www.home-assistant.io/dashboards/markdown/). Heartbeat loss can indicate broker/network trouble, not confirmed data loss. Existing mail/MQTT completion filters remain unchanged.
 
 ## Waiting for source Timeshift
 
