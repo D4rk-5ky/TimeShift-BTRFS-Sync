@@ -26,4 +26,7 @@ __pycache__/
 build/
 *.spec
 *.egg-info/
-dist/
+dist/*
+!dist/ts-btrfs/
+dist/ts-btrfs/*
+!dist/ts-btrfs/ts-btrfs
