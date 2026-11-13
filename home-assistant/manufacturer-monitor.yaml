@@ -1,0 +1,229 @@
+# Paste this entire file into one Home Assistant Manual Markdown card.
+# Change only the manufacturer variable below to select another job group.
+# Set the same [mqtt_monitor].manufacturer in every script/config in that group.
+# Enable [mqtt_monitor].enabled and .discovery in each backup config first.
+# Sensors advertise live_preview_role; older compatible devices use name fallbacks.
+type: markdown
+content: |
+  {% set manufacturer = 'TimeShift-BTRFS-Sync' -%}
+  {% set terminal = ['success', 'failed', 'failure', 'incomplete', 'interrupted'] -%}
+  {% set stats = namespace(records=[], seen=[], running=0, finished=0, failed=0, unknown=0) -%}
+  {% for sensor in states.sensor -%}
+  {% set dev = device_id(sensor.entity_id) -%}
+  {% if dev and dev not in stats.seen and device_attr(dev, 'manufacturer') == manufacturer -%}
+  {% set fields = namespace(live='', last='', success='') -%}
+  {% for eid in device_entities(dev) -%}
+  {% set label = state_attr(eid, 'friendly_name') | default('', true) | lower -%}
+  {% set role = state_attr(eid, 'live_preview_role') -%}
+  {% if role == 'status' -%}
+  {% set fields.live = eid -%}
+  {% elif role == 'last_success' -%}
+  {% set fields.success = eid -%}
+  {% elif role == 'last_result' -%}
+  {% set fields.last = eid -%}
+  {% endif -%}
+  {% endfor -%}
+  {# Compatibility for existing discovery data without explicit roles. #}
+  {% for eid in device_entities(dev) -%}
+  {% set label = state_attr(eid, 'friendly_name') | default('', true) | lower -%}
+  {% if not fields.live and (eid.endswith('_status') or label.endswith(' status') or label == 'status') -%}
+  {% set fields.live = eid -%}
+  {% elif not fields.success and (eid.endswith('_last_success') or label.endswith('last successful run')) -%}
+  {% set fields.success = eid -%}
+  {% elif not fields.last and (eid.endswith('_last_result') or label.endswith('last result')) -%}
+  {% set fields.last = eid -%}
+  {% endif -%}
+  {% endfor -%}
+  {% if fields.live or fields.last -%}
+  {% set stats.seen = stats.seen + [dev] -%}
+  {% set live = states(fields.live) if fields.live else 'unknown' -%}
+  {% set last = states(fields.last) if fields.last else 'unknown' -%}
+  {% set live_run = state_attr(fields.live, 'run_id') if fields.live else none -%}
+  {% set last_run = state_attr(fields.last, 'run_id') if fields.last else none -%}
+  {% set live_start = as_timestamp(state_attr(fields.live, 'started_at'), none) if fields.live else none -%}
+  {% set last_start = as_timestamp(state_attr(fields.last, 'started_at'), none) if fields.last else none -%}
+  {% set completed_live_run = last in terminal and live_run and last_run and live_run == last_run -%}
+  {% set newer_result = last in terminal and live_start is not none and last_start is not none and last_start > live_start -%}
+  {% set lost = live in ['unknown', 'unavailable', ''] and fields.live and state_attr(fields.live, 'status') == 'running' and live_run and live_run != last_run -%}
+  {% if completed_live_run or newer_result -%}
+  {% set source = fields.last -%}
+  {% set outcome = 'failed' if last == 'failure' else last -%}
+  {% elif live == 'running' or live in terminal -%}
+  {% set source = fields.live -%}
+  {% set outcome = 'failed' if live == 'failure' else live -%}
+  {% elif lost -%}
+  {% set source = fields.live -%}
+  {% set outcome = 'heartbeat_lost' -%}
+  {% elif last in terminal -%}
+  {% set source = fields.last -%}
+  {% set outcome = 'failed' if last == 'failure' else last -%}
+  {% else -%}
+  {% set source = fields.live or fields.last -%}
+  {% set outcome = 'unknown' -%}
+  {% endif -%}
+  {% set name = device_attr(dev, 'name_by_user') or device_attr(dev, 'name') or state_attr(source, 'backup_name') or dev -%}
+  {% set stats.records = stats.records + [dict(source=source, last=fields.last, success=fields.success, outcome=outcome, name=name)] -%}
+  {% if outcome == 'running' -%}
+  {% set stats.running = stats.running + 1 -%}
+  {% elif outcome == 'success' -%}
+  {% set stats.finished = stats.finished + 1 -%}
+  {% elif outcome == 'failed' -%}
+  {% set stats.failed = stats.failed + 1 -%}
+  {% else -%}
+  {% set stats.unknown = stats.unknown + 1 -%}
+  {% endif -%}
+  {% endif -%}
+  {% endif -%}
+  {% endfor -%}
+  ## {{ manufacturer | e }} — Backup Monitor
+
+  | 🟢 Running | ✅ Finished | 🔴 Failed | ⚪ Other / unknown |
+  |:---:|:---:|:---:|:---:|
+  | **{{ stats.running }}** | **{{ stats.finished }}** | **{{ stats.failed }}** | **{{ stats.unknown }}** |
+
+  **{{ stats.records | count }} backup job(s) discovered**
+
+  {% for record in stats.records | sort(attribute='name') -%}
+  {% set source = record.source -%}
+  {% set outcome = record.outcome -%}
+  {# Prefer native Timeshift metrics; accept compatible dataset/generic job fields. #}
+  {% set total = state_attr(source, 'total_snapshots') -%}
+  {% if total is none -%}{% set total = state_attr(source, 'total_datasets') -%}{% endif -%}
+  {% if total is none -%}{% set total = state_attr(source, 'total') -%}{% endif -%}
+  {% set unit = 'Snapshots' if state_attr(source, 'total_snapshots') is not none or state_attr(source, 'progress_basis') == 'snapshot dates; all configured payloads and info.json complete' else 'Datasets' if state_attr(source, 'total_datasets') is not none else (state_attr(source, 'item_unit') or 'Items') | title -%}
+  {% set total = total | int(none) -%}
+  {% set done = state_attr(source, 'completed_snapshots') -%}
+  {% if done is none -%}{% set done = state_attr(source, 'completed_datasets') -%}{% endif -%}
+  {% if done is none -%}{% set done = state_attr(source, 'completed') -%}{% endif -%}
+  {% set done = done | int(none) -%}
+  {% set failures = state_attr(source, 'failed_snapshots') -%}
+  {% if failures is none -%}{% set failures = state_attr(source, 'failed_datasets') -%}{% endif -%}
+  {% if failures is none -%}{% set failures = state_attr(source, 'failed') -%}{% endif -%}
+  {% set failures = failures | int(none) -%}
+  {% set skipped = state_attr(source, 'skipped_snapshots') -%}
+  {% if skipped is none -%}{% set skipped = state_attr(source, 'skipped_datasets') -%}{% endif -%}
+  {% if skipped is none -%}{% set skipped = state_attr(source, 'skipped') -%}{% endif -%}
+  {% set skipped = skipped | int(none) -%}
+  {% set transferred = state_attr(source, 'data_transferred_bytes') -%}
+  {% if transferred is none -%}{% set transferred = state_attr(source, 'transferred_bytes') -%}{% endif -%}
+  {% set transferred = transferred | float(none) -%}
+  {% set secs = state_attr(source, 'runtime_seconds') | float(none) -%}
+  {% set partial_bytes = state_attr(source, 'bytes_complete') == false -%}
+  {% set measured = state_attr(source, 'byte_measurement') -%}
+  {% set current = state_attr(source, 'current_snapshot') or state_attr(source, 'current_dataset') or state_attr(source, 'current_item') -%}
+  {% set success_time = state_attr(record.success, 'ended_at') or state_attr(record.success, 'completed_at') or state_attr(record.success, 'finished_at') if record.success else none -%}
+  {% if not success_time and record.last and states(record.last) == 'success' -%}
+  {% set success_time = state_attr(record.last, 'ended_at') or state_attr(record.last, 'completed_at') or state_attr(record.last, 'finished_at') -%}
+  {% endif -%}
+  {% set success_date = as_datetime(success_time, none) -%}
+  {% set icon = '🟢' if outcome == 'running' else '✅' if outcome == 'success' else '🔴' if outcome == 'failed' else '🟠' if outcome in ['incomplete', 'interrupted', 'heartbeat_lost'] else '⚪' -%}
+
+  ---
+
+  ### {{ icon }} {{ record.name | e }} — {{ outcome | replace('_', ' ') | upper }}
+
+  **Last successful run:** {{ as_local(success_date).strftime('%Y-%m-%d %H:%M') if success_date else 'Not recorded yet' }}
+
+  {% if outcome == 'running' -%}
+  **Phase:** {{ (state_attr(source, 'phase') or 'Preparing') | e }}
+
+  **Current {{ 'snapshot' if unit == 'Snapshots' else 'dataset' if unit == 'Datasets' else 'item' }}:** {{ (current or 'Preparing next item') | e }}
+
+  {% if state_attr(source, 'current_subvolume') -%}
+  **Current payload:** {{ state_attr(source, 'current_subvolume') | e }}
+  {% endif -%}
+  {% elif outcome == 'heartbeat_lost' -%}
+  **Heartbeat expired during an unfinished run. Its outcome is unknown.**
+  {% elif outcome == 'unknown' -%}
+  **No completed result yet.**
+  {% else -%}
+  {% set ended = as_datetime(state_attr(source, 'ended_at') or state_attr(source, 'completed_at') or state_attr(source, 'finished_at'), none) -%}
+  **Finished:** {{ as_local(ended).strftime('%Y-%m-%d %H:%M') if ended else 'Time unavailable' }}
+
+  **Exit code:** {{ state_attr(source, 'exit_code') if state_attr(source, 'exit_code') is not none else 'Unknown' }}
+  {% endif -%}
+
+  {% if state_attr(source, 'error') -%}
+  **Last error:** {{ state_attr(source, 'error') | replace('\n', ' ') | truncate(180) | e }}
+  {% endif -%}
+
+  {% set overall_total = state_attr(source, 'overall_total_steps') | int(none) -%}
+  {% set overall_done = state_attr(source, 'overall_completed_steps') | int(none) -%}
+  {% if overall_total is not none or overall_done is not none -%}
+  **Overall progress**{% if state_attr(source, 'overall_plan_estimated') %} (estimate){% endif %}:
+
+  {% if overall_total is not none and overall_total > 0 and overall_done is not none -%}
+  {% set percent = ([0, [100, 100 * overall_done / overall_total] | min] | max) | int -%}
+  `{{ '█' * (percent // 10) }}{{ '░' * (10 - percent // 10) }}` **{{ percent }}%**
+  {% elif overall_total == 0 and overall_done == 0 -%}
+  No work selected (0 / 0).
+  {% else -%}
+  Planning / unknown total.
+  {% endif -%}
+
+  **Overall steps:** {{ overall_done if overall_done is not none else '?' }} / {{ overall_total if overall_total is not none else '?' }} completed (transfer dates + cleanup jobs).
+  {% endif -%}
+
+  **Transfer progress:**
+
+  {% if total is not none and total > 0 and done is not none -%}
+  {% set percentage = ([0, [100, 100 * done / total] | min] | max) | int -%}
+  {% set bars = percentage // 10 -%}
+  `{{ '█' * bars }}{{ '░' * (10 - bars) }}` **{{ percentage }}%**
+  {% elif total == 0 and done == 0 -%}
+  **Progress:** No transfers selected (0 / 0).
+  {% else -%}
+  **Progress:** Unknown
+  {% endif -%}
+
+  **{{ unit | e }}:** {{ done if done is not none else '?' }} / {{ total if total is not none else '?' }} completed · {{ failures if failures is not none else '?' }} failed · {{ skipped if skipped is not none else '?' }} skipped
+
+  {% if state_attr(source, 'cleanup_enabled') == true -%}
+  {% set clean_total = state_attr(source, 'cleanup_total') | int(none) -%}
+  {% set clean_done = state_attr(source, 'cleanup_completed') | int(none) -%}
+  {% set clean_initial = state_attr(source, 'cleanup_initial_total') | int(none) -%}
+  {% set clean_processed = state_attr(source, 'cleanup_processed') | int(none) -%}
+  {% set clean_blocked = state_attr(source, 'cleanup_blocked') | int(none) -%}
+  **Cleanup progress**{% if state_attr(source, 'cleanup_plan_estimated') %} (estimate){% endif %}: {{ (state_attr(source, 'cleanup_status') or 'planning') | e }}
+
+  {% if clean_total is not none and clean_total > 0 and clean_done is not none -%}
+  {% set percent = ([0, [100, 100 * clean_done / clean_total] | min] | max) | int -%}
+  `{{ '█' * (percent // 10) }}{{ '░' * (10 - percent // 10) }}` **{{ percent }}%**
+  {% elif clean_total == 0 and clean_done == 0 -%}
+  No cleanup jobs selected (0 / 0).
+  {% else -%}
+  Planning / unknown total.
+  {% endif -%}
+
+  **Snapshot cleanup jobs:** {{ clean_done if clean_done is not none else '?' }} / {{ clean_total if clean_total is not none else '?' }} confirmed · {{ clean_processed if clean_processed is not none else '?' }} evaluated · {{ clean_blocked if clean_blocked is not none else '?' }} blocked / unconfirmed
+
+  {% if clean_initial is not none -%}
+  **Initial {{ 'estimate' if state_attr(source, 'cleanup_initial_plan_estimated') else 'plan' }}:** {{ clean_initial }} cleanup jobs · **Current expected:** {{ clean_total if clean_total is not none else '?' }}
+  {% endif -%}
+
+  {% if state_attr(source, 'cleanup_current_snapshot') -%}
+  **Current cleanup:** {{ (state_attr(source, 'cleanup_current_group') or 'snapshot') | e }} — {{ state_attr(source, 'cleanup_current_snapshot') | e }} (item {{ state_attr(source, 'cleanup_current_number') or '?' }} / {{ clean_total if clean_total is not none else '?' }})
+  {% endif -%}
+  {% elif state_attr(source, 'cleanup_enabled') == false -%}
+  **Cleanup:** Not requested.
+  {% endif -%}
+
+  **{{ 'Transferred so far' if measured else 'Confirmed transferred' }}:** {% if transferred is not none %}{{ '%.2f' | format(transferred / 1073741824) }} GiB{% else %}Unknown{% endif %}{% if partial_bytes %} (partial; some payload sizes unknown){% endif %}
+
+  **{{ 'Run average speed' if measured else 'Confirmed-byte average' }}:** {% if transferred is not none and secs is not none and secs > 0 %}{{ '%.2f' | format(transferred / secs / 1048576) }} MiB/s{% else %}Unknown{% endif %}
+
+  **Runtime:** {% if secs is not none %}{{ '%02d:%02d:%02d' | format((secs // 3600) | int, ((secs % 3600) // 60) | int, (secs % 60) | int) }}{% else %}Unknown{% endif %}
+
+  **Heartbeat:** {{ state_attr(source, 'last_heartbeat') or 'Unknown' }}
+
+  {% if source == record.last and outcome != 'running' -%}
+  _Retained result from the last completed run; current activity is unknown when live state is unavailable._
+  {% elif outcome == 'heartbeat_lost' and record.last and states(record.last) in terminal -%}
+  _Previous retained result: {{ states(record.last) | upper }}. It belongs to another run._
+  {% endif -%}
+  {% endfor -%}
+  {% if stats.records | count == 0 -%}
+  **No matching backup devices detected for {{ manufacturer | e }}.** Set that exact `[mqtt_monitor].manufacturer` in each backup config, set `enabled = true` and `discovery = true`, configure the broker, then start a real sync to update discovery.
+  {% endif -%}
+
+  _One entry per discovered backup job, selected only by the device manufacturer above. Names, roles and metrics are read from its devices/entities; no job IDs or topics are configured in this card. Other scripts must publish compatible status/result roles and numeric metrics (snapshot, dataset or generic job fields). This card shows each job’s current/latest run and last success, not an unlimited run-history log. For Timeshift jobs, expected complete snapshot dates are replanned at source-inventory refreshes, including deletions/tag changes. With measure_transfers enabled, bytes count the actual Btrfs send stream forwarded to receive, including active/failed/retried attempts; run average is total bytes divided by full CLI elapsed time, not an average of per-snapshot speeds. It is neither disk allocation nor network framing. With measurement disabled, only confirmed known payload bytes are shown and may be partial. Progress completes a transferred date only after every payload and info.json succeed. Cleanup counts date jobs: one paired retention date (all required source/cache/destination actions together), or one source-only, cache-only or destination-only date. It does not count individual Btrfs child subvolumes. Initial cleanup totals are estimates from existing metadata and projected sends; fresh cleanup plans replace them at cleanup start and each extra-repository stage. Completed jobs persist when pending plans shrink/grow. Blocked/unconfirmed jobs remain pending; unknown inventory stays unknown. Overall steps add transferred dates and cleanup jobs, equally weighted rather than time weighted; totals can grow or shrink and percentages can decrease when work is added. Real standalone prune is monitored too; redundant-only extras still require a successful sync in this run. Last-success history persists across later failures. Live availability follows each MQTT sensor's configured expiry. Unknown outcomes/progress stay unknown; retained results are historical. Timeshift dry-runs do not publish live monitoring._

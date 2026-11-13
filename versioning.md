@@ -1,0 +1,1213 @@
+# Versioning
+
+Current source version: **0.2.6**. Each newly created release increments the patch component by one. At patch 99, roll over into the next minor component: `0.0.99 → 0.1.0` and `0.1.99 → 0.2.0`; never create patch 100. Preserved original copies and binaries retain their original versions.
+
+## 0.2.6 — 2026-11-13
+
+- Increment source 0.2.5 by exactly 0.0.1, preserve every previous ledger entry and the patch-99 rollover rule. Align package/test/helper metadata and current documentation; preserve all original/prior files and the supplied executable unchanged.
+- Add CleanupProgress with separate paired/source/cache/destination date-job plans, completed history, pending/blocked/evaluated counts, current date/group/ordinal, initial/current expectations and provisional/unknown status. A paired job completes only after all required sides and state removal succeed; individual Btrfs child subvolumes are not separate jobs. Replans retain confirmed completed history and update pending totals in either direction.
+- Reuse the existing pure retention/source-app planners and extract the existing redundant-date selectors without changing their selection predicates. Forecast cleanup from a disposable copy of current state, refreshed source metadata and queued future sends at existing sync queue checkpoints. Do not add forecast inventory commands, send-size probes, state writes, deletion consent or destructive actions. Optional forecast failures become unknown.
+- Refresh paired/source-only plans during actual prune reconciliation and safety checks. Re-evaluate each redundant stage using its existing fresh inventory/UUID/window/ownership checks and report every confirmed or blocked outcome. Preserve yes-delete consent, Timeshift marker/source proof, newest/common-parent/protected dates, successful-sync-only extras, repeat absence/identity checks, shared deletion engine and retry state behavior. Forecasted paired dates are excluded from extra estimates to avoid double counting expected successful paired cleanup.
+- Derive overall expected/completed/remaining steps from complete transferred dates plus confirmed cleanup date jobs. Counts are equally weighted work units, not bytes or time estimates. Keep total unknown if a component is unknown. Preserve completed work while pending plans shrink/grow; retain unknown/unchecked/blocked cleanup as monitor incomplete and do not replace last success. CLI exit/completion notification behavior remains unchanged.
+- Enable optional live monitoring for standalone real prune after the same exclusive flock, with operation=prune, zero transfers, whole-CLI runtime and duplicate-launch isolation. Sync/prune share one config device/current/latest-result and successful-operation history. Dry-run prune still takes no lock, mutates no state and emits no live status; standalone extras remain skipped without successful sync in the invocation.
+- Extend the manufacturer-only Markdown card with cleanup and combined bars, confirmed/current expected counts, evaluated/blocked statistics, initial versus current totals and active cleanup date/group/item number. Preserve existing transfer metrics and compatibility with scripts lacking new fields. Round percentages down so incomplete large queues cannot display 100 percent; known no-op remains 0/0 with no percentage.
+- Update current README/INSTALL, all eight complete config examples, CLI descriptive help, config audit, both full code-map mirrors and both full version-ledger mirrors. Preserve the supplied disclaimers. Add isolated accounting/forecast/real guarded-prune/one-sided-repository/lock/interruption/card regressions; record full suite, compilation, help/profile/template and original/prior manifest verification in RELEASE_VERIFICATION.md.
+- Keep transfer byte measurement, average/runtime logic, config option values/schema, requirements, legacy completion-message construction, restore, native deletion, transport and state schema unchanged. No dependency, CLI command/flag or new configuration option is introduced. Current Python source is the verified app; the original executable still requires its missing runtime or a rebuild.
+
+## 0.2.5 — 2026-11-13
+
+- Increment 0.2.4 by exactly 0.0.1; retain complete previous history and the patch-99 rollover policy. Update package/test/helper metadata, current docs and all eight complete config examples.
+- Add strict [mqtt_monitor].manufacturer, default TimeShift-BTRFS-Sync, as a shared group label. Require a nonempty control-free string and trim outer whitespace. Publish the configured manufacturer on every existing discovery device; do not include it in job identity, topics, sensor IDs or retained-history keys. Multiple machines/configs can share a manufacturer without merging their job records. Changing it updates discovery on the next real monitored run.
+- Add live_preview_role to HA attributes for status, last_result and last_success using discovery json_attributes_template. Preserve every incoming metric and existing MQTT payload/state/value-template/topic behavior. Role discovery now works with both entity IDs and friendly names completely renamed; legacy labels/suffixes remain supported.
+- Make the manufacturer's single variable the only group selection in the Markdown card. Derive the heading, jobs, statistics, names, runtime, metrics and success/error details from matching devices. Use exact registry matching and deduplicate per device; payload manufacturer values cannot cross the group filter. Preserve independent live/retained state and run-ordering behavior for multiple jobs.
+- Support compatible snapshot, dataset and generic job metric names/units and ended_at/completed_at/finished_at timestamps within the same card. Missing/unsupported values stay unknown; a shared manufacturer does not translate arbitrary incompatible schemas or recreate an unlimited historical run log. Preserve last-success retention, actual-byte measurement, whole-script average/runtime and dynamic snapshot plans unchanged.
+- Update README/INSTALL/config comments/help/config audit/code map with a concrete shared-group example, one-line card change, discovery refresh and role/schema compatibility guidance. Keep current README free of historical release notes, preserve both disclaimers and all original/prior files, and synchronize uppercase/lowercase ledger and map copies.
+- Add ten regressions: default/custom/invalid manufacturer handling; stable discovery IDs/topics under a group rename; one-variable selection of multiple jobs with independent runtimes; strict registry filtering; fully renamed sensors; role precedence over misleading labels; dataset/generic metrics; and Jinja rendering of discovery role attributes with original metrics preserved. Full suite, compile/help/profile/template and original/prior ZIP manifest checks are recorded in RELEASE_VERIFICATION.md.
+- Backup/restore/retention/byte measurement/transport/deletion/lock/state logic and completion notifications are unchanged. No dependency, command or CLI flag is added. Preserve the original executable; it still needs its omitted runtime or a rebuild, so current source is the verified entry point.
+
+## 0.2.4 — 2026-11-13
+
+- Increment 0.2.3 by exactly 0.0.1; preserve complete prior history and patch-99 rollover. Align package/test/helper metadata, doc headings and all eight complete configuration examples.
+- Add one manufacturer-based Home Assistant Markdown card for all discovered jobs: running/successful/failed/other counters, sorted backup names, current snapshot/payload, phase, completed/expected/failed/skipped dates, actual transferred bytes so far, whole-script run average, runtime, heartbeat, independent last-success time and latest result/error. Reuse existing manufacturer TimeShift-BTRFS-Sync and discovery; preserve the original per-job dashboard and add its new sensor rows.
+- Add strict [mqtt_monitor] measure_transfers=true and progress_interval=1 options. Only a real monitored sync inserts an actual-byte stream relay after mbuffer or directly after Btrfs send stdout. Linux splice keeps bytes in kernel pipes; a bounded-copy fallback is available. Preserve binary stream bytes and all send/buffer/receive return-code/error checks. Observer errors cannot break I/O; transport/relay truncation cannot count as a successful backup. Reap all pipeline processes, including the independent buffer session, on interruption.
+- Accumulate actual traffic across payloads and failed/retried attempts without double counting, subtracting invalidated bytes or resetting on snapshot counter updates. Exact measured final payload sizes replace rounded mbuffer totals only when measurement is active. No file-size guessing, second Btrfs send, preflight traffic or SSH framing is counted. Disabling measurement preserves direct-pipe legacy accounting; broker work stays on the existing bounded monitor worker.
+- Compute each live packet's run-average speed as cumulative streamed bytes divided by whole CLI elapsed time. Start before argument/config loading and path preparation; include inventory, Timeshift waits, sends, cleanup and completion notifications; freeze at finalization before the report's own bounded MQTT drain and interpreter teardown. Snapshot totals remain completed dates plus the existing refreshed retention-selected remaining plan; source deletion/tag changes replan at safe date-boundary/recovery checkpoints.
+- Add retained /last_success, updated only by successful real runs, and HA last-success timestamp plus run-average sensors (fourteen total). Preserve all previous sensor IDs/topics, completion messages and notification filters. Later failed/interrupted/incomplete runs and duplicate launches cannot overwrite last-success history. Retained/live run IDs and started_at ordering prevent an older result from masking a known unfinished newer run.
+- Add offline card regressions for manufacturer/deduplication, first runs, renamed IDs/names, aggregate counts, stale/live/retained ordering, heartbeat loss/idle expiry, unknown/no-op/partial metrics, snapshot/payload/finish/error fields and durable last-success rendering. Add real binary subprocess/splice/copy/buffer/callback/failure/interruption tests and controlled-clock/cumulative-retry/retained-success tests. No test-only Jinja dependency is added to app requirements.
+- Update current README/INSTALL, config comments, CLI help, config audit and complete symbol/command map; synchronize uppercase/lowercase documents and preserve both supplied disclaimers. No Timeshift/source retention permission, native UUID/layout/ownership/readonly proof, restore policy, deletion consent gate, state schema or backup transport direction is changed.
+- Preserve every file from source 0.2.3 and the supplied ZIP; package the full project with original/prior SHA-256 manifest comparisons, compile/help/profile/suite/template checks and cache/temp exclusions. RELEASE_VERIFICATION.md records actual totals and limits. The unchanged original executable still lacks its supplied _internal runtime; run current source or rebuild.
+
+## 0.2.3 — 2026-11-13
+
+- Increment source version 0.2.2 by exactly 0.0.1. Keep the existing patch-99 rollover policy (`0.0.99 → 0.1.0`) and complete prior ledger. Update pyproject/package metadata, the existing release-version assertion, all eight config version headers, current documentation headers, and the standalone shell helper's release label. The bundled original executable remains byte-identical. The original docs label it 0.1.84, but its --version check fails because the supplied archive lacks the required `_internal` runtime (including libpython3.14.so.1.0). Correct current usage docs to direct users to source/rebuild; its executable version remains unverified.
+- Correct `sync --limit` help and README to describe the existing soft payload limit checked between complete snapshot dates: a date with `@` and `@home` may send both with `--limit 1`. Only the argparse help string changes; transfer/queue/retention behavior is unchanged. Reuse the current parser for complete command flag tables.
+- Complete the current README reference with all seven `[mqtt_monitor]` settings and their defaults/validation, the `list-snapshots` flag table, job-name fallback, optional MQTT dependency interactions, and the effective `default_dry_run`/`--run` rules. Keep README focused on current usage and preserve both supplied disclaimers verbatim.
+- Preserve original uppercase VERSIONING.md and COMMENTED_CODE_MAP.md; add full synchronized lowercase versioning.md and commented_code_map.md as explicitly requested. Refresh the map's current behavior notes and all-command flag appendix; verify every runtime/build/test symbol and line reference. Label the supplied nested-document audit as historical where it describes the former absence of lowercase copies.
+- Preserve every one of the supplied archive's 104 files, all original integrations, requirements, license and executable. No backup, restore, retention, configuration schema/default, lock, transport or deletion logic is changed. All eight configs keep their complete option coverage and identical parsed values.
+- Replace the current release verification report with checks actually run for this release. Add RELEASE_MANIFEST.json with original/release SHA-256 file records, original ZIP hash, preserved file modes, and explicit unchanged/modified/added/removed lists. Package the full project, exclude Python/build/cache/temp artifacts, and compare the final archive to the supplied archive and fresh extracted contents.
+- Verification: Python 3.14.4 baseline and final regression suites, compile checks outside the release tree, global/all-subcommand help/version checks, all eight generated/loadable profiles, helper syntax/help/version, source-body invariance and original/final ZIP integrity/manifest checks. Full results and untested live integrations are recorded in RELEASE_VERIFICATION.md.
+
+## 0.2.2 — 2026-10-19
+
+- Increment 0.2.1 by exactly 0.0.1. Preserve all prior uppercase version history, original necessary files, requirements, executable and supplied disclaimers.
+- Add optional independent [mqtt_monitor] with strict validated enabled/topic_prefix/heartbeat_interval/expire_after/discovery/discovery_prefix/events options. Defaults: disabled, 60-second heartbeats, 180-second expiry, discovery/events on when enabled. Reuse existing [mqtt] broker/auth/QoS/timeout independently of completion enablement/topic/retain/filter settings. Missing job names now fall back to the config filename.
+- Add monitor.py with canonical-config-path plus hostname identity, unique run IDs, UTC timestamps, thread-safe coalesced progress, bounded events and a daemon publisher. Activate only inside the existing real-sync exclusive lock. Publish non-retained live status/events and retained last_result; duplicate launches emit events only. Dry-run/other commands do not publish live status. Heartbeats continue during long sends and Timeshift waits. Broker, import and worker errors cannot fail a healthy backup; final drain is bounded to one second and cancellation prevents subsequent publishes after its deadline, including a slow connection completing later. Keep actual failures/interruption/unfinished counters truthful.
+- Count complete snapshot dates separately from payload sends: all configured payloads and info.json must succeed before a date completes. Initial totals reuse the existing metadata inventory/queue without any byte preflight. Refresh the complete source inventory after each successful real date and reuse existing retention selection/queue construction for remaining work. Preserve completed-date history across flag changes/source expiry/new snapshots; remaining selection may shrink/grow. Respect established sync floor, already-complete copies and existing soft payload --limit boundaries. Record unavailable source dates separately as skipped. Invalidate failed whole-date versions before existing recovery, without erasing unrelated completed work.
+- Drop prior in-run parent trust on absent/changed UUID/lineage or non-readonly identities after boundary refresh; retain all existing native parent/receive/safety checks, deletion consent and source retention permissions. No state schema, Btrfs/SSH protocol, restore workflow or deletion engine change. Backup phases mark inventory, transfer and cleanup; snapshot progress appears in the final summary without renaming existing payload counters.
+- Reuse broker publishing for legacy and live messages with a real Paho network loop during QoS acknowledgements, bounded TCP setup where supported, shared credentials and unique live client IDs so notifications and jobs do not disconnect each other.
+- Add retained Home Assistant Discovery for one device and twelve sensors per backup, expiring live state and durable last result. Add built-in-card dashboard and optional disabled heartbeat-loss/long-runtime automation examples. Update current-use README, INSTALL, all eight complete configs, CLI help, uppercase code map, config audit and public-surface/schema tests.
+- Add progress, lifecycle, config, identity, discovery, heartbeat, broker failure, bounded drain, duplicate lock, dry-run isolation, QoS and actual sync/state/queue regressions with simulated storage boundaries. Include a 22-date workflow, changed completed tags, growing/shrinking queues, source expiration, two-payload soft limits and payload/metadata failures. Verification and package manifest comparisons with the original and 0.2.1 are recorded in RELEASE_VERIFICATION.md. Live Btrfs/Timeshift/SSH and installed Home Assistant/broker tests remain unverified.
+
+## 0.2.1 — 2026-10-13
+
+- Increment the current source version from 0.2.0 by 0.0.1; retain the complete previous uppercase version ledger.
+- Recognize only Timeshift's exit-1 startup lock denial with its reported PID. Retry every 60 seconds until the lock is available, without imposing a timeout, signaling a process or removing Timeshift locks. Treat the lock as Timeshift busy: a scheduled snapshot or open GUI may hold it. Ctrl+C propagates to existing CLI interruption handling (exit 130 and normal app lock unwinding).
+- Wrap the full existing local/SSH source inventory builder in the shared wait helper. Discard every busy attempt and reconstruct Timeshift names/tags/comments, readable info.json, snapshot_root/cache_root Btrfs UUID/readonly indexes and source identity. Local mode reads Btrfs/JSON only after a successful Timeshift list. Transfer selection and required source-change recovery receive fresh views, including new dates, expired dates and O/H/D/W/M/B changes. Waiting does not consume source-change retry events.
+- Reuse the same narrow startup-denial helper for standalone source listing, test-source and on-demand creation, including creation after an initial inventory/readiness race. Existing sync post-create refresh remains intact. Do not retry unrelated permission, transport, Timeshift or partial-creation failures. Do not replay combined destructive Timeshift delete-plus-verification commands. Diagnostic list-snapshots keeps its existing native Btrfs/JSON fallback.
+- Update current README, INSTALL, canonical COMMENTED_CODE_MAP, config/CLI audit, all eight complete example comments, sync --help and source/build version metadata. No new config setting, dependency, sudo program, state schema, transfer protocol, retention permission or deletion engine is introduced. Preserve original necessary files, executable, requirements and supplied disclaimers.
+- Add regression coverage for exact startup-denial recognition, repeated minute polls, cancellation, local/SSH complete refresh, refreshed retention/tag/date/UUID selection, unrelated-error propagation and destructive-command non-replay. Compile/help/config checks, dual Python suites, CLI fixtures and clean original/prior ZIP manifest comparison are recorded in RELEASE_VERIFICATION.md. Live scheduled Timeshift/Btrfs/SSH concurrency and executable/dependency builds remain untested.
+
+## 0.2.0 — 2026-10-13
+
+- Increment 0.1.99 by 0.0.1 using the required patch-99 rollover into the next minor version; no 0.1.100 is created.
+- Remove the lower date bound from destination-only redundant cleanup. Check every untracked/unprotected calendar-valid Timeshift date no newer than the newest complete live UUID-confirmed state pair, including old leftovers preceding the oldest retained pair. Dates after that newest confirmed pair remain untouched for future transfers. Source cache cleanup already used the same upper-only date policy and is unchanged.
+- Preserve existing dedicated cache/destination native UUID/ID ownership, complete canonical state/cache/Received UUID anchors, native readonly subtree/lineage checks, fresh cache absence, tracked/excluded/active-parent protection, explicit consent and successful-sync gating. Reuse the existing proof/deletion engine; no new deletion path, config setting, sudo command, state schema or transfer/restore behavior is introduced. The existing independent source/destination delete_redundant_snapshots options still default true.
+- Update listing diagnostics with destination-only at/before-latest and newer-than-latest counts, distinguish older-than-first leftovers from newer protected dates, and explain the difference between the listing's physical shared range and cleanup's confirmed-state upper limit. Update current README, INSTALL, uppercase COMMENTED_CODE_MAP, current config/CLI audit, all eight example comments and CLI help/version metadata.
+- Adapt range regression expectations and add coverage for all older valid dates, UUID-invalid ownership preserving older snapshots, old exclusions/writable snapshots and dry preview protecting newer dates. CLI fixtures include an older-than-first destination leftover and a newer-than-latest destination snapshot: preview/remove only the older leftover after simulated successful sync, preserve the newer date, preserve retained UUID pairs and ordinary Timeshift originals, and report remaining parity differences honestly.
+- Preserve every prior necessary file and the original executable, requirements, complete uppercase VERSIONING history and both supplied disclaimers. Compile/help/config checks, dual Python suites, simulated restricted-reader/post-sync CLI checks and original/prior ZIP manifest comparison are recorded in RELEASE_VERIFICATION.md. Live Btrfs/SSH mutation and dependency builds remain untested.
+
+## 0.1.99 — Bounded destination-only cleanup
+
+- Fix untracked destination-only dated snapshots escaping state-based retention. Add strict boolean [destination].delete_redundant_snapshots, default true, independently configurable from both source cache switches; include it and its complete safety behavior in all eight templates.
+- After successful real sync, state reconciliation and paired retention, refresh native views and consider only calendar-valid Timeshift dates inside inclusive oldest/newest complete UUID-confirmed state-pair bounds, absent from cache and untracked/unprotected. Require native readonly snapshots or native date containers of readonly snapshot payloads; support bare and partial legacy trees while preserving writable, changed or unproven subtrees.
+- Reuse dedicated cache ownership proof and the shared native tree deletion engine. Anchor native destination root UUID/ID and complete containment to canonical state paths, full readonly sender/Received UUID pairs and fresh receiver identities. Protect source identity overlap, known source/cache streams, incomplete state, tracked dates, exclusions, incomplete-transfer parents and dates outside bounds. Recheck complete cache absence and root identity before each receiver deletion; failures/appearing counterparts block deletion.
+- Delete exact native IDs child-first with commit-after and re-prove final ID absence. No new sudo shell/file reader, ordinary recursive deletion, permissions change, Timeshift original retention expansion, state schema, transfer or restore change. Source redundant cleanup retains its existing policy. Real receiver extra cleanup also requires requested sync cleanup and --yes-delete; standalone prune previews in dry-run and skips extras in real mode.
+- Add separate destination redundant candidate/attempt/completed/blocked/skip counters; aggregate destination summaries include one-sided cleanup without increasing paired/state counts. Overall cleanup reports receiver confirmations and protected/retry results. Listing labels destination-only dates inside/outside the shared live range and explains that listing does not read state or authorize deletion.
+- Update current-use README, INSTALL, CONFIG_AND_CLI_AUDIT and uppercase COMMENTED_CODE_MAP with both sides, independent options, commands, proof requirements and limits. Preserve complete previous VERSIONING history, requirements, original necessary files/executable and supplied disclaimers.
+- Add destination regression coverage for default/strict options, bounded names, missing/partial caches, known stream identities, tracked/excluded dates, incomplete ownership, readonly/changed roots/payloads, bare/partial layouts, cache appearance/read failure, successful-sync gating, dry-run, consent, retry and separate counters. Verify CLI listing, preview, gated standalone cleanup and simulated post-sync native-ID removal on both sides. Compile/help/config/manifest checks and dual Python suites are recorded in RELEASE_VERIFICATION.md. Live Btrfs/SSH/transfer/restore and dependency builds remain untested.
+
+## 0.1.98 — 2026-10-12
+
+- Require a successful real sync in the current invocation before real redundant-cache cleanup. Pass the gate only after sync_once returns; failed sync never calls prune. Verified no-op sync can qualify. Standalone prune dry-run previews extras, while standalone real prune keeps existing paired retention and reports why extra cache cleanup was skipped.
+- Refresh physical cache/receiver views after paired retention. Prove dedicated native cache root UUID/ID and full containment, reject protected Timeshift native identity overlap, and match canonical complete cache-backed state paths and readonly send/Received UUID pairs. Missing anchors, incomplete transfer state or incomplete/changed identities preserve data.
+- With delete_redundant_snapshots=true and the existing master/consent switches, remove untracked stale dated RO native snapshots or native date containers of RO snapshots no newer than the latest confirmed pair, including older-than-first retained and partial/legacy layouts. Preserve tracked/protected/newer dates, referenced parents, existing/uncertain receivers and writable/foreign/changed subtrees. No destination or Timeshift original is removed by extra cleanup.
+- Under that explicit native ownership authorization, ordinary cache listing/JSON/file-entry access is not required. Authorized Btrfs date-tree contents are removed with their subvolumes. Add a narrowly scoped NativeCacheDeletionProof option to the shared tree engine; retain existing ordinary-entry safeguards for every other caller. Recheck exact subtree UUID/ID/RO lineage, delete deepest-first by numeric IDs with --commit-after, and confirm final IDs absent through the unchanged surviving cache root. No generic privileged reader, ordinary recursive deletion, ownership or permission change is introduced. Unsupported ID-delete flags and failed/partial verification retain retry errors.
+- Preserve numeric IDs in the existing inventory parser so list and show proofs agree. Add gate/skip reporting to source cleanup summaries; update CLI help, current README/INSTALL/config audit, all eight examples, canonical code map and version metadata. Keep all original necessary files, previous ledger history, disclaimers, requirements and original binary.
+
+## 0.1.97 — 2026-10-12
+
+- Add a read-only cache/destination comparison to list-snapshots: physical totals, shared dates, all-configured readonly send/Received UUID matches, every cache-only/target-only/unproven shared date, and cache-only dates inside/outside the proven shared-pair range. Incomplete discovery is labeled rather than treated as proof of absence. Tag changes do not affect UUID identity. Disabled cache is explicitly reported.
+- Add --check-pairs for an optional exit-1 cache/destination parity check; the comparison is always displayed. Default exit codes still describe required inventory reads. No state read/write, lock, transfer, cleanup, generic sudo reader or notification is added.
+- Treat df filesystem type '-' as unknown, not as evidence of a non-Btrfs filesystem. Prefer native filesystem-show identity when available; otherwise use the existing configured Btrfs usage reader. Preserve df space values when native identity proves the type, and retain wrong-filesystem checks for actual non-Btrfs types.
+- Keep reconciliation, retention and all deletion protections from 0.1.96 unchanged. Explain the user's 36-cache/17-destination sample: all 17 destination dates are shared and 19 July cache-only dates fall inside the observed destination range. The pasted tables alone do not establish UUID identity, app ownership, state protections or which cleanup gate prevented deletion.
+- Update current README.md/INSTALL.md, canonical COMMENTED_CODE_MAP.md, config/CLI audit, all eight example version headers, package/helper/source version metadata and release verification. Preserve original files, previous VERSIONING.md history, supplied disclaimers, requirements and original executable.
+
+## 0.1.96 — 2026-10-12
+
+- Extend existing _recover_state_from_existing_destination to reconcile missing dates in populated state instead of returning early. Adopt a complete configured date atomically only after every live source/cache and receiver payload is readonly and exact send/Received UUIDs match canonical same-date paths. Preserve existing complete/partial records. Recovered cache lineage must match any current original; expired originals use genuine cache Parent UUID plus ordinary saved-target JSON for retention metadata. Missing/invalid metadata, unknown original identity, changed originals, incomplete inventories or partial/mismatched pairs are preserved without adoption. Stop inventing historical parent chains; recovered parent fields are null. Dry-run updates memory only; real runs save repaired state before subsequent decisions.
+- Reuse listing's scoped Btrfs discovery to capture nested date-container payloads before reconciliation and pass refreshed indexes to sync-floor validation. Reject known Timeshift/configured-root filesystem UUID mismatch before state or deletion decisions, refresh original/cache/destination native views, and reapply the existing destination layout guard to refreshed views; ordinary/symlinked or unverified destination date containers are not adopted. Add reconciliation.py to orchestrate fresh source/destination observations before CLI prune and reuse the existing full-pair recovery function. Standalone CLI prune now reuses metadata from that validated inventory and the existing metadata-refresh helper, rather than saving a separate earlier Timeshift read before root identity checks. No names-only matching, unsupported-schema bypass or overwrite of existing state identity records was added.
+- Add strict boolean [source].delete_redundant_snapshots, default true including omitted legacy configs; include it in all eight complete config profiles. During standalone prune or requested sync cleanup, first reconcile pairs and apply paired retention, then consider untracked cache-only dates within oldest/newest complete live state-pair bounds. Existing cleanup_superseded_cache remains the master switch and --yes-delete remains mandatory. The configured cache_root must be dedicated app-owned per-job storage. Ordinary Timeshift retention remains Timeshift-managed; new cleanup never deletes a destination date or original snapshot, and outside-window caches remain untouched.
+- Protect tracked/explicitly protected dates and incomplete-transfer parent references. Require provable destination absence, repeat absence immediately before deletion, reject unreadable paths/symlinks/unknown ordinary entries, re-prove native cache container and readonly child UUID/Parent UUID identities, and compare known same-date original lineage. Invoke the shared tree engine with exact allowed payload paths, info.json allowance, unexpected-subvolume refusal and final absence verification. Blocked or failed dates remain for retry.
+- Add separate redundant-cache outcome/status fields to PruneResult and source summaries; aggregate cache counts include extra cache-only work while paired destination/state deletion counts remain unchanged. Overall cleanup exposes redundant confirmations and labels protected/retry outcomes when cache deletion is incomplete. No state schema/version, transfer protocol, native restore, locking or notification transport change was introduced.
+- Increment source/package/helper/test/config version from 0.1.95 to 0.1.96 by 0.0.1; update current root README.md, INSTALL.md, CONFIG_AND_CLI_AUDIT.md, canonical COMMENTED_CODE_MAP.md and CLI help. Preserve both disclaimers, complete original/root version history, all prior necessary files and unchanged original 0.1.84 executable. Requirements/MQTT/PyInstaller dependencies remain unchanged. Add repository reconciliation regressions and verify a real dry-run CLI using simulated Btrfs/Timeshift readers and actual ordinary JSON/directory files. Detailed checks and live-operation limits are in RELEASE_VERIFICATION.md.
+
+## 0.1.95 — 2026-10-12
+
+- Make Timeshift --list the primary source-table metadata reader: Timeshift already reads tags/comments from info.json, so skip redundant source control-file reads for its dates. Continue physical Btrfs discovery independently. Read source JSON without sudo for omitted dates, failed Timeshift listings, or known Timeshift/configured-root filesystem mismatch; preserve the existing mismatch/unconfirmed-row diagnostics.
+- Cache and target tables continue reading their own regular info.json without sudo on the correct local/SSH endpoint, preserving their stored O/H/D/W/M/B tags/descriptions instead of replacing them with current source flags. Existing absent-file/expired-original fallbacks, strict full-pair readonly UUID proof, unknown metadata labeling, section order, df/Btrfs space readers and configured Btrfs/Timeshift-only sudo behavior remain intact. No new permission, config option or command flag is required.
+- Reuse the physical repository scanner with an optional read_info flag, defaulting to true. Only source inventory explicitly skips file contents already represented by Timeshift. Restore retains the default original control-file reads and identical physical entry discovery. No transfer, retention, deletion, restore mutation, state, locking or notification behavior is changed.
+- Increment source/package/helper/test/config metadata by 0.0.1 from 0.1.94; update current README.md, INSTALL.md, CONFIG_AND_CLI_AUDIT.md and canonical COMMENTED_CODE_MAP.md. Preserve every prior project file, both disclaimers, uppercase root documents, requirements/build dependencies and complete historical VERSIONING.md entries. Add five focused metadata/scanner regressions and an ordinary readable-file CLI fixture in addition to the protected-path fixture.
+- Verification totals and limits are recorded in RELEASE_VERIFICATION.md; compare the clean full archive against the original and 0.1.94 manifests, retain the original 0.1.84 executable and exclude caches/temp files. No live remote sudo, Timeshift inventory, transfer or restore is claimed.
+
+## 0.1.94 — 2026-10-12
+
+- Changed list-snapshots to honor existing configured source/destination sudo prefixes exclusively for Btrfs and Timeshift reads, supporting a normal service/SSH account with passwordless sudo to those programs. No sudo shell, generic file reader, df, Python or permission-changing command was introduced. Timeshift --list is invoked on the actual Timeshift endpoint; its normal temporary mounting/operational logging is documented. Application snapshot creation/deletion, transfer, restore, retention, state, locking and notification behavior is unchanged.
+- Always render Timeshift snapshots, cache_root snapshots and target_root snapshots in that order. The former --include-timeshift flag remains accepted as compatibility syntax; all three are included by default. Existing auto/backup/restore endpoint rules support all eight profiles and optional explicit direction.
+- Refactored the bounded capture mechanism into _run_batched_commands and reused existing BtrfsIndex and scoped UUID/readonly parsers for protected physical inventory. Explicitly enumerate date-container children where root-scoped lists omit nested payloads. Supplement with ordinary reads where possible, retain successful dates when another date query fails, and probe missing readonly flags through configured Btrfs property get. Denied ls/JSON access does not hide Btrfs-confirmed payloads. No shared transfer/retention inventory safety implementation was changed.
+- Prefer each repository's readable regular info.json; cache-specific JSON now takes precedence when present. Source tags/descriptions fall back to current Timeshift --list if direct metadata is denied. Known Timeshift/configured-root filesystem UUID mismatch blocks that fallback. Preserve Timeshift-listed but physically unconfirmed dates as visibly unverified. Cache metadata uses same-date source observations when its own file is absent (normal app-created caches do not automatically contain info.json). For expired originals or unreadable target metadata, permit borrowing only when every configured live readonly payload has matching send/received UUID identities, using the existing send_stream_uuid helper. Label metadata origins and keep unresolved values unknown; do not fabricate state metadata or broaden JSON access permissions.
+- Added Btrfs filesystem show UUID/device observations and a filesystem usage -b fallback when ordinary df cannot traverse a protected root. Prefer statfs availability; if unavailable reuse the conservative estimated-free parser. Label the provider and unavailable mount/percentage instead of inventing df figures. Reuse existing byte formatting. Disabled cache remains a separate section with source filesystem space.
+- Updated current README.md, INSTALL.md, canonical COMMENTED_CODE_MAP.md, config/CLI audit, all eight config headers/usage comments, existing sudoers explanatory comments and source/helper/package/version-test metadata by 0.0.1 from 0.1.93 to 0.1.94. The original sudoers permissions and all original necessary/prior release files are retained; no removed nested/lowercase duplicate was reintroduced. Added restricted-account regression tests and adapted earlier inventory tests to the new order and cache-own metadata precedence.
+- Verification includes compile/help/version/profile/manifest checks and restricted-reader simulations for denied JSON/ls, Timeshift fallback/failure, nested Btrfs enumeration, all profiles/endpoint directions, readonly full-pair UUID borrowing, invalid or missing siblings, filesystem mismatch, protected-root space fallback, file symlink refusal and partial date-query failures. Exact totals and untested live remote/privileged operations are recorded in RELEASE_VERIFICATION.md. The original executable remains 0.1.84 pending rebuild.
+
+---
+
+## 0.1.93 — 2026-10-12
+
+- Added list-snapshots --config FILE to report both physical source send-cache and destination backup repositories in Timeshift-style Num/Name/Tags/Payloads/Check/Description tables with independent device, mount, filesystem type and df total/used/available space. Optional --include-timeshift adds ordinary source Timeshift snapshots. --workflow auto|backup|restore resolves local/SSH endpoint ownership; auto selects non-local restore rules, otherwise backup rules. All eight existing profiles remain supported without new config keys.
+- Added listing.py using the existing CommandEndpoint/SourceRunner transports, BackupRepository endpoint selection, topology descriptions, physical date/info.json scanner with an empty privilege prefix, BtrfsOps argv construction. Btrfs property get -ts PATH ro probes run in bounded batches per repository over SSH without temporary files, avoiding per-argument shell limits for large repositories. Configured sudo prefixes are always ignored. No Timeshift command, mount, snapshot creation/deletion, transfer, app lock/state/log or notification action is performed. Invoking local/SSH account permissions are retained without elevation.
+- Read current original Timeshift info.json for cache tags/comments; missing originals show unknown metadata while retaining physical cache rows. Destination uses its own stored info.json. Parse named and letter retention tags correctly, including weekly/monthly and no invented O tag from hourly. Sanitize terminal control characters. Display incomplete/permission-denied/symlink entries and distinguish verified dates from unverified directories. Complete refers only to configured payload presence, not restore eligibility. A failed side does not suppress the other side; command exits 1 after the report. Unknown metadata alone does not fail; disabled cache uses source snapshot-root filesystem space. df reports availability, not snapshot size or guaranteed receive capacity.
+- Updated current README.md and INSTALL.md with command flags, examples, all backup/restore host mappings, non-root dependencies/permissions, exit/status/count semantics, unknown metadata, shared filesystem space and the preserved original binary limitation. Updated root CONFIG_AND_CLI_AUDIT.md and regenerated the canonical COMMENTED_CODE_MAP.md for every function/command. Updated all example headers and package/pyproject/helper/test version metadata by 0.0.1 from 0.1.92. All original necessary and prior release files are retained; ordinary Timeshift retention and existing transfer/restore/deletion safety behavior are unchanged.
+- Added regressions for all eight profiles and explicit restore topology, named/compact/invalid tags, terminal controls, paired counting, missing/denied payloads, symlinks, expired originals, disabled/empty/missing repositories, endpoint independence, read-only CLI behavior, df parsing/quoting, real unprivileged local directory/df reads and batched Btrfs command/protocol behavior. Compile/CLI/config and full ZIP manifest checks are recorded in RELEASE_VERIFICATION.md. Local non-root Btrfs property and df probes were verified against an existing mounted subvolume; subvolume show failed with Operation not permitted and was replaced in this listing only by property get. Ordinary directories were rejected by the property read. No live Timeshift repository inventory, SSH integration, transfer or restore is claimed; the executable remains preserved until rebuilt.
+
+---
+
+## 0.1.92 — 2026-10-12
+
+- Extended PruneResult with independent destination and app-owned source-cache attempted/completed counters, cache enablement/candidate counts and a separately labeled Timeshift app-original completion count. Updated existing prune action handlers to record a side's confirmed success even when a later phase fails and state must remain for retry. Count units are snapshot dates, not payload subvolume counts; already-absent paths can be confirmed gone.
+- Added the shared format_prune_cleanup_summaries renderer. Both sync's final overall cleanup output and standalone prune reuse it to show DESTINATION CLEANUP SUMMARY and SOURCE SEND-CACHE CLEANUP SUMMARY with candidates, attempts, confirmed absence, pending/skipped and status. Disabled cache cleanup, direct Timeshift sends, dry-run, unrequested cleanup and missing/failed results are labeled accurately. Cache statistics cover the retention pass only.
+- Renamed ambiguous overall source labels to Timeshift app candidates/authorized/confirmed gone and stated that ordinary source snapshots remain managed by Timeshift. Kept existing completed paired/state and source-only item accounting and all state-removal safety gates. Destination/cache/source Timeshift deletion ordering, confirmations, ownership checks, read-only/UUID protection, retry behavior and permissions are unchanged.
+- Updated current README output/log/mail ordering and count semantics, root code-map function/command explanations and the current config/CLI audit. Documented Git ignore diagnosis and force-staging only the five example configs in INSTALL.md after the user's report. Confirmed an obsolete nested .gitignore reproduces the issue and normal git add -A includes the examples in the clean project; no new nested ignore file was introduced.
+- Added regression coverage using existing fixtures for independent side accounting, @/@home counting once, later cache/destination failures, disabled cache cleanup, protected direct sends, blocked source authorization, app-original counts, prune aggregation, dry-run, unknown results and unrequested cleanup. Extended final log/mail ordering assertions to include the destination and source-cache blocks.
+- Incremented source/pyproject/helper metadata, all config example headers, current documentation and the existing version expectation by 0.0.1 from 0.1.91 to 0.1.92. Full MQTT/PyInstaller requirements and all original necessary files remain present. Canonical documents remain at the root without lowercase/package-local duplicates.
+- Ran tests, compile, CLI/config/helper, actual Git staging and archive/manifest verification. Precise counts and limits are in RELEASE_VERIFICATION.md. No live Btrfs/Timeshift/SSH operations or new executable build is claimed.
+
+---
+
+## 0.1.91 — 2026-10-12
+
+- Changed requirements.txt from the core-only -e . entry to -e .[mqtt,pyinstaller], as explicitly requested. A normal requirements-file install now installs the project, paho-mqtt, PyInstaller and their resolved dependencies. The project's existing pyproject.toml extras and build-system declarations remain authoritative; no duplicated dependency list or invented runtime module was added.
+- Updated INSTALL.md and README.md to describe the full venv, verify imports for both modules and build the executable with --with-mqtt so the lazily imported MQTT library is included. Updated the executable-build preparation section to use the requirements file. Smaller core/MQTT-only/build-only installs remain documented alternatives. Installing MQTT does not change its configuration enablement or application safety behavior.
+- Updated the canonical COMMENTED_CODE_MAP.md with full environment/install/build commands and purposes, and the current config/CLI audit summary. Incremented package/pyproject/helper metadata, all config headers, existing version expectation and current documentation references by 0.0.1 from 0.1.90 to 0.1.91.
+- Preserved every prior release file and the original necessary files. No duplicate lowercase/package-local documents were reintroduced. All runtime Python modules other than version metadata are unchanged; backup, restore, retention, UUID/read-only, deletion and locking logic are unchanged.
+- Checked requirements parsing, extra/dependency metadata and both-MQTT executable argument construction, plus tests, compilation, CLI/config and ZIP manifest checks. Dependency downloads, full dependency installation and executable construction were not performed in this environment; precise results and limitations are recorded in RELEASE_VERIFICATION.md. No live snapshot or notification operation is claimed.
+
+---
+
+## 0.1.90 — 2026-10-12
+
+- Added root requirements.txt for virtual-environment installation. Its -e . entry installs the existing project and ts-btrfs command using pyproject.toml as the authoritative metadata; no duplicate dependency list or new mandatory dependency was introduced. The core app uses Python's standard library, and MQTT/PyInstaller extras remain optional.
+- Updated root README.md and INSTALL.md with Python 3.11+ venv creation/activation, python -m pip install -r requirements.txt, pip check, optional MQTT/build extras, reactivation/deactivation, project-root requirements resolution and editable-install path behavior. Clarified that pip does not install required external system commands. Corrected a stale README PyInstaller statement from three profiles to all eight current profiles.
+- Updated the root COMMENTED_CODE_MAP.md with environment/setup commands and their purpose, and the current CONFIG_AND_CLI_AUDIT.md summary with installation metadata. Canonical capitalized documents remain at the root; lowercased and package-local duplicates remain absent.
+- Incremented package/pyproject/helper metadata, all config example headers, existing release-hygiene version expectation and current documentation references by 0.0.1 from 0.1.89 to 0.1.90. All backup, restore, retention, parent-selection and safety logic is unchanged; original required files remain present.
+- Verified the requirements file in a temporary venv using available local build tools, and ran compile, tests, CLI/config and manifest/archive checks. Precise installation checks and limitations are recorded in RELEASE_VERIFICATION.md. No live Btrfs/Timeshift/SSH operation or newly built executable is claimed.
+
+---
+
+## 0.1.89 — 2026-10-12
+
+- Compared the original package-local COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, INSTALL.md, LICENSE, README.md, VERSIONING.md and .gitignore against their root counterparts. All seven nested files were already removed by the authorized 0.1.87 cleanup; verified they remain absent. Root documents are canonical and lowercase ledger/map duplicates remain absent.
+- Confirmed the entire original nested VERSIONING.md is present verbatim within the root history, with no missing entries or change descriptions. LICENSE is byte-identical. All nested audit nonblank lines are retained in root audit notes. Reviewed changed README/INSTALL passages: they reflect newer profiles, transfer accounting, capacity checks, lineage/retention checks, current help and the supplied disclaimers rather than lost guidance. The root code map covers all current functions, methods and commands instead of restoring obsolete line references.
+- Added NESTED_DOCUMENT_AUDIT.md with per-file comparison results and package-layout verification. Updated CONFIG_AND_CLI_AUDIT.md's current summary and clearly labeled its preserved historical notes so earlier versions are not mistaken for current behavior.
+- Updated root .gitignore to allow pyproject.toml and all five newer example-config-*.toml files, retaining the original example exceptions and runtime/cache exclusions. Expanded root INSTALL.md with generation commands and frozen-package verification for all eight supported profiles.
+- Incremented source package, pyproject/helper metadata, config example headers, existing release-hygiene version expectation and current README/INSTALL/code-map references by 0.0.1 from 0.1.88 to 0.1.89. Backup, restore, retention and safety logic are unchanged. LICENSE remains unchanged.
+- Packaged and verified the full project against the original archive and 0.1.88, retaining every prior file and allowing only previously authorized original omissions. No new deletion was necessary because the specified nested files were already absent. Compile, tests, CLI/config, Git ignore checks and archive results are recorded in RELEASE_VERIFICATION.md and the external manifest. Live Btrfs/Timeshift/SSH operations remain untested.
+
+---
+
+## 0.1.88 — 2026-10-12
+
+- Retained the original capitalized VERSIONING.md and COMMENTED_CODE_MAP.md as the sole version ledger and code map. Verified that lowercase versioning.md and commented_code_map.md were byte-identical before removing them at the user's explicit request; no history or function explanations were lost. Checked the complete project for other filenames differing only by capitalization; no other duplicate pairs existed.
+- Updated the canonical VERSIONING.md with all changes in this release and the canonical COMMENTED_CODE_MAP.md with the current version and document ownership. README identifies the canonical documentation filenames and continues to describe current usage only. Previous historical entries remain intact.
+- Incremented the source package, pyproject metadata, standalone shell helper, all eight config example headers and existing release-hygiene version expectation by 0.0.1 from 0.1.87 to 0.1.88. Updated README/INSTALL current-version references. The Python build helper and CLI use the shared package version.
+- Backup, restore, retention, parent selection, deletion and locking logic are unchanged. All other necessary original files are preserved, including the original 0.1.84 executable. No live snapshot operation or rebuilt executable is claimed.
+- Packaged the full project without the two lowercase document duplicates or caches/temporary files. Verified the manifest against the uploaded original and 0.1.87; the earlier authorized nested-source removals and temporary marker exclusion remain recorded. Compile, basic CLI/config and test results are in RELEASE_VERIFICATION.md and the external manifest.
+
+---
+
+## 0.1.87 — 2026-10-12
+
+- Removed the older nested 0.1.75 application at timeshift_btrfs_sync/timeshift_btrfs_sync/ at the user's explicit request. Removed its duplicate package-local docs, tests, build/support helpers, integration copies, LICENSE and .gitignore: 52 files total. Every removed item is listed in REMOVED_NESTED_SOURCES.md and the release manifest.
+- Retained the active first-level package, all eight current config examples, root-level tests/docs/helpers/license/systemd/sudoers files, Home Assistant example and original executable. Previous release ZIPs and the uploaded archive are unchanged. Backup/restore/retention/safety implementations are byte-identical to 0.1.86.
+- Incremented active package/pyproject/helper metadata and all config example headers by 0.0.1 to 0.1.87. Updated the release-hygiene version expectation; CLI --help and --version keep using the shared current version.
+- Updated root README and INSTALL for the single current package layout, retained both user disclaimers verbatim, updated current audit pointers, and regenerated both identical code maps for the remaining functions/commands. Both version ledgers remain identical and retain previous history.
+- Added the complete removal/location report. Packaged and verified the full cleaned project against both the original upload and 0.1.86, allowing only the explicitly requested duplicate removals and the previously excluded empty runtime marker. Compile/basic CLI/config/tests and archive hygiene results are in RELEASE_VERIFICATION.md and the external manifest. The original binary remains 0.1.84; no new executable or live snapshot operation is claimed.
+
+---
+
+## 0.1.86 — 2026-10-12
+
+- Created one audit/fix release after reviewing the whole uploaded project and upstream Btrfs send/receive/kernel behavior and Timeshift snapshot creation, tagging, loading and native restore layout. Incremented active package/pyproject/example headers and the standalone helper version by 0.0.1 from 0.1.85; the preserved original binary/nested copies retain their original versions.
+- Fixed incremental parent ordering across state and filesystem candidates: search the complete candidate set newest-first. The older behavior already supported a saved hourly cache after its original disappeared; the corrected ordering concerns newer matching filesystem dates absent from state.
+- Treat missing/unreadable destination parent metadata as a rejected candidate rather than aborting the search. Try older matching dates without recreating immutable parent caches or allowing a full fallback into a pre-existing backup.
+- Removed saved-state UUID authority over live receiver identity. Matching now requires the actual destination Received UUID; parent source and receiver must have confirmed read-only status. Tightened cache lookup/state adoption to the same read-only requirement.
+- Reused the existing verified-parent selector to prove the sync floor. It now finds matching cache payloads by UUID even if the saved path is stale or the Timeshift original disappeared; whole configured snapshot pairs remain required.
+- Applied the existing shared retention selector to existing incremental destinations as well as fresh seeds. Avoid transfers of unneeded old hourlies, while retaining completed copies in the queue for current tags/comments/info.json refresh. Explicit --snapshot remains a direct selection. Recovery rebuilds use the same selection.
+- Extended build_prune_plan with an optional actual common-parent date. Before retention with deletion candidates, keep_latest_common_parent proves a complete live read-only UUID-matching pair through existing inventory and sync-floor code. Protect that pair instead of assuming the newest state date is shared; refuse cleanup when no pair can be proven. Ordinary source H/D/W/M/B retention remains under Timeshift, as requested. Existing app-created O authorization, delete confirmations and cleanup order are preserved.
+- Added an early native-restore layout guard requiring @ with optional @home. Home-only/custom payloads are refused before restore commands. Preserved hidden readonly full-seed/incremental receive, writable CoW Timeshift payloads, original info.json, collision/OS checks, typed confirmations and final Timeshift-list validation. No root/home split-filesystem support is claimed.
+- Added complete example-config-local-backup.toml, example-config-remote-pull.toml, example-config-local-restore.toml, example-config-remote-push-restore.toml and example-config-remote-pull-restore.toml under active data/. Kept all three original profiles. One CONFIG_PROFILES registry drives template selection and --help; package data includes all eight examples. Restore examples use an explicit local lock and describe endpoint/path ownership.
+- Added focused regression coverage for missing/absent hourly parents, newest filesystem vs state ordering, immutable cache reuse, relocated cache-floor recovery, stale state UUIDs, read-only proof, full-seed restrictions, actual retention-anchor protection, cleanup refusal, retained queue selection and completed metadata refresh. Added native restore guard coverage and expanded all existing profile/config-option packaging tests. Cache-specific prune fixtures explicitly disable the separate common-parent protection they do not simulate.
+- Updated current README usage/flags and all workflow examples, preserving both user disclaimer sections verbatim. Regenerated uppercase/lowercase code maps explaining all functions/commands; updated INSTALL.md and the audit notes. Added BTRFS_TIMESHIFT_AUDIT.md with research, confirmed findings, expected daily/hourly behavior and integration limitations. Uppercase/lowercase version ledgers and maps remain identical.
+- Packaged the full preserved project with cache/temp exclusions and verified archive content/permissions against the original upload and prior release. The original dist/ts-btrfs remains 0.1.84 because PyInstaller is unavailable; the current fixes must be run through Python source or a rebuilt executable. Actual Btrfs/Timeshift/SSH operations remain untested in this environment; verification details and manifests accompany the release.
+
+---
+
+## 0.1.85 — 2026-10-12
+
+- Created one maintenance release from the uploaded 0.1.84 project after inspecting its archive layout, runtime modules, shared workflows, configuration schema, CLI, test suite, build/integration helpers and nested original copies.
+- Restored the missing first-level `data/config.remote-roundtrip.example.toml` from the current sync template, using source.mode=ssh and restore.mode=ssh-target with the same SSH Timeshift endpoint. It contains every current supported config option, including transfer-size preflight and encrypted-key authentication; all three active profile headers now identify 0.1.85.
+- Updated `pyproject.toml` and the active package `__version__` to 0.1.85. Existing top-level/subcommand --version and self-contained --help remain in place.
+- Added --version to the root PyInstaller build helper using the existing package version. Added --version and explicit help descriptions to the preserved standalone deletion helper; its default preview, destination validation, privilege checks, nested-mount refusal, Btrfs deletion and ordinary-leftover cleanup behavior are unchanged.
+- Reworded one destroy-leftovers help sentence to describe recursive ordinary-file removal without embedding executable-looking shell syntax. Backup/restore/prune/cache/state/lock logic, dry-run gates, UUID checks, protected paths, confirmation requirements and retention policy were not changed.
+- Updated root README.md with both supplied disclaimer sections verbatim, current source usage, every CLI/build/helper flag, command examples, integration instructions and the distinction between active source and preserved older material. README describes current use; release history stays here.
+- Replaced the root code map with explanations of every Python class/function/method/nested callback, all application commands, standalone shell functions and integration commands. Added lowercase commented_code_map.md with identical content for the requested filename, preserving uppercase COMMENTED_CODE_MAP.md for existing references.
+- Added lowercase versioning.md with the same complete version ledger as VERSIONING.md. Existing historical entries are preserved; this entry lists all code, test, config and documentation changes for the new release. Updated root INSTALL.md and CONFIG_AND_CLI_AUDIT.md for source/binary selection and the complete active profile surface.
+- Updated root regression fixtures to the current API: transfer_size is a current module; SyncRunSummary.transferred carries the count; cache-mode tests isolate the separate manual-snapshot cleanup and pass its current deletion-handler arguments; physical restore scans use unprivileged temporary fixtures; disappearing-source tests provide an exact metadata probe. These corrections prevent unintended real SSH/sudo/Btrfs calls in the affected tests.
+- Updated the static symbol check for Python 3.14's compiler-generated __conditional_annotations__. Updated hygiene expectations to retain the independent original deletion helper and the original dist executable while continuing to reject Python/build/test caches and runtime success logs.
+- Preserved all four historical remote-lock test cases with an explicit skip when their removed API is absent. Current restore uses the configured local lock; no new remote lock or privilege requirement was introduced.
+- Kept original nested source, package-local documents/tests/helpers, systemd/sudoers files, Home Assistant example, license and original executable. The original executable reports 0.1.84 and is preserved byte-for-byte; PyInstaller is unavailable here, so it was not rebuilt and is not advertised as a 0.1.85 executable. Source invocation is the current release entry point.
+- Excluded the original empty `.succes` runtime marker as temporary run output. No other original file was omitted. Final packaging restores executable permission bits and verifies file paths, contents/hashes, archive integrity and forbidden-cache exclusions against the original archive; detailed checks and live-integration limitations are in RELEASE_VERIFICATION.md and the accompanying manifest.
+
+---
+
+## 0.1.49
+
+- Fixed shared Btrfs tree discovery after the 0.1.47 refactor. The previous one-root `btrfs subvolume list -o` plan could contain only direct date/container subvolumes and omit nested `@`/`@home` payloads, causing parent deletion to fail with `Directory not empty`.
+- Changed the authoritative `BtrfsOps.list_children()` operation to read the exact root subvolume ID and request one filesystem-wide `btrfs subvolume list -a -p <root>` containment graph. Numeric parent IDs retain only actual descendants before the central mount-aware path mapper resolves them.
+- Kept normal source/cache/destination inventory root-scoped. The full filesystem graph is used only by recursive managed-tree deletion and post-failure remaining-tree verification.
+- Preserved one endpoint command for tree discovery and one endpoint command for deepest-first batch deletion; SSH mode does not open one connection per date or payload subvolume.
+- Preserved deletion safety: protected roots, ordinary non-empty root refusal, exact confirmation validation, unexpected-content checks, remaining-tree inventory, and final root-absence proof are unchanged.
+- Added realistic regression coverage for local cache trees, destination trees, `<FS_TREE>`/remounted path prefixes, complete child-before-parent ordering, single-batch deletion, and local/SSH tree command construction and numeric-ID filtering.
+- Kept all config keys, CLI flags, state schema version 2, retention rules, oldest-to-newest sync behavior, cache reuse, UUID matching, and destructive confirmations unchanged.
+
+## 0.1.48
+
+- Fixed the real-run preflight crash after lock acquisition by restoring the shared `_parse_path_check_output()` sentinel parser removed during the 0.1.47 refactor. Local-source and SSH-source preflight now use the same defined parser for snapshot/cache root results.
+- Added a package-wide static runtime-symbol regression test so any function that references an undefined module global fails the test suite before release.
+- Corrected sync planning so every retention-selected source subvolume remains in the oldest-to-newest queue. Existing state/destination entries are again evaluated by the established live UUID, recovery, and `info.json` refresh checks instead of being prematurely filtered by the pure planner.
+- Restored prune action order to destination date tree, source cache tree, then state entry, matching the pre-refactor safety behavior.
+- Restored symlink-aware local containment checks for survivor log placement during `destroy-leftovers`; lexical POSIX containment remains reserved for source/SSH paths.
+- Tightened the shared tree-deletion engine so dry-run and real-run both refuse ordinary non-empty configured roots, and destination date cleanup rejects unexpected nested Btrfs subvolumes in addition to unexpected ordinary entries.
+- Restored conservative Btrfs list-path mapping: unmatched absolute or relative paths are no longer guessed below a configured root, while valid remount-prefix suffix matching remains supported.
+- Restored empty optional source-path normalization to the empty string instead of `.` so disabled paths cannot accidentally participate in containment checks.
+- Corrected `destroy-leftovers` dry-run reporting so a blocking safety error is printed and counted as incomplete rather than as a complete plan.
+- Removed unused refactor methods and stale imports without reintroducing duplicate Btrfs, inventory, cache, or deletion implementations.
+- Kept all configuration keys, CLI commands, state schema version 2, retention rules, oldest-to-newest transfer order, UUID safety, cache reuse, recovery, and Btrfs-only deletion behavior unchanged.
+- Added focused regression coverage for the preflight parser, undefined globals, planner queue preservation, prune ordering, symlink-aware local containment, conservative Btrfs path mapping, empty-path normalization, ordinary-root dry-run refusal, unexpected nested destination subvolumes, and destroy dry-run failure reporting.
+
+## 0.1.47
+
+- Performed a behavior-preserving architectural refactor around seven shared layers: command endpoints, Btrfs operations, coherent inventory, combined snapshot records, pure workflow planning, generic ordered execution, and shared cache/tree safety operations.
+- Replaced separate local/SSH Btrfs command implementations with `CommandEndpoint` plus `BtrfsOps`; workflow code now changes the endpoint, not the Btrfs business rules.
+- Made `inventory.py` the only source/cache/destination inventory implementation. `remote_index.py` remains as a compatibility re-export and contains no second scanner.
+- Added `SnapshotRecord` and `BackupInventory` so source Timeshift metadata, source cache, destination metadata, and `state.json` are joined once per date and consumed by planners.
+- Added side-effect-free sync, recovery, prune, and destroy action plans plus `WorkflowExecutor` for ordered execution or preview. Existing retention selection and oldest-to-newest transfer ordering are unchanged.
+- Consolidated exact cache creation/reuse into `CacheManager`, including read-only and Parent UUID validation, stale-index exact probing, concurrent creation reuse, and prevention of nested `<date>/@/@` creation.
+- Consolidated deepest-first source-cache/destination deletion, protected-root enforcement, exact confirmation validation, unknown-content refusal, remaining-subvolume inventory, and final root-absence verification into `delete_subvolume_tree()`. Sync recovery, prune, and destroy now use that one implementation.
+- Converted the original `btrfs.py` into a compatibility export surface only; it no longer contains another command/cache/deletion implementation.
+- Removed dead and duplicated helpers after redirecting all runtime consumers to the shared layers. Compared with uploaded 0.1.46, runtime package size decreased from 11,645 to 10,583 lines and function definitions decreased from 408 to 398.
+- Kept config keys, CLI behavior, state schema version 2, retention behavior, full/incremental safety rules, source-change continuation, `info.json` behavior, notification behavior, and Btrfs-only cleanup rules unchanged.
+- Added architecture integration tests proving the single authoritative definitions, coherent record joining, pure oldest-to-newest plans, plan/executor ordering, shared cleanup identity, exact cache targeting, and reduced source/function counts.
+- Updated README.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
+## 0.1.46
+
+- Fixed source send-cache reuse after remounting or moving the configured source paths. Bulk Btrfs list-path resolution now recognizes the longest configured-root suffix anywhere inside filesystem-relative paths, including on-disk prefixes such as `@/` that are absent from the mount path.
+- Changed cache child preparation so the exact `<source.cache_root>/<snapshot>/<subvolume>` target is probed before snapshot creation inside the same source command/SSH session. A valid existing read-only cache snapshot is reused even when the earlier bulk cache index missed it.
+- Prevented Btrfs from interpreting an existing cache child such as `<date>/@` as a destination directory and attempting the nested path `<date>/@/@`, which previously produced a misleading `Read-only file system` error because the existing cache snapshot was read-only.
+- Refused exact cache targets that exist as ordinary paths, writable subvolumes, or read-only snapshots with a mismatching Parent UUID instead of overwriting or nesting below them.
+- Added a post-create-failure exact metadata probe in the same source command so a concurrently created safe cache snapshot can be reused without another SSH request.
+- Preserved fresh-destination behavior: retention selects the source snapshots to seed, the queue remains oldest-to-newest, existing safe cache snapshots are reused, and only missing cache children are created.
+- Added regression coverage for stale bulk-index cache reuse, no nested `@/@` target, ordinary-target refusal, concurrent creation reuse, and remounted Btrfs list paths with extra on-disk prefixes.
+- Updated README.md, INSTALL.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
+## 0.1.45
+
+- Tightened `destroy-leftovers` so a real target can be complete only after every planned Btrfs subvolume path has an exact unique deletion confirmation and the configured root is independently verified absent.
+- Added exact source deletion-confirmation parsing. Duplicate, malformed, and unexpected confirmation lines are errors, and every unconfirmed planned path is listed.
+- Added final local destination and source-cache root existence checks after deletion, including verification after removing an empty ordinary configured root with exact-path `rmdir`.
+- When a configured root remains, rebuild its Btrfs inventory and print every remaining root/child subvolume. A surviving root is incomplete even when all deletion commands returned success.
+- Mark zero confirmed deletions, fewer confirmations than planned, final existence-check failures, surviving roots, and remaining child subvolumes as incomplete.
+- Changed the terminal result so `result: complete` is printed only after `verified configured root absent: yes`.
+- Changed the final destroy summary to use verified `DestroyResult.success`, preventing an empty error list from counting an unverified target as complete.
+- Applied the same post-deletion completion checks to both source-cache and local destination cleanup.
+- Added regression tests for zero/partial source confirmations, failed final checks, surviving source/destination roots, remaining-subvolume reporting, and verified successful cleanup.
+- Updated README.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
+## 0.1.44
+
+- Upgraded persistent state to schema version 2 and made source-side paths relocatable.
+- `source_path` is now stored as `<snapshot>/<subvolume>` relative to `source.snapshot_root`.
+- `send_path` is now stored as `<snapshot>/<subvolume>` relative to the root selected by `send_path_kind`: app-owned cache paths resolve below `source.cache_root`, while direct read-only Timeshift paths resolve below `source.snapshot_root`.
+- `parent_source_path` is now root-relative and records `parent_source_path_kind` so incremental parent paths remain unambiguous after source-root relocation.
+- Kept `destination_path` relative to `destination.target_root` as before.
+- Added in-memory migration for older absolute source/cache/parent/destination state paths. Migration requires the exact state snapshot/subvolume suffix, refuses path escapes or mismatched identities, and writes the relative format on the next state save.
+- Updated parent selection, sync-floor confirmation, prune cache cleanup, protected Timeshift reporting, state recovery, show-state, and destroy-leftovers reporting to resolve state paths through the current configured roots before UUID checks or deletion decisions.
+- Preserved the UUID safety model: moving/remounting a root does not bypass `Received UUID`/source UUID validation, and recreated cache snapshots with new UUIDs remain invalid as old incremental parents.
+- Added regression coverage for cache/direct path storage, old-state migration after all roots move, parent resolution, prune resolution, and rejection of mismatched relative paths.
+- Updated README.md, INSTALL.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
+## 0.1.43
+
+- Made the managed destination snapshot-date layout strictly Btrfs-only. Every newly created `<destination.target_root>/snapshots/<date>` container is now a Btrfs subvolume containing the received `@` and optional `@home` child subvolumes plus the regular Timeshift `info.json` control file.
+- Changed destination prune and failed-transfer recovery to delete child payload subvolumes first and then delete the date-container subvolume. Deleting the date subvolume removes its regular `info.json` automatically, so no ordinary recursive cleanup is used for managed snapshot versions.
+- Removed legacy ordinary destination date-folder support. Startup validation now refuses any direct `snapshots/` entry that is not a Btrfs subvolume, and prune/recovery refuse ordinary or unexpectedly populated date paths for manual inspection rather than migrating or deleting them.
+- Removed both recursive ordinary-directory fallback branches from `destroy-leftovers`. A Btrfs source cache or destination tree is recursively discovered and deleted deepest-first only with `btrfs subvolume delete`; an ordinary non-empty configured root is refused and reported for manual inspection.
+- Removed ordinary stale-directory cleanup from normal source-cache deletion. Cache payload children and timestamp parents are now deleted only as Btrfs subvolumes, while `source.snapshot_root` remains protected.
+- Kept only narrow ordinary-file operations required for app metadata and control files, such as atomic temporary-file replacement and guarded state/lock handling. Backup and cache trees are never recursively deleted through ordinary filesystem commands.
+- Added regression coverage for date-subvolume creation/reuse, refusal of legacy ordinary date folders and ordinary non-empty destroy roots, child-first Btrfs-only remote cleanup, and absence of `rm -rf` from packaged runtime Python.
+- Updated README.md, INSTALL.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
+## 0.1.42
+
+- Added effective source account identity capture to the existing combined source inventory. SSH mode records the non-sudo remote account name and UID in the same SSH request used for Timeshift, `info.json`, snapshot-root, and cache-root discovery, so permission diagnostics add no SSH round trip.
+- Improved remote metadata discovery so inability to traverse or list `source.snapshot_root` is recorded explicitly and applied to every Timeshift-listed date whose `info.json` could not be captured.
+- Expanded the hard `info.json` error to print the remote SSH source account used by the destination, including its UID, and explain that this account—not local destination root—must traverse every source mount-path parent and read the control file.
+- Added current README/install/config guidance for a stable privileged `/etc/fstab` Btrfs mount, narrow ownership/mode or POSIX ACL access by the printed account name/UID, and the difference between Btrfs filesystem permissions and FAT/NTFS-style `uid=`/`gid=` mount remapping.
+- Added regression coverage for identity parsing, root traversal failure propagation, and the complete user/UID/fstab permission error.
+- Updated README.md, INSTALL.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
+## 0.1.41
+
+- Added preservation of Timeshift's one shared per-snapshot-date `info.json` beside received `@` and optional `@home` subvolumes at `<destination.target_root>/snapshots/<date>/info.json`.
+- Kept SSH round trips minimal: the existing combined source inventory command now reads all readable `<source.snapshot_root>/<date>/info.json` files with ordinary non-sudo `cat` in the same SSH request that runs `timeshift --list` and scans snapshot/cache Btrfs metadata. Local source mode reads the same files directly.
+- Added framed parsing that preserves the exact text content, including whether the source file has a final newline, and records missing/unreadable metadata per Timeshift date.
+- Made metadata completion strict: sync cannot report success for a processed snapshot date unless its source control file was captured and the destination file can be created/refreshed; paired `@`/`@home`, root-only, and home-only configurations all write the shared file once after their configured subvolume set is complete.
+- Added atomic destination creation/update using a same-directory temporary file, `fsync`, and `os.replace`; symlinked destination `info.json` paths are refused.
+- Added backfill/refresh for already-complete destination dates whose source snapshot remains available, without re-sending Btrfs data.
+- Updated source-change reporting to include added, removed, or changed `info.json` content. Snapshot recovery removes the copied control file with the failed whole-date version, and prune removes it only after tracked destination Btrfs subvolumes are confirmed gone and no unknown sibling content remains.
+- Added regression coverage for one-command SSH capture, exact framing, paired and single-subvolume completion, atomic update/idempotence, missing metadata failure, symlink refusal, and prune cleanup.
+- Updated README.md, INSTALL.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, the packaged config example, and the minimal source sudoers comments.
+
+## 0.1.40
+
+- Replaced separate sync-time source discovery calls with one coherent source inventory. In SSH mode a single SSH command now captures `timeshift --list`, bulk UUID/read-only metadata for `source.snapshot_root`, and bulk UUID/read-only metadata for `source.cache_root`; `destination.target_root` is indexed locally once.
+- Batched source snapshot-root and cache-root preflight into one source command while preserving the rule that cache creation/checking runs only after the Timeshift-owned snapshot root emits an explicit successful safety result.
+- Removed normal per-parent source-cache `subvolume show` probes. UUID/read-only parent matching now uses the coherent bulk cache inventory, while source mutations update the index and failed operations rebuild the complete inventory.
+- Reduced normal cache-creation round trips: an absent cache path in the coherent index is created directly, a newly created cache parent is inserted into the index, and read-only snapshot creation plus metadata verification run in one source command. Concurrent target creation still receives a targeted exceptional refresh before reuse.
+- Added bounded source-change recovery with `source.source_change_retry_count` (default `5`, `0` disables). If a required original/cache/parent path disappears or changes UUID during cache preparation or `btrfs send`, the app reports the before/after inventory difference, cleans the incomplete whole snapshot date from app-owned cache/destination/state, corrects in-run transfer accounting, rebuilds all source lists and the oldest-to-newest queue, and continues.
+- Kept unrelated source churn from masking real network, mbuffer, receive, permission, or destination failures: automatic continuation occurs only when the exact paths required by the failed operation changed identity.
+- Added regression tests for one-command inventory parsing, conditional one-command source preflight, one-command cache snapshot creation/verification, relevant-versus-unrelated source changes, and continuation after a source snapshot disappears during a failed send.
+- Updated README.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
+## 0.1.39
+
+- Removed any silent acceptance of the obsolete `source.allow_incremental_without_parent_match` setting. A config containing that key now fails validation and tells the user to delete it.
+- Enforced the only two safe transfer outcomes from run-start state: a destination that was empty when the run began may start with a full send, while a destination that was already populated requires at least one complete UUID-confirmed source/destination snapshot match for incremental send.
+- Moved the existing-chain identity check ahead of stale/partial destination recovery. Recovery cleanup can no longer make an existing destination temporarily empty and thereby permit a full send; full-seed authorization remains fixed for the entire run.
+- Improved sync and manual-snapshot safety errors so they explicitly report when source and destination do not match in any usable UUID-confirmed snapshot and explain that a full send into the existing destination is refused.
+- Updated README.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
+## 0.1.38
+
+- Added snapshot-level sync recovery for incomplete or vanished Timeshift snapshot dates. If any configured source subvolume such as `@` or `@home` is missing under `source.snapshot_root/<date>`, the app now removes stale app-owned source-cache paths, the failed destination `snapshots/<date>` version, and the state entry, then skips that vanished date and continues.
+- If all configured source subvolumes still exist but the current snapshot date has partial state or partial destination content, sync now clears the failed current cache/destination/state version and retries the whole date so `@` and `@home` are transferred as one consistent version.
+- Added start-of-run cleanup for stale incomplete state entries whose Timeshift source snapshot is no longer listed, so a later sync can recover from a failed or missed snapshot left by an earlier run.
+- Recovery cleanup updates the per-run source-cache and destination Btrfs metadata indexes, uses only Btrfs subvolume deletes plus empty-directory `rmdir`, and still refuses any source cleanup below `source.snapshot_root`.
+- Updated README.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
+## 0.1.37
+
+- Fixed retention source send-cache parent cleanup so it no longer trusts the run-start cache index as the final emptiness check before deleting `<source.cache_root>/<snapshot>`.
+- Before deleting a timestamp cache parent, prune now re-reads live Btrfs child subvolumes below that parent, deletes any remaining app-owned children deepest-first, and only then deletes the parent. This handles cases where tracked `@` and `@home` looked gone but the parent still contained live or stale children.
+- Source cache parent deletion may now remove only empty ordinary child directories with non-sudo `rmdir` before retrying `btrfs subvolume delete`, while still never using source-side sudo `rm`, `find`, `chmod`, or `chown` and still protecting `source.snapshot_root`.
+- Updated README.md, COMMENTED_CODE_MAP.md, VERSIONING.md, package version metadata, and the packaged config example.
+
+## 0.1.36
+
+- Restored the stderr-control path for expected negative Btrfs probes. Optional `btrfs subvolume show` checks now stay out of terminal `COMMAND STDERR` and `.err` when they are only checking whether a not-yet-created cache path such as `send-cache/<snapshot>/@home` already exists.
+- Kept required metadata checks and real command failures noisy: they still print and log stderr and still raise normally.
+- Updated README.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, VERSIONING.md, package version metadata, and the packaged config example.
+
+## 0.1.35
+
+- Fixed `destroy-leftovers --delete-source` so an existing Btrfs `source.cache_root` is detected with configured sudo+Btrfs metadata before falling back to source-shell `test -e` visibility.
+- This prevents the source send-cache root from being reported as already missing when the source user cannot normally traverse the cache path but the configured passwordless Btrfs command can access the app-owned cache subvolume.
+- Kept the narrow source sudo model intact: source cleanup still does not require sudo `test`, `rm`, `find`, `chmod`, or `chown`, and `source.snapshot_root` remains protected.
+- Updated README.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, and the config example comments to describe the current destroy-leftovers source-cache behavior.
+
+## 0.1.34
+
+- Fixed read-only source-cache reuse before creation. When a writable Timeshift subvolume needs a send-cache snapshot, the app now refreshes and validates the exact `<cache_root>/<snapshot>/<subvolume>` path before attempting `btrfs subvolume snapshot -r`.
+- Existing cache snapshots are reused only when Btrfs proves they are real read-only subvolumes and, when available, their Parent UUID matches the original Timeshift source subvolume UUID.
+- This prevents failed recreate attempts after interrupted runs, state recovery, or switching between SSH and local mode when valid read-only cache snapshots already exist.
+- Updated README.md, COMMENTED_CODE_MAP.md, and the config example comments to document current cache reuse behavior.
+
+## 0.1.33
+
+- Enabled normal split run logging for `destroy-leftovers`, `clear-state`, and `delete-lock` so these guarded maintenance/destructive commands produce `.log`, `.err`, `.btrfs`, `.mbuffer`, and `.succes` files when `log_dir` is configured.
+- Added a survivor log-directory fallback for `destroy-leftovers`: when the configured `log_dir` is inside a selected delete target, the command uses an outside fallback log directory so the cleanup logs are not deleted with the target.
+- Added progress output before each destroy target and during source/destination discovery/deletion so long destination cleanup no longer appears frozen after the source side finishes.
+- Destroy cleanup probe/delete commands are now recorded in the active `.log`/`.err` files for easier SSH and destination cleanup debugging.
+
+## 0.1.32
+
+- Improved `destroy-leftovers` cleanup for nested source send-cache subvolumes.
+- Source send-cache deletion now recursively discovers child Btrfs subvolumes by walking each subvolume with `btrfs subvolume list -o`, so child payload subvolumes such as `send-cache/<snapshot>/@` are deleted before their parent container subvolume.
+- Empty ordinary directory entries left behind by deleted child subvolumes are removed before retrying/deleting the parent subvolume.
+- The source-side cleanup still uses only the configured source user plus passwordless `btrfs`; it does not require sudo access to `rm`, `find`, `chmod`, or `chown`.
+- `source.snapshot_root` remains globally protected and is never deleted, pruned, destroyed, or cleaned.
+
+## 0.1.31
+
+- Added a bulk source snapshot-root Btrfs index so Timeshift discovery can reuse in-memory metadata instead of running one source-side `btrfs subvolume show` per snapshot/subvolume.
+- Changed source cache and snapshot-root indexing to collect UUID/parent/received-UUID data with bulk `btrfs subvolume list -u -q -R -o <root>` and read-only status with bulk `btrfs subvolume list -r -o <root>`.
+- In SSH mode, each source root index is built inside one SSH session, reducing repeated SSH calls while keeping the same UUID safety checks.
+- Send-path selection, parent verification, sync-floor checks, state recovery, and Timeshift discovery now prefer the bulk source snapshot/cache indexes and fall back to targeted `subvolume show` only when needed.
+- Updated README.md and COMMENTED_CODE_MAP.md to describe the current index behavior without adding previous-version explanations there.
+
+## 0.1.30
+
+- Added a pre-manual sync viability check so automatic Timeshift on-demand snapshot creation happens only after the app proves the current source/destination chain can continue.
+- Existing destinations now require both a UUID-confirmed sync floor and a usable incremental parent for the next pending transfer, or a usable parent for the future manual snapshot when nothing is pending, before `timeshift --create` is run.
+- If parent/state/source-cache validation fails, sync now stops before creating another source snapshot.
+- Updated README.md, COMMENTED_CODE_MAP.md, CONFIG_AND_CLI_AUDIT.md, and the config example comments to document the current manual snapshot ordering.
+
+## 0.1.29
+
+- Added guarded `clear-state` command to remove only the configured `state_file`. It defaults to dry-run and real removal requires `--run`, `--i-understand-this-clears-state`, app lock acquisition, and two typed confirmations.
+- Added guarded `delete-lock` command to remove only the configured `lock_file` when `flock` proves no running process currently holds it. It defaults to dry-run and real removal requires `--run`, `--i-understand-this-deletes-lock`, and two typed confirmations.
+- Added `maintenance.py` so state/lock file removal has explicit path validation and does not delete source snapshots, source cache snapshots, destination snapshots, or Timeshift-owned paths.
+- Updated README.md, COMMENTED_CODE_MAP.md, and the config example comments to document the guarded maintenance commands.
+
+## 0.1.28
+
+- Added conservative state recovery when `state.json` is missing or empty but destination snapshots already exist.
+- Existing destination subvolumes are adopted into rebuilt state only when their `Received UUID` exactly matches the UUID of the matching source Timeshift subvolume or an existing read-only source-cache subvolume.
+- The recovered state lets sync continue from the newest fully adopted matching snapshot instead of forcing a new full chain.
+- Added a safety guard so, when state was missing/empty at run start, an existing destination subvolume that cannot be adopted is not deleted as an incomplete receive.
+
+## 0.1.27
+
+- Added source-cache UUID adoption for incremental parent selection.
+- Existing read-only cache snapshots below `source.cache_root` can now be used as parent candidates when their UUID exactly matches the destination parent's `Received UUID`.
+- This supports switching from SSH pull to local sync on the same source when the earlier SSH pull already created valid read-only cache snapshots.
+- Kept the safety rule that missing cache parents are never recreated for parent matching, because recreated Btrfs snapshots get new UUIDs.
+
+## 0.1.26 - source snapshot-root SSH preflight order and ordinary-directory fallback
+
+- Changed source snapshot-root preflight to run a second Btrfs-only fallback check with `btrfs filesystem df <snapshot_root>` when `btrfs subvolume list -o <snapshot_root>` does not accept an ordinary Timeshift directory. This keeps ordinary Timeshift-owned snapshot roots valid.
+- Clarified in code/config/docs that the source snapshot-root check runs on the selected source endpoint: through SSH/sshpass in SSH mode and locally in local mode.
+- Changed source preflight ordering so `source.cache_root` is not created or modified when `source.snapshot_root` fails verification. This avoids creating send-cache storage on the wrong source/mount when the Timeshift-owned snapshot root is missing or misconfigured.
+- Kept the global safety invariant that `source.snapshot_root` and everything below it are never created, pruned, deleted, destroyed, or cleaned by the app.
+
+This build is version `0.1.26`.
+
+# Versioning
+
+## 0.1.25 - protect Timeshift snapshot root and improve remote snapshot-root diagnostics
+
+- Added explicit source-delete safety guards so prune, source send-cache cleanup, and destroy-leftovers refuse any source path that is `source.snapshot_root` or below it.
+- Updated `source.snapshot_root` comments in code and config example: Timeshift owns this path and the app must never create, prune, delete, destroy, or clean it.
+- Changed `source.snapshot_root` preflight to try the configured `sudo btrfs subvolume list -o <snapshot_root>` check first, then use shell visibility checks only for diagnostics. This gives clearer SSH-mode errors when the remote path is wrong, not mounted, or not accessible through sudo btrfs.
+- Updated README.md and COMMENTED_CODE_MAP.md to describe the current protected-root safety invariant.
+
+This build is version `0.1.25`.
+
+## 0.1.24 - separate source cache root validation
+
+- Added config/preflight validation that `source.cache_root` must be outside `source.snapshot_root`.
+- Clarified the failure case where `source.snapshot_root` is accepted as a normal Timeshift-owned directory, but `source.cache_root` is incorrectly pointed at the same snapshots directory.
+- Kept `source.cache_root` as app-owned send-cache storage that is created as a Btrfs subvolume when missing and cache creation is enabled.
+- Updated README.md, COMMENTED_CODE_MAP.md, VERSIONING.md, and the example config to describe the current cache-root rule.
+
+This build is version `0.1.24`.
+
+## 0.1.23 - Timeshift-owned snapshot root preflight
+
+- Changed source snapshot-root preflight so `source.snapshot_root` is never created by the app.
+- `source.snapshot_root` may be an ordinary directory on a Btrfs filesystem, because Timeshift creates snapshot subvolumes inside that directory.
+- Missing, non-directory, or non-Btrfs-accessible `source.snapshot_root` is now a hard preflight error in both dry-run and real-run mode.
+- Updated README.md, COMMENTED_CODE_MAP.md, and the example config to describe the current snapshot-root rule without adding old-version notes there.
+
+This build is version `0.1.23`.
+
+## 0.1.22 - early lock path and Btrfs-first helper creation
+
+- Changed real-run ordering so the lock file parent is prepared before source roots, destination helper folders, state paths, logs, or sync/prune work are checked.
+- If the lock path chain includes `destination.target_root`, that component is created by the strict target-root rule and must become a Btrfs subvolume.
+- Missing lock/helper folders now try `btrfs subvolume create` first, because the app works on Btrfs storage, then fall back to normal `mkdir` when Btrfs creation is not possible.
+- Updated README.md and COMMENTED_CODE_MAP.md to describe the current lock-path and helper-folder order without old-version explanations.
+
+This build is version `0.1.22`.
+
+## 0.1.21 - lock/helper folder creation safety
+
+- Added real-run lock path preflight before opening the lock file.
+- The lock-file parent is created if missing and may be either an ordinary directory or a Btrfs subvolume.
+- Destination helper folders accept existing directories or Btrfs subvolumes.
+- `FileLock` no longer creates parent directories itself, preventing accidental normal-directory creation of `destination.target_root`.
+- File logging no longer creates missing parent directories before preflight; if the log directory is not ready, the command continues with terminal-only logging.
+- Updated README.md and COMMENTED_CODE_MAP.md to describe the current helper-folder behavior.
+
+This build is version `0.1.21`.
+
+## 0.1.20 - require destination target root subvolume
+
+- Fixed destination preflight so an existing `destination.target_root` must pass `btrfs subvolume show`.
+- A plain directory inside a Btrfs filesystem is now a hard preflight error instead of being reported as OK by the broader Btrfs-accessibility check.
+- Kept missing-target behavior from the previous release: when allowed, the app creates the missing target root with `btrfs subvolume create <target_root>` and verifies it before continuing.
+- Updated README, commented code map, and config example comments to describe the current target-root rule.
+
+This build is version `0.1.20`.
+
+## 0.1.19 - release zip directory permissions fix
+
+- Rebuilt the release zip with correct Unix directory permissions so package folders extract as usable directories.
+- Ensured `timeshift_btrfs_sync/data/` is a real directory containing `config.example.toml`.
+- Kept only one `config.example.toml`, inside the package data folder.
+- Updated README and commented code map to describe the current package-data layout without adding old-version details there.
+
+This build is version `0.1.19`.
+
+## 0.1.18 - destination target root subvolume creation
+
+- Changed real-run preflight so a missing `destination.target_root` is created with `btrfs subvolume create <target_root>` instead of Python `mkdir`.
+- Preflight now verifies that the destination target-root parent already exists and is Btrfs-accessible before creating the exact configured target root.
+- Existing destination target roots are not converted; existing directory-based backup roots keep working as long as they are Btrfs-accessible.
+- Updated README, commented code map, and config example comments to describe the current target-root behavior.
+
+This build is version `0.1.18`.
+
+## 0.1.17 - documentation cleanup
+
+- Cleaned `README.md` so it documents the app as it currently works instead of listing release-by-release changes.
+- Cleaned `COMMENTED_CODE_MAP.md` so it focuses on current CLI commands, shell command families, functions, and classes, with explanations of what each does and why.
+- Kept historical version notes in this `VERSIONING.md` file instead of duplicating them in the README or code map.
+
+This build is version `0.1.17`.
+
+### 0.1.16
+
+- Added `*.toml` to `.gitignore` so local TOML configuration files are ignored by default.
+- Kept the example-config exception after the ignore rule so example configuration files can still be tracked.
+- Kept release packaging free of `__pycache__`, `.pyc`, and `.pyo` files.
+
+### 0.1.15
+
+- Real-run sync path preflight now attempts to create missing configured roots before Timeshift on-demand creation or send/receive work starts.
+- `source.snapshot_root` is created as a normal source-side directory only after its parent is proven Btrfs-accessible.
+- `source.cache_root` is created during preflight as a Btrfs subvolume when missing and `source.create_readonly_cache = true`; existing ordinary directories are still refused.
+- `destination.target_root` is created locally during preflight when missing and `destination.create_target_root = true`, then verified with Btrfs before sync continues.
+- Preflight hard errors now name the exact configured path that could not be verified or created.
+- Included the requested `.gitignore` exactly as supplied and kept release packaging free of `__pycache__`, `.pyc`, and `.pyo` files.
+- Updated README, commented code map, versioning, and config example comments.
+
+### 0.1.14
+
+- Added lazy source cache-root creation for writable Timeshift snapshots that need a read-only send copy.
+- `source.cache_root` is now created as a Btrfs subvolume with `btrfs subvolume create <cache_root>` when it is missing and cache is actually needed.
+- Existing `source.cache_root` paths must already be Btrfs subvolumes; ordinary directories are refused so app-owned send-cache cleanup remains safe.
+- Preflight now accepts a missing `source.cache_root` only when `create_readonly_cache = true` and the cache-root parent is Btrfs-accessible.
+- The same logic works in both `source.mode = "ssh"` and `source.mode = "local"` through `SourceRunner`.
+- Updated README, commented code map, and the example config comments for lazy cache-root subvolume creation.
+
+### 0.1.13
+
+- Rebuilt the release archive without Python cache folders or compiled cache files.
+- Confirmed no `__pycache__`, `.pyc`, or `.pyo` entries are present in the zip.
+- Kept exactly one canonical example config at `timeshift_btrfs_sync/data/config.example.toml`.
+
+### 0.1.12
+
+- Removed the extra top-level `config.example.toml` from the source archive.
+- Kept exactly one canonical example config at `timeshift_btrfs_sync/data/config.example.toml`.
+- Kept `ts-btrfs init-config` using the packaged data-folder template.
+- Removed Python `__pycache__` files from the release archive.
+
+### 0.1.11
+
+- Added a top-level `config.example.toml` copy to the source archive so the complete example config is visible without looking inside package data.
+- Kept `timeshift_btrfs_sync/data/config.example.toml` as the packaged template used by `ts-btrfs init-config`.
+- Confirmed both config examples include `source.mode = "ssh"` with comments for `ssh` and `local` modes.
+
+### 0.1.10
+
+- Added `source.mode = "local"` so the same sync/prune/destroy workflow can use Timeshift Btrfs snapshots on the machine running `ts-btrfs` without wrapping source commands in SSH.
+- Added `source.py` with a shared `SourceRunner` abstraction. Existing SSH pull behavior now uses `SourceRunner(mode="ssh")`; local sync uses `SourceRunner(mode="local")` and runs source-side shell commands locally.
+- Generalized Timeshift listing/creation, Btrfs source metadata, source send-cache indexing/cleanup, preflight source checks, pruning, destroy-leftovers, and the `btrfs send` side of the pipeline to use the shared source runner.
+- Added `test-source` as the primary source connectivity/sudo check. Existing `test-ssh` remains as a backward-compatible alias and skips SSH checks in local mode.
+- Updated README, the commented code map, and the example config to document SSH and local source modes.
+
+### 0.1.9
+
+- Removed source-side `sudo find`, `sudo test`, and `sudo rm` usage from `destroy-leftovers`.
+- Source-side destroy cleanup now uses passwordless `sudo btrfs` for Btrfs subvolume deletion/listing only.
+- Empty stale ordinary directories left after source subvolume deletion are removed with normal non-sudo `rmdir` as a best-effort cleanup. If permissions prevent that, the app reports the remaining directory instead of requesting broader sudo.
+- This preserves the intended least-privilege source sudoers model where the source user only needs passwordless `timeshift` and `btrfs`.
+
+### 0.1.7
+
+- Added a sync path preflight before automatic/manual on-demand creation and before send/receive work.
+- The preflight checks `source.snapshot_root`, configured `source.cache_root`, and `destination.target_root` up front, so a missing/mis-mounted path fails before a fresh on-demand Timeshift snapshot is created.
+- The source checks are batched into one SSH call and use the configured `sudo btrfs subvolume list -o <path>` access instead of generic sudo filesystem permissions.
+- `create-manual` now runs the same path preflight before creating a standalone Timeshift on-demand snapshot.
+
+### 0.1.6
+
+- On-demand retry-order guarantee: if an app-created on-demand snapshot itself failed or was only partially received on the destination, sync deletes only that incomplete destination path and retries it when the existing oldest-to-newest queue reaches that snapshot/subvolume.
+- Added explicit output for incomplete destination cleanup showing the retry policy and order policy, so failed on-demand snapshots are visibly not jumped ahead or handled out of order.
+- Added code comments around the sorted snapshot/subvolume loop documenting that incomplete destination cleanup is intentionally done inside the normal order loop.
+
+### 0.1.5
+
+- Fresh on-demand creation after interrupted runs: if an older app-created on-demand snapshot is still pending, the next normal `sync` keeps that pending snapshot in the oldest-to-newest queue but still creates a new on-demand snapshot for the current run.
+- The pending snapshot notice now explains that older failed-run snapshots remain queued and that a fresh snapshot is still created because the old one may no longer represent the current system state.
+- Interrupted/partial destination receives are still deleted and retried when their snapshot/subvolume is reached in the normal send order.
+
+### 0.1.4
+
+- Interrupted-run retry safety: if an earlier sync already created an app on-demand Timeshift snapshot but did not finish syncing it, the next normal `sync` skips creating a duplicate manual snapshot and processes the existing pending app-created snapshot in normal oldest-to-newest order.
+- Incomplete destination receives are still cleaned before retry, and the destination per-run index is invalidated for the deleted path so later parent checks do not use stale metadata.
+- If `state.json` says a snapshot is fully synced but one of the expected destination paths is missing, sync no longer skips the whole snapshot; it retries the missing path(s).
+
+### 0.1.3
+
+- Added normalized payload match statistics to `destroy-leftovers --delete-both`.
+- The summary now compares real source-side send payload against destination received payload by snapshot/subvolume name, so raw Btrfs helper/container subvolume counts no longer look like retention mismatches.
+- The comparison understands v0.1.2 direct read-only Timeshift sends: protected Timeshift original send paths from state.json are counted as source-side payload, but are still never deleted by `destroy-leftovers` or prune.
+
+### 0.1.2
+
+- Added explicit read-only Timeshift direct-send support and state labeling.
+- If an original Timeshift snapshot child is already read-only, sync sends directly from the original Timeshift path instead of creating an app cache copy.
+- State now records `send_path_kind`, `send_path_owned_by_app`, and `send_path_prune_protected` for each subvolume.
+- Prune safety was tightened so only app-owned source-cache paths below `source.cache_root` are deleted. Direct Timeshift original send paths are listed as protected and are never removed by prune.
+
+## Changelog
+
+### 0.1.1
+
+- `ssh.control_master = true` now creates a missing `ssh.control_path` parent directory automatically with owner-only permissions (`0700`), including missing intermediate directories when the user running the app is allowed to create it.
+- Existing ControlPath parent directories are still validated and refused if they are not owned by the app user, are group/other accessible, or are inside shared temporary storage such as `/tmp`, `/var/tmp`, or `/dev/shm`.
+- Updated README and config comments to explain automatic private directory creation and the remaining socket-reuse risk.
+
+### 0.1.0
+
+- Added safety validation and documentation for SSH ControlMaster/ControlPath connection reuse.
+- `ssh.control_master = true` requires an explicit absolute `ssh.control_path` whose parent directory is owned by the user running the app, is private (`chmod 0700` style), and is not inside shared temporary storage such as `/tmp`, `/var/tmp`, or `/dev/shm`.
+- Documented what OpenSSH multiplexing is, how it speeds up passphrase-protected keys, and why the local control socket must be protected.
+
+### 0.0.99
+
+- Added `remote_index.py`, a per-run Btrfs subvolume index used to cache source send-cache and destination path/UUID lookups.
+- Sync now builds a source send-cache index and destination index once per run, then reuses those dictionaries for parent/floor validation where safe.
+- Source cache index entries are refreshed after cache snapshot creation; destination index entries are refreshed after each receive; prune removes deleted cache paths from the index.
+- Prune source send-cache cleanup now uses the per-run source cache index instead of repeatedly listing cache parents/children.
+- `destroy-leftovers` now builds the remote source cache tree in one SSH command and deletes remote source cache subvolumes in one batched SSH command.
+- Added optional `[ssh]` `control_master`, `control_persist`, and `control_path` settings for OpenSSH connection reuse, useful with password-protected keys and high KDF iterations.
+
+### 0.0.98
+
+- Changed `destroy-leftovers --delete-source` so it never deletes `source.snapshot_root`, because that path belongs to Timeshift and contains the user's original OS snapshots.
+- `--delete-source` now only deletes app-created source send-cache paths under `source.cache_root`; `--delete-both` deletes source send-cache plus destination target.
+
+### 0.0.97
+
+- Fixed destroy-leftovers recursive Btrfs cleanup so nested source send-cache subvolumes are discovered before deleting timestamp parent subvolumes.
+- After each subvolume delete, removes stale ordinary directories that can be left behind before deleting parent subvolumes.
+
+### 0.0.96
+
+- Added `destroy-leftovers`, a destructive retirement cleanup command for deleting configured cleanup leftovers and/or destination target root after the app is no longer used. Superseded by 0.0.98: source.snapshot_root is no longer a destroy target.
+- Real deletion requires `--run`, `--i-understand-this-destroys-data`, an explicit target flag, and two typed confirmations.
+
+### 0.0.95
+
+- Version-only renumber from 0.9.5 to match the old release-count scheme where 0.9.5 corresponds to release 95.
+- No code behavior changed.
+
+### 0.9.5
+
+- Existing-destination sync can now use a saved source send-cache parent even when Timeshift has already pruned the original parent snapshot.
+- This lets a delayed backup continue incrementally from the newest UUID-confirmed destination/source-cache parent, then prune normally afterward.
+
+### 0.9.4
+
+- Fresh/full sync now preselects only source snapshots that the active retention rules would keep, then sends that reduced set oldest-to-newest.
+- This avoids wasting time and disk wear sending old snapshots that post-sync prune would immediately delete. Existing non-empty destination sync behavior is unchanged.
+
+### 0.9.3
+
+- Moved per-snapshot prune state result into its own unindented `State` section with a blank line before it.
+- Output-only readability change; prune/delete logic is unchanged.
+
+### 0.9.2
+
+- Readability-only prune output change: each retention delete item now separates destination deletion from source send-cache deletion with clear section headers.
+
+### 0.9.1
+
+- Version-only bump from 0.8.11.
+
+### 0.8.11
+
+- Reworked prune deletion as one coordinated per-snapshot item: destination subvolumes and source send-cache are both attempted before state is removed.
+- Prune now keeps the state entry unless destination and source send-cache are both confirmed gone or already absent, while still attempting the available side when the other side is missing/unavailable.
+- Retention delete plans now show both destination subvolume paths and source send-cache paths for each candidate.
+
+### 0.8.10
+
+- Fixed source send-cache prune cleanup for nested `@` and `@home` cache subvolumes. The app now lists the timestamp cache parent before deciding child cache subvolumes are missing.
+- Renamed prune output from `SOURCE CACHE RETENTION CLEANUP` to `SOURCE SEND-CACHE RETENTION CLEANUP` to avoid confusion with original Timeshift snapshots.
+- Prints a retention delete summary to the normal run log as well as the success summary.
+
+### 0.8.9
+
+- Made retention deletion idempotent: state entries are removed only after destination and source cache cleanup are confirmed gone or already absent.
+- Kept state entries when source cache cleanup cannot be verified so a later prune can retry safely.
+
+### 0.8.8
+
+- Fixed retention-based source cache cleanup so it also checks the timestamp cache parent. If `@`/`@home` are already missing but the empty parent still exists, prune now deletes the parent instead of stopping after child skips.
+- Source cache cleanup still only deletes app-created cache paths under `source.cache_root`; it does not delete original Timeshift source snapshots.
+
+### 0.8.7
+
+- Fixed first-run multi-subvolume seeding: when the destination was empty at sync start, remaining first-chain subvolumes may still full-send after the first subvolume makes the destination non-empty.
+- Preserved the strict mixed-chain guard for normal non-empty destinations.
+
+### 0.8.6
+
+- Fixed retention-based source cache cleanup to pre-check which cache subvolumes still exist before deleting.
+- Missing source cache paths are now skipped cleanly instead of producing noisy Btrfs delete/list errors.
+- Removed duplicate stderr printing from cache cleanup failures; command stderr is already emitted by the command runner.
+
+### 0.8.5
+
+- Changed source cache cleanup to retention-based cleanup. `sync` now keeps every read-only cache snapshot it creates, and `prune` deletes matching source cache snapshots only for destination snapshots selected by the same retention delete plan.
+- This preserves more common Btrfs UUID ground when short-lived snapshots are removed later.
+
+### 0.8.4
+
+- Refreshed `COMMENTED_CODE_MAP.md` to document only current commands, classes, and functions, and to add concise notes explaining safety-driven code paths.
+
+### 0.8.3
+
+- Added light CLI parser helpers for subparser creation, shared `--config`, shared run-mode flags, and shared delete-confirmation flags.
+- Preserved command-specific help output and command flag visibility.
+
+### 0.8.2
+
+- Added shared `tags_text()` display helper and removed duplicate `_tags_text()` formatting helpers from sync/prune paths.
+
+### 0.8.1
+
+- Refactored safer config parsing patterns with shared table, optional-string, positive-integer, stripped-string, boolean, and integer helpers.
+- Kept password/password_file pair validation explicit for a later, more focused refactor.
+
+### 0.8.0
+
+- Version-only bump from 0.7.10.
+
+### 0.7.10
+
+- Refactored pipeline stream reader setup into one compact stream-routing table.
+- Preserved successful btrfs/mbuffer stderr routing to `.btrfs`/`.mbuffer` without polluting `.err`.
+
+### 0.7.9
+
+- Shared state metadata refresh/report/save logic between sync and prune without changing send/receive, retention, or parent UUID behavior.
+
+### 0.7.3
+
+- Consolidated source cache listing helpers around `remote_list_child_subvolumes`, `remote_cache_contains`, and cache child display formatting.
+- Removed older overlapping cache list parsing/existence helpers while keeping the same cache parent cleanup behavior.
+
+### 0.7.2
+
+- Consolidated parent/source UUID matching into one shared helper, `match_source_path_to_destination_received_uuid` internally, so parent selection and sync-floor validation use the same Btrfs identity rule.
+- Removed older overlapping helper code for parent/source UUID checks while keeping the same strict behavior: source path UUID must match destination received UUID or trusted state UUID history before it can be used.
+
+### 0.6.11
+
+- Reused one parsed Timeshift source snapshot index per sync stage.
+- Manual snapshot creation still re-reads `timeshift --list` after creating a new snapshot, but metadata refresh, manual identity checks, sync-floor checks, parent selection, and the sync loop now share the same source index for that stage.
+
+### 0.6.8
+
+- Fixed successful transfer pipeline stderr handling. Successful `btrfs send` status lines such as `At subvol ...` and mbuffer progress no longer make `.err` non-empty.
+- Transfer stderr is now buffered and copied to `.err` only if the send/mbuffer/receive pipeline fails.
+- Btrfs transfer status is still written to `.btrfs`, and mbuffer progress is still written to `.mbuffer`.
+
+### 0.6.7
+
+- Added a separate `.succes` run log for readable sync and retention statistics.
+- Sync summaries and retention delete plans are written to `.succes` and still shown in the terminal, instead of being mixed into the normal `.log` file.
+- Email notifications use non-empty `.succes` text as the plain-text message body when present.
+- Email log attachments are conditional and include only non-empty `.log`, `.err`, `.btrfs`, `.mbuffer`, and `.succes` files.
+- Renamed the Btrfs verbose-output log suffix from `.btrfs-out` to `.btrfs`.
+
+### 0.6.5
+
+- Removed legacy config-option compatibility checks from the runtime config loader.
+- Unknown removed config keys are no longer handled by special warning/error branches. The loader now only parses the active configuration needed by current functionality.
+- Removed stale documentation text describing those old compatibility warnings.
+
+### 0.6.4
+
+- Destination retention uses only native Timeshift tags: H, D, W, M, B, and O.
+- Non-native retention categories are not part of the active config model, examples, embedded `init-config` output, docs, or retention tag map.
+
+### 0.6.3
+
+- Added strict incremental parent source-path selection. For an existing destination parent, the app checks the saved state `send_path` first and requires its current source UUID to match the destination `received_uuid`.
+- If the saved `send_path` is missing or does not match, the app tries the original Timeshift source path and only uses it if its UUID matches the destination `received_uuid`.
+- Parent selection never creates a replacement cache snapshot. A recreated cache snapshot has a new UUID and cannot be a valid parent for an already received destination snapshot.
+
+### 0.6.2
+
+- Refreshed mutable Timeshift metadata in `state.json` from the latest `timeshift --list` during sync. Existing synced snapshots update `tags`, `comment`, `created`, and top-level target-relative `path` without re-sending data or changing UUID/parent/send identity fields.
+- Improved Timeshift tag parsing so separated tag tokens such as `B H D W M` are recognized as tags instead of partly becoming the comment.
+
+### 0.6.1
+
+- Clarified and guarded the automatic manual/on-demand snapshot flow: the app may create a source-side Timeshift snapshot before syncing, but it never sends that snapshot directly or as a special priority target.
+- After creating a manual snapshot, sync re-reads `timeshift --list`, reports newly detected snapshot names, and sends them only through the normal oldest-to-newest sync loop.
+
+### 0.6.0
+
+- Version-only bump.
+
+## 0.1.50
+
+- Removed runtime modules, command aliases, helper functions, method branches, parameters, imports, persistent fields, tests, and documentation that are not used by the current workflows.
+- Removed support for non-current configuration names and state documents.
+- The current configuration loader rejects unknown keys and uses `source.cleanup_cache_during_prune` as the only source-cache prune setting.
+- The current state format is schema version 3. It accepts only root-relative managed paths, explicit path ownership kinds, and the UUID fields used by current parent and recovery checks.
+- Removed the `test-ssh` command alias; `test-source` is the source endpoint check for both SSH and local modes.
+- Removed the compatibility facade modules and the unused alternate Btrfs descendant-list mode.
+- Rebuilt README, installation instructions, interface audit, config comments, tests, and code map so they describe only current behavior and implementation reasons.
+- Sync, retention, recovery, cache, transfer, notification, logging, and destructive safety behavior remain active through the shared operation layers.
+
+## 0.1.51
+
+- Restored `source.cleanup_superseded_cache` as the current source-cache retention option.
+- `sync`, standalone `prune`, and prune-after-sync now load and apply the setting for both local and SSH source modes.
+- When enabled, retention removes an app-owned source cache date only after the matching destination date is confirmed deleted; when disabled, the cache is retained.
+- Removed the accidental `cleanup_cache_during_prune` rename introduced in 0.1.50.
+- Added local and SSH regression coverage for config loading, sync startup, and retention endpoint selection.
+
+## 0.1.52
+
+- Fixed `destroy-leftovers --delete-both` crashing after both source and destination trees were successfully deleted.
+- The post-deletion payload comparison now reads the current `source.subvolumes` configuration instead of the removed `SourceConfig.tree` refactor object.
+- Added complete local-source and SSH-source `--delete-both` regression tests that execute source/destination payload matching and final summary reporting after both roots are verified absent.
+
+## 0.1.53
+
+- Added the guarded `restore` command for importing one destination backup into the configured source Timeshift repository in Timeshift's native Btrfs layout.
+- Restore reads `<destination.target_root>/snapshots/<date>` locally, requires the backup date container and configured payloads to be valid Btrfs subvolumes, requires read-only send payloads, and validates that the saved `info.json` is a JSON object whose `date` matches the selected timestamp.
+- Added one shared local/SSH restore implementation. The backup side always performs a local full `btrfs send`; the configured source endpoint performs local or SSH `btrfs receive` using the existing endpoint, stream, sudo, logging, and Btrfs operation layers.
+- Restored Timeshift layout uses an ordinary `<source.snapshot_root>/<date>` directory containing writable configured payload subvolumes such as `@` and `@home` plus the exact original regular `info.json` file.
+- Added hidden ordinary staging below `source.snapshot_root`, exact UUID/Received UUID validation, writable-property validation, atomic staging-directory rename, refusal to overwrite an existing Timeshift date, and a final `timeshift --list` visibility check.
+- Restore always uses full sends and does not depend on an incremental parent or modify backup state/retention data.
+- Added failure cleanup that probes and deletes only Btrfs payload paths attempted by the current restore, removes only exact staging metadata files, and removes the staging directory only when empty. No recursive ordinary deletion is used.
+- Added restore-specific privilege diagnostics. Normal backup remains limited to source Btrfs/Timeshift privilege; restore additionally requires source-side permission for `mkdir`, `tee`, `chmod`, `mv`, exact `rm`, and `rmdir`. Local root execution is the simplest setup, while SSH restore requires those permissions on the remote source.
+- Added `--dry-run`, `--run`, required `--snapshot`, and `--i-understand-this-modifies-timeshift` restore flags plus typed real-run confirmations and shared application locking.
+- Added local and SSH restore regression coverage, dry-run/overwrite/metadata validation tests, and partial-receive staging cleanup coverage.
+
+## 0.1.54
+
+- Extended `restore` with mutually exclusive `--snapshot <date>` and `--all` selections. Single restore remains one full import; `--all` restores every backup newer than the newest UUID-confirmed common Timeshift snapshot.
+- Added common-parent safety validation for every configured payload. A date is common only when the live Timeshift UUID matches `original_source_uuid` and the backup Received UUID matches `send_source_uuid` in the same current `state.json` entry; matching timestamp names alone are not trusted.
+- Added a prominent cross-OS warning when no common parent can be proven. Real no-common restoration is refused unless `--allow-no-common-parent` is supplied and the user types `RESTORE ALL WITHOUT COMMON PARENT` plus the configured job name.
+- Added one shared local/SSH restore-chain implementation. It full-receives the common backup as a hidden read-only seed when a common parent exists, or full-receives the oldest backup when none exists, then sends every later backup incrementally oldest-to-newest with the previous backup as `btrfs send -p` parent.
+- Added stream-identity validation that uses a backup payload's Received UUID when present, otherwise its normal UUID. This preserves the UUID identity used when a previously received backup is sent again.
+- Added writable visible Timeshift snapshots as Btrfs CoW snapshots of the hidden received chain. Their timestamp containers remain ordinary directories with exact saved `info.json` files, while the hidden chain remains read-only until every incremental receive and Timeshift visibility check succeeds.
+- Added exact hidden-chain cleanup after successful restore and conservative rollback of only artifacts created by the current attempt. Fully committed Timeshift dates are left in place if a later Timeshift-list or hidden-cleanup check needs manual inspection.
+- Added local and SSH regression coverage for common-parent chain restore, no-common full-plus-incremental restore, exact incremental parent paths, current-state identity matching, CLI selection/override rules, stream UUID identity, overwrite refusal, and no-work behavior when the newest backup is already common.
+
+## 0.1.55
+
+- Added a mandatory restored-snapshot retention warning to both single-snapshot and complete-chain restore plans. The terminal explains that exact original `info.json` metadata preserves H/D/W/M tags and that normal Timeshift scheduled retention may later delete an old restored snapshot outside configured keep counts.
+- Every real local or SSH restore now requires the exact sentence `I UNDERSTAND TIMESHIFT MAY DELETE RESTORED SNAPSHOTS` before any Btrfs receive starts. This acknowledgement is additional to the existing single-snapshot, common-parent-chain, or no-common-parent confirmations.
+- Added regression coverage for warning output, failed acknowledgement blocking all streaming, and successful local/SSH single and chain restores using the shared confirmation path.
+- Updated current restore documentation, installation guidance, CLI help, interface audit, config comments, code map, and package version metadata.
+
+
+## 0.1.56
+
+- Changed the mandatory restore retention acknowledgement to `I UNDERSTAND TIMESHIFT MAY DELETE RESTORED SNAPSHOTS OR OLDER THAN RESTORED SNAPSHOTS`.
+- Expanded the terminal warning to explain that restoring tagged H/D/W/M snapshots can cause Timeshift retention to delete either a restored snapshot or an existing tagged snapshot older than the restored snapshot when configured keep counts are exceeded.
+- Applied the same shared confirmation to single-snapshot and complete-chain restores in local and SSH modes, with regression coverage for the exact sentence and warning text.
+- Updated current restore documentation, CLI help, config comments, interface audit, and package version metadata.
+
+## 0.1.57
+
+- Fixed subsequent sync runs falsely classifying all existing destination date subvolumes as ordinary directories when the destination is mounted from a Btrfs subvolume and bulk list paths begin at `snapshots/...`.
+- Destination inventory is now rooted at `<target_root>/snapshots`, matching the managed receive tree and allowing date and payload paths to map correctly across mounted-subvolume prefixes.
+- Layout validation treats the bulk index as an optimization: every direct date directory missed by the bulk scan is exact-probed with `btrfs subvolume show` before rejection. Real Btrfs date subvolumes are added to the current index; actual ordinary directories remain a hard error.
+- `destination.snapshots` is now strictly Btrfs-only. Missing paths are created and verified as Btrfs subvolumes, and Btrfs creation failure no longer falls back to `mkdir`. State, lock, and optional log helper paths retain their current flexible behavior.
+- Full and incremental transfers continue to use the same `_ensure_destination_snapshot_subvolume` path, which creates each date with `btrfs subvolume create` and verifies it before receive.
+- Added regression coverage for mounted destination path mapping, snapshots-root inventory selection, exact-probe recovery, ordinary-directory refusal, disabled mkdir fallback, and exact Btrfs create command construction.
+
+
+## 0.1.58
+
+- Fixed `restore --all` and single-snapshot restore rejecting genuine Timeshift `info.json` files that do not contain a `date` property.
+- Removed the non-Timeshift metadata requirement introduced with restore. The timestamp directory name is the snapshot identity; the original `info.json` is now validated only as a readable UTF-8 JSON object and is preserved byte-for-byte.
+- Added regression coverage using realistic Timeshift Btrfs control metadata (`sys-uuid`, `sys-distro`, `app-version`, `file_count`, `tags`, `comments`, `live`, and `type`) with no `date` key, including multi-snapshot discovery used by `restore --all`.
+- Updated current restore documentation and the code map to describe the directory timestamp as the identity source rather than a control-file date field.
+
+## 0.1.59
+
+- Added stable Timeshift `info.json` OS-identity validation for restore. The backup chain must use one consistent `sys-uuid` and Btrfs `type`, and the identity is compared with current source Timeshift control files before restore.
+- Snapshot-specific metadata is intentionally excluded from OS matching: H/D/W/M/O/B tags, comments, creation time, file counts, Timeshift app version, live status, and Btrfs statistics. `sys-distro` is displayed as diagnostic context but is not a hard match so an in-place distribution upgrade does not create a false cross-OS failure.
+- Added `--allow-os-identity-mismatch` for an explicitly accepted restore when no current `info.json` identity matches. Real execution additionally requires the exact sentence `I UNDERSTAND THIS BACKUP MAY BELONG TO ANOTHER OS`.
+- Strengthened common-parent validation so the source and backup `info.json` identities must match in addition to the existing live source UUID, backup Received UUID, and `state.json` identity checks.
+- Optimized common-parent chain restore to start incrementally when every payload's exact recorded source `send_path` still exists, has `send_source_uuid`, and remains read-only. This reuses the source/cache snapshot that Btrfs receive can identify instead of unnecessarily full-receiving the common backup.
+- When the exact receive parent is missing, writable, or has the wrong UUID, restore retains the safe full-hidden-seed fallback and prints the precise reason. No existing Timeshift snapshot is modified to manufacture an incremental parent.
+- Added local and SSH regression coverage for incremental-first common-parent restore, exact source-cache parent validation, full-seed fallback, stable `info.json` comparison, mixed/mismatched OS identity handling, and the new danger override.
+- Updated current CLI help, README, installation guidance, interface audit, code map, tests, and package version metadata.
+
+## 0.1.60
+
+- Added `restore --backup-over-ssh` for pulling a Btrfs backup repository from the configured SSH host and restoring it into a local Timeshift repository.
+- In pull-restore mode, `source.mode = "local"` identifies the local Timeshift target, while `destination.target_root`, `state_file`, and `lock_file` are interpreted on the SSH backup host. Ambiguous SSH-backup-to-SSH-Timeshift use with the single SSH profile is refused.
+- Added one shared `BackupRepository` abstraction for local and SSH backup inventory, `info.json`, state loading, Btrfs metadata, and send commands. Existing local-backup-to-local and local-backup-to-SSH restore continue through the same restore planner and execution loop.
+- Remote backup streams use SSH `btrfs send` on the left side and local `btrfs receive` on the right side, retaining the current single/full-chain, common-parent, exact receive-parent, OS-identity, retention-warning, CoW, and failure-cleanup rules.
+- Added a persistent remote `flock` lock that holds the backup host's configured lock file for the complete real restore and coordinates with normal sync/prune processes using the same advisory lock.
+- Remote backup inventory reads direct timestamp entries and all readable `info.json` files in one SSH command. The remote account needs ordinary backup metadata read access, write access to the existing lock file, `flock` and `base64`, plus narrow Btrfs list/show/send privilege.
+- Updated current CLI help, config comments, README, installation guidance, interface audit, transport documentation, tests, code map, and package metadata.
+- Added remote-backup restore and remote-lock regression coverage for configuration loading, remote state/inventory reads, SSH-send-to-local-receive pipelines, lock acquisition/busy/timeout behavior, and local-target enforcement.
+
+## 0.1.61
+
+- Added `init-config --profile sync` and `init-config --profile restore-pull`. The default remains `sync`; `restore-pull` generates a complete SSH-backup-to-local-Timeshift configuration instead of requiring users to expand a shortened documentation snippet.
+- Added the packaged `timeshift_btrfs_sync/data/config.restore-pull.example.toml` profile. It uses `source.mode = "local"`, treats `[ssh]` as the remote backup host, and documents the remote meanings of `destination.target_root`, `state_file`, and `lock_file`.
+- Kept both generated profiles schema-complete. Every current top-level, SSH, source, destination, stream, retention, manual-snapshot, MQTT, and mail key is present as an active or commented assignment.
+- Expanded SSH configuration comments in both profiles for key authentication, optional `sshpass` password/password-file authentication, password-file permissions, port, cipher, compression, ControlMaster, strict host-key checking, known-hosts files, connection timeout, keepalives, jump hosts, and extra OpenSSH arguments.
+- Added regression coverage proving both `init-config` profiles exactly match their packaged resources, both resources are included in the package, the pull profile loads with local Timeshift plus remote backup SSH semantics, and no supported configuration key is absent from either profile.
+- Updated current README, installation guidance, CLI help, configuration audit, code map, package data, and version metadata.
+
+## 0.1.62
+
+- Added the restore-only `--create-pre-restore-snapshot` flag. When selected, one Timeshift on-demand/tag O safety snapshot is created on the Timeshift restore target after all plan validation and typed confirmations but before any restore staging directory or Btrfs stream.
+- Reused the existing shared local/SSH Timeshift creation command. Local restore creates the safety snapshot locally, local-backup-to-SSH restore creates it on the SSH Timeshift target, and SSH-backup-to-local pull restore creates it locally. The backup repository is never asked to create a Timeshift or Btrfs snapshot.
+- Added post-create verification through a fresh `timeshift --list` and exact Btrfs metadata checks for every configured payload. Ambiguous creation, a timestamp collision, missing payload, missing UUID, or Timeshift command failure aborts before backup transfer.
+- The safety snapshot uses the fixed comment `TimeShift-BTRFS-Sync pre-restore safety snapshot` and is intentionally retained if later restore work fails. The existing `[manual_snapshot]` configuration remains limited to `sync` and `create-manual`.
+- Updated the sync and pull-restore config comments, with the pull profile defaulting `manual_snapshot.enabled = false`, plus README, installation guidance, CLI help, configuration audit, tests, code map, and package metadata.
+
+
+## 0.1.63
+
+- Fixed SSH-backup-to-local restore configurations being silently interpreted as local-backup restore when `--backup-over-ssh` was omitted. The packaged pull profile now sets `[restore] backup_over_ssh = true`, and the CLI uses that validated transport default automatically.
+- Preserved Timeshift's native Btrfs layout: `<source.snapshot_root>/<date>` is an ordinary directory containing regular `info.json` plus Btrfs `@`/`@home` payload subvolumes. Only TimeShift-BTRFS-Sync backup date containers below `<destination.target_root>/snapshots` must themselves be Btrfs subvolumes.
+- Added a targeted diagnostic when a local Timeshift repository is accidentally scanned as the backup repository, explaining the ordinary date-folder layout and how to select SSH backup transport.
+- Kept `--backup-over-ssh` as a one-run override while making the generated pull profile self-contained. Normal sync/prune/destroy path meanings remain unchanged.
+- Added regression coverage for config-driven pull restore without the CLI flag, correct remote lock/transport selection, schema-complete restore settings, and misrouted native Timeshift layout detection.
+- Updated both generated profiles, README, installation guidance, interface audit, code map, tests, and package metadata.
+
+## 0.1.64
+
+- Replaced the confusing restore-only `backup_over_ssh` boolean and `--backup-over-ssh` flag with one explicit `[restore] mode` setting.
+- Added three current restore directions: `local` for local backup to local Timeshift, `ssh` for SSH backup pulled into local Timeshift, and `ssh-target` for local backup restored into an SSH Timeshift target.
+- Made restore transport independent from `source.mode`; `source.mode` now describes only normal sync, prune, source-listing, and manual-snapshot command transport.
+- Updated real and dry-run terminal output to print the selected restore mode before planning or locking.
+- Kept one shared restore planner, Btrfs stream implementation, common-parent logic, OS identity checks, retention warnings, pre-restore safety snapshot, and failure cleanup for all three directions.
+- Updated both generated configuration profiles, current README, installation guidance, CLI help, interface audit, tests, code map, and package metadata.
+
+
+## 0.1.65
+
+- Made restore-side endpoint ownership explicit: `source.snapshot_root` and `source.cache_root` are one Timeshift-side path pair and are always inspected through the same restore-target runner.
+- For `[restore] mode = "ssh"`, backup inventory, backup `state.json`, the repository lock, and `btrfs send` run on the SSH backup host, while Timeshift listing, `snapshot_root`, `cache_root`, exact incremental receive-parent probes, receive, staging, and final verification remain local.
+- For `[restore] mode = "ssh-target"`, both Timeshift paths and all receive-side operations run on the SSH Timeshift host; the local backup side never supplies or probes `source.cache_root`.
+- Renamed restore-internal source inventory/operation variables to Timeshift-specific names and renamed the restore config property to `timeshift_uses_ssh`, removing the ambiguous suggestion that the backup destination controls the cache endpoint.
+- Expanded the restore plan output to print the Timeshift endpoint beside both `snapshot_root` and `cache_root`, plus an explicit path-ownership statement before transfer.
+- Added regression coverage proving local pull-restore cache indexing, local exact cache-parent probes, remote backup scripts excluding Timeshift paths, and SSH-target snapshot/cache pairing on one remote runner.
+- Updated current README, installation guidance, configuration comments, interface audit, code map, tests, and package metadata.
+
+## 0.1.66
+
+- Fixed `[restore] mode = "ssh"` treating the configured `lock_file` as a remote backup-host path and refusing valid pull restores when that path did not exist remotely.
+- Restore now always acquires one local `FileLock` on the machine running the command, for `local`, `ssh`, and `ssh-target` modes. `state_file` continues to follow the backup repository endpoint.
+- Removed the unused `RemoteFileLock` implementation and its dedicated tests so restore has one lock mechanism instead of parallel local/SSH lock code.
+- Updated the generated pull-restore profile so `destination.target_root` and `state_file` are remote, while `lock_file`, `snapshot_root`, `cache_root`, and `log_dir` are local.
+- Removed the remote backup requirements for lock-file write access and `flock`; the SSH backup account remains read-only apart from Btrfs send/show/list privilege.
+- Added regression coverage proving SSH pull restore never probes or opens the lock through SSH, uses the configured local lock, and refuses a missing local lock directory with a local-path diagnostic.
+- Updated current CLI help, README, installation guidance, configuration comments, interface audit, code map, tests, and package metadata.
+
+## 0.1.67
+
+- Fixed local send-cache reuse when root-scoped `btrfs subvolume list -o` output reports existing descendants as `<date>/@`, `<date>/@home`, or bare `@`/`@home` instead of including the configured cache-root mount path.
+- Root-scoped inventory parsing now joins unmatched safe relative descendants only for commands that were explicitly restricted to the requested root. Unscoped Btrfs path mapping remains conservative and continues to reject unrelated or absolute outside paths.
+- Added one authoritative parent-scoped cache-child probe using UUID and read-only Btrfs listings before any `btrfs subvolume snapshot -r` creation. A valid existing child is reused after read-only and Parent UUID validation; a failed safety listing aborts instead of guessing.
+- Added post-create-failure recovery through the same parent-scoped probe so a concurrently created valid cache snapshot is reused rather than treated as a failed cache version.
+- Prevented an existing `<cache_root>/<date>/@` or `@home` from being passed to Btrfs as a destination directory, which previously caused attempted nested paths such as `<date>/@/@` and could trigger deletion of a valid reusable cache child during recovery.
+- Added regression coverage for cache-root-relative `<date>/@` output, date-parent-relative bare `@` output, exact read-only reuse, no nested snapshot command, and conservative unscoped path rejection.
+- Updated current README, installation guidance, generated configuration comments, interface audit, tests, code map, and package metadata.
+
+
+## 0.1.68
+
+- Fixed restore common-parent validation incorrectly treating Timeshift `info.json` `sys-uuid` provenance as an authoritative third identity link after `state.json` and live Btrfs UUIDs had already proven the exact source/backup relationship.
+- A common parent is now proven only by the two hard per-payload links: current Timeshift UUID equals `original_source_uuid`, and backup Received UUID equals `send_source_uuid`, in the same completed `state.json` record.
+- Source/backup `info.json` provenance is still parsed, validated, displayed, and used as a separate cross-OS warning when no exact UUID common parent exists. A provenance mismatch can no longer invalidate stronger state/Btrfs lineage proof.
+- Clarified that restored `info.json` is intentionally preserved unchanged, so its `sys-uuid` records the filesystem from which the snapshot originated rather than necessarily identifying the current live repository after cloning, filesystem recreation, or imported restore.
+- Improved restore and CLI wording to distinguish state/Btrfs common-parent proof from `info.json` provenance warnings.
+- Added regression tests proving that an hourly/retention-era `info.json` provenance difference does not reject a UUID-proven common parent, while incorrect source UUIDs or backup Received UUIDs still reject that candidate.
+- Updated current README, installation guidance, interface audit, CLI help, code map, tests, generated configuration version headers, and package metadata.
+
+## 0.1.69
+
+- Rebuilt the restore common-parent logic around the actual configured Timeshift and backup repositories for all three supported topologies: local backup to local Timeshift, SSH backup pulled into local Timeshift, and local backup restored into an SSH Timeshift target.
+- Restore now supplements `timeshift --list` with timestamp directories physically represented below the configured `source.snapshot_root`, preventing an existing common date from disappearing solely because Timeshift temporarily omits it from list output.
+- Removed destination `state.json` as a mandatory common-parent dependency. A completed state record still proves/corroborates lineage, but a destination-only reset can now be proven through the live chain: current Timeshift UUID equals retained cache Parent UUID, and retained-cache send identity equals backup Received UUID.
+- Kept `info.json` byte-for-byte preservation and cross-OS provenance checks, while documenting that it contains `sys-uuid`/snapshot type rather than the per-payload Btrfs UUID, Parent UUID, and Received UUID values used for exact common-parent identity.
+- Removed the unsafe incremental-first restore optimization that treated a source-side read-only cache snapshot as if it were already a valid receive parent on the Timeshift target filesystem.
+- Chain restore now always full-receives the exact common backup into a hidden receiver-side seed before applying every newer backup incrementally. Before each incremental, the hidden parent must be read-only and its Received UUID must match the exact backup parent send identity.
+- Added a narrowly scoped fallback for the explicit Btrfs `cannot find source subvol`/parent/clone-source failure family: delete only the exact partial received child and retry that payload once as a full stream. Permission, ENOSPC, corruption, and unrelated failures remain hard errors.
+- Added one authoritative `send_stream_uuid()` rule across backup creation, state recording, state recovery, parent selection, inventory lookup, and restore. Native snapshots use local UUID; previously received snapshots use Received UUID, matching the identity Btrfs carries when re-sent.
+- Tightened retained-cache validation so an existing cache payload must be read-only, must expose a Parent UUID, and that Parent UUID must exactly match the current Timeshift payload UUID before reuse or common-parent proof.
+- Improved restore diagnostics to distinguish missing physical timestamps, stale/missing state evidence, current Timeshift payload failures, retained-cache lineage failures, backup Received UUID failures, `info.json` read/parse errors, and timestamps omitted by `timeshift --list`.
+- Added regression coverage for destination-only reset with retained cache, direct physical snapshot discovery, state-optional live lineage proof, all three restore transports, receiver-side full common seed, hidden-parent verification, clone-source fallback, non-parent failure refusal, received-source stream identity, and missing cache Parent UUID refusal.
+- Updated README, INSTALL, CLI help, interface audit, both complete configuration profiles, COMMENTED_CODE_MAP, tests, and package metadata.
+
+## 0.1.70
+
+- Reworked `restore --all` common-parent discovery around the user-visible repository rule: intersect timestamp directories physically present below the configured Timeshift `snapshot_root` and backup `target_root/snapshots`, then evaluate candidates newest-to-oldest.
+- Added one shared privileged read-only timestamp scanner for local backup/local Timeshift, SSH backup pull, and SSH Timeshift target modes. It inventories physical directories, entry types, and exact `info.json` content through individually prefixed `test`, `ls`, and `base64` commands and never invokes a privileged shell.
+- Made current Timeshift physical directories and their exact payload probes authoritative even when `timeshift --list` omits a timestamp or the ordinary metadata account cannot read its control file.
+- Kept exact per-payload state/cache Btrfs lineage as the preferred common-parent proof, including completed state UUID links, retained-cache Parent UUID links, direct read-only send identity, and real Btrfs payload validation on both endpoints.
+- Added a secure same-date metadata fallback for cases where exact state/cache evidence was legitimately removed or is unavailable: all configured payloads must be real Btrfs subvolumes on both sides, and the source and backup control files for that exact timestamp must match stable `info.json` `sys-uuid` and `type` identity. Mutable tags, comments, creation time, counters, statistics, and Timeshift version are ignored.
+- Kept the hidden receiver-side full-seed design: the visible Timeshift snapshot selected as common is never used as an implicit Btrfs receive parent, so metadata fallback cannot send incrementals against an unproven visible payload.
+- Fixed common-parent diagnostics to report the newest failed overlapping candidates instead of allowing an older failure to overwrite the useful reason.
+- Made backup `state.json` an explicitly optional, privileged read: restore uses `destination.sudo` with exact `test` and `base64` commands, treats a missing file as empty history, and ignores unreadable, malformed, symlinked, or schema-invalid state instead of blocking independent cache/metadata proof.
+- Made Timeshift-side existence checks and final `info.json` verification use `source.sudo`, preventing false missing-path and unreadable-file results for local root-owned repositories and SSH Timeshift targets.
+- Preserved `info.json` byte-for-byte while separating its stable same-OS fields (`sys-uuid` and `type`) from mutable tags, comments, counters, statistics, dates, and Timeshift version fields.
+- Clarified CLI errors, dry-run help, README, installation permissions, interface audit, generated configuration comments, and code-map explanations for the exact common-parent decision and all three restore transports.
+- Added regression coverage for same-date identity fallback after state/cache proof loss, mutable tag/comment differences, rejection when both exact and metadata proof fail, newest-candidate selection, privileged physical scans without privileged shells, and all existing restore transport/hidden-chain behavior.
+
+## 0.1.71
+
+- Completed a command-topology review after a newly created backup appeared to have no shared timestamp during SSH pull/push restore.
+- Confirmed and documented the command ownership rule: `sync` uses only `source.mode` and always writes `destination.target_root` locally; restore uses only `restore.mode` to place the backup or Timeshift side over SSH.
+- Added a hard safety refusal when `sync` is invoked with a pull-restore profile (`restore.mode = "ssh"`). That combination previously allowed a user to create a local backup while later restore interpreted the same path on the SSH host, producing different repositories, different OS UUIDs, and no timestamp overlap.
+- Added `topology.py` as the single source of truth for sync and restore endpoint descriptions and the pull-profile sync refusal.
+- Added a `SYNC TOPOLOGY` preamble showing the effective source endpoint, local backup destination, source path, backup root, and command interpretation before sync work starts.
+- Added an explicit restore endpoint map to every restore plan.
+- Improved no-common-timestamp diagnostics to include physical date counts and the newest backup and Timeshift dates instead of only saying that no backup timestamp is present.
+- Added the complete `remote-roundtrip` config profile for SSH Timeshift source -> local backup -> push restore back to the same SSH Timeshift host. It pairs `source.mode = "ssh"` with `restore.mode = "ssh-target"`.
+- Marked the packaged `restore-pull` profile as restore-only and documented that `sync` refuses it.
+- Expanded `init-config`, README, INSTALL, interface audit, all complete config examples, code map, and tests for the three explicit command topologies.
+- Added regression tests for pull-profile sync refusal, remote-roundtrip endpoint ownership, pull/push direction descriptions, and newest-date diagnostics when physical timestamp sets do not overlap.
+
+## 0.1.72
+
+- Added `ssh.identity_passphrase` and `ssh.identity_passphrase_file` for encrypted private keys, separate from the existing remote-account `ssh.password` and `ssh.password_file` settings.
+- Added strict config validation: exactly one direct/file value may be used per secret family, identity passphrase settings require `ssh.identity_file`, referenced files must exist, and any configured password/passphrase is refused with `BatchMode=yes`.
+- Added one process-private owner-only askpass helper that contains no secrets, distinguishes private-key passphrase prompts from remote-account password prompts, and fails closed for unknown prompts such as host-key confirmations.
+- Kept the established `sshpass -e` path unchanged for account-password-only authentication. When an identity passphrase is configured, OpenSSH askpass supplies the key passphrase and can also supply a different account password.
+- Applied the same authentication environment and command builder to normal SSH probes, sync streams, pull restore, and push restore.
+- Added empty-secret refusal and optional-final-newline handling for direct/file-backed SSH secrets.
+- Updated all three complete config profiles, README.md, INSTALL.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, VERSIONING.md, and package version metadata.
+- Added focused regression coverage for direct and file-backed passphrases, distinct key/account secrets, unknown-prompt refusal, `BatchMode=yes` rejection, missing identity validation, and unchanged password-only behavior.
+
+
+## 0.1.73
+
+- Restored the missing complete `timeshift_btrfs_sync/data/config.remote-roundtrip.example.toml` profile. It is preconfigured for SSH Timeshift source -> local backup -> push restore to the same SSH Timeshift host with `source.mode = "ssh"` and `restore.mode = "ssh-target"`.
+- Updated all three complete config profile headers to 0.1.73 and kept every current configuration option documented in every profile.
+- Fixed PyInstaller packaging so `scripts/build_pyinstaller.py` bundles the complete `timeshift_btrfs_sync/data/` directory instead of embedding only `config.example.toml`. This makes `sync`, `restore-pull`, and `remote-roundtrip` available to frozen builds and makes future packaged profile additions automatically follow the same data-directory rule.
+- Corrected the direct PyInstaller examples in `INSTALL.md` to include the same complete package-data directory, and added frozen-executable `init-config` verification commands for all three profiles.
+- Corrected `init-config --help` so its command description explicitly explains the `remote-roundtrip` profile as well as `sync` and `restore-pull`, and added regression coverage preventing a packaged profile from disappearing from that help.
+- Added a new `tests/` regression suite using Python's standard-library `unittest`, with coverage for packaged profile generation/loading, config-schema presence, PyInstaller data packaging, 0.1.70 restore common-parent/physical-scan behavior, 0.1.71 topology safety/direction behavior, 0.1.72 encrypted identity authentication behavior, CLI/documentation coverage, version consistency, and release hygiene.
+- Added a regression guard that scans runtime/build Python symbols and fails when a class/function is missing from `COMMENTED_CODE_MAP.md`.
+- Completed `COMMENTED_CODE_MAP.md` entries for command-local CLI closures, remote inventory parser flush helpers, inventory comparison, log pipe reader, prune action handlers, and sync-local parent/inventory/queue/recovery helpers that were previously omitted.
+- Removed the unused legacy `timeshift_btrfs_sync/metadata.py` runtime module after confirming the current application does not import it.
+- Removed the unreferenced standalone `delete-btrfs-tree.sh` helper so release cleanup has no separate broad ordinary-filesystem deletion implementation outside the guarded Btrfs tree engine.
+- Added `*.succes` to `.gitignore` and removed the stray runtime success-summary file from the release tree.
+- Corrected `.gitignore` exceptions so all three packaged TOML examples, including the newly restored remote-roundtrip file, remain trackable despite the general `*.toml` ignore; also ignored common Python/test/build cache artifacts.
+- Kept README.md focused on current usage, configuration, safety, and every current CLI command; removed the internal module/package-layout discussion that belongs in the code map rather than the user guide.
+- Updated README.md, INSTALL.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, VERSIONING.md, config profiles, PyInstaller build script, package version metadata, and release tests for the current 0.1.73 behavior.
+- Intentionally omitted the stale prebuilt `dist/ts-btrfs` 0.1.72 executable from the 0.1.73 release package because PyInstaller is unavailable in the validation environment and package-network access is blocked. Shipping that binary would falsely present an old executable that lacks the restored packaged profiles; rebuild it with `scripts/build_pyinstaller.py` on a system with the PyInstaller extra before distributing a frozen binary.
+
+## 0.1.74
+
+- Fixed app-created on-demand retention so `[manual_snapshot].cleanup_enabled = true` and `retention_count` now apply as a paired source+destination target instead of pruning only the backup destination. With ordinary app-created snapshots carrying only tag `O` and no explicit protection, `retention_count = 10` converges to 10 matching app-created snapshots on both the source Timeshift repository and backup destination after a successful real prune.
+- Added current source Timeshift revalidation before any source deletion. A source snapshot is eligible only when the current Timeshift listing still proves tag `O` and the configured `manual_snapshot.marker`; normal/user-created tag `O` snapshots are never deleted by the app-created source cleanup path.
+- Added live backup proof before retiring a tracked source snapshot. Every configured subvolume must be recorded complete in state and must still exist as a Btrfs subvolume at its exact current destination path.
+- Source snapshot retirement now uses Timeshift's supported `timeshift --delete --snapshot <name> --scripted --yes` command through the configured local/SSH source endpoint and `source.sudo`. The app never raw-deletes a Timeshift snapshot with `btrfs subvolume delete` or `rm`; a post-delete `timeshift --list` in the same source command verifies that the timestamp is actually gone.
+- Ordered paired deletion for retry safety: after live backup proof succeeds, the source Timeshift snapshot is retired first, then the old destination snapshot, then the app-owned send-cache, and state is removed only after every required action succeeds. If Timeshift deletion fails, the destination backup is deliberately left untouched so the next prune can re-prove the backup and retry safely.
+- Added guarded migration cleanup for source-only app snapshots left behind by the 0.1.73 one-sided retention behavior. An old source-only candidate is authorized only when the complete newest `manual_snapshot.retention_count` app-created source window is independently proven complete in current state and on the live destination; otherwise legacy source deletion is blocked.
+- Fixed legacy-candidate accounting so a normally paired prune item cannot be reclassified/count again as a source-only legacy candidate after its state entry is removed during the same run.
+- Reused the Timeshift metadata refresh already performed by standalone `prune` for source-retention decisions, avoiding a duplicate source Timeshift list/SSH call in that command path. Post-sync prune performs one current source Timeshift refresh for the destructive retention decision.
+- Added `ActionKind.DELETE_SOURCE_TIMESHIFT` and extended the shared prune workflow planner/executor so dry-run/real ordering remains explicit and auditable.
+- Added `tests/test_manual_snapshot_retention.py` with regression coverage for keeping the newest 10 app snapshots, excluding normal/user `O` snapshots, exact live destination proof, safe 0.1.73 backlog migration, blocked migration when the retained window is incomplete, current tag+marker revalidation, Timeshift-only delete commands, post-delete verification, retry-safe action ordering, and preservation of destination/state when source retirement fails.
+- Updated all three config profiles, README.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, CLI help, runtime config comments, and package version metadata for the paired-retention behavior.
+- Corrected two pre-existing empty Markdown command blocks in README.md by restoring concrete prune and `destroy-leftovers` dry-run examples.
+
+## 0.1.75
+
+- Fixed pipeline failure classification so definitive local `btrfs receive` storage errors remain the primary failure instead of being reinterpreted as source inventory churn. `No space left on device` (ENOSPC), disk-quota exhaustion, and read-only destination failures now abort immediately and do not consume `source.source_change_retry_count`.
+- Extended `CommandError`/`stream_pipeline` with per-stage send/buffer/receive return codes and stderr. This lets sync distinguish the real receive-side failure from the expected upstream `Broken pipe` errors caused when `btrfs receive` exits first.
+- Added exact required-path revalidation after non-terminal pipeline failures. If the refreshed bulk source inventory omits a current send path or incremental parent that existed before the transfer, the app now runs an exact `btrfs subvolume show` probe before declaring that path disappeared. Same-UUID paths are restored into the refreshed in-memory index and are not treated as source-change retries.
+- Added explicit terminal diagnostics for destination storage failures explaining that source-cache recreation cannot fix the problem, that the incomplete destination version is left for the existing `cleanup_incomplete_receive` recovery on the next run, and that destination/Btrfs capacity should be checked before retrying. Corrected the source-change retry-limit output so an exhausted sixth event with a limit of five says it is stopping instead of printing a misleading `6/5` clean-and-continue action.
+- Clarified current README/config documentation so `source_change_retry_count` applies only to exactly confirmed source/cache disappearance or UUID changes, not ENOSPC or unrelated `info.json` churn.
+- Added regression tests for receive-side ENOSPC classification, broken-pipe non-classification, exact-probe repair of bulk cache-index omissions, and exact confirmation of truly missing cache paths.
+- Updated package/config version metadata, README.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, VERSIONING.md, and the release test suite for 0.1.75. Release hygiene now also rejects `dist/` and `*.egg-info/` build artifacts, and `.gitignore` excludes them.
+
+
+## 0.1.76
+
+- Added optional per-subvolume transfer-size capacity preflight for normal `sync` with the requested `[stream]` settings: `transfer_size_check`, `transfer_size_mode`, and `transfer_size_safety_margin`.
+- Exact mode now generates the same full/incremental `btrfs send` stream that the real transfer will use, including the exact selected `-p` parent, send protocol, and compressed-data option, and pipes it into `wc -c` on the source endpoint. For SSH sources the stream remains remote and only the decimal byte count returns over SSH; no send-stream temporary file is created.
+- Exact measurement emits and parses an explicit producer return-code marker so POSIX pipeline semantics cannot hide a failed `btrfs send` behind a successful `wc -c`.
+- Added estimate mode using summarized raw `btrfs filesystem du`. Full sends use total referenced bytes; incremental sends use current exclusive bytes as a deliberately rough, non-parent-specific estimate and print/document that it may under- or over-estimate the real stream.
+- Added destination capacity probing through `btrfs filesystem usage -b <target_root>`. The parser uses `Free (estimated)` and prefers Btrfs's `min` lower bound when present.
+- A real sync now refuses a transfer before creating the destination snapshot date when calculated send bytes plus `transfer_size_safety_margin` exceed current Btrfs estimated free space. The refusal reports send size, margin, required space, current free space, and shortfall.
+- Dry-run does not perform the expensive exact stream-generation pass; it reports that the real run would execute the configured transfer-size check.
+- Added binary K/M/G/T/P/E parsing for the safety margin; `1G` means 1 GiB. The three packaged configs enable exact checking with a 1 GiB margin by default.
+- Added `transfer_size.py` and focused regression coverage for binary size parsing, Btrfs free-space lower-bound parsing, FIEMAP estimate parsing, exact source-side stream counting, producer failure detection, config validation, and allow/refuse capacity decisions.
+- Updated all three config profiles, README.md, INSTALL.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, VERSIONING.md, package version metadata, and release tests for 0.1.76.
+
+## 0.1.77
+
+- Changed transfer-size preflight to be opt-in by default: `stream.transfer_size_check` now defaults to `false` in both runtime fallback configuration and all three packaged config profiles. Existing configs that explicitly set `true` keep their configured behavior.
+- Changed the default transfer-size mode from `exact` to `estimate` so users who enable the preflight get the quick Btrfs accounting path unless they explicitly request the slower byte-for-byte send-stream measurement.
+- Kept `transfer_size_mode = "exact"` fully supported for users who prefer the real generated send-stream byte count despite the extra source read/send-generation pass.
+- Kept the default `transfer_size_safety_margin = "1G"` unchanged.
+- Updated README.md, INSTALL.md, COMMENTED_CODE_MAP.md, all packaged config examples, package version metadata, and regression tests for the new background-backup-friendly defaults.
+- Added regression coverage proving that configs which omit the transfer-size options resolve to `transfer_size_check = false`, `transfer_size_mode = "estimate"`, and the unchanged `1G` safety margin.
+
+## 0.1.78
+
+- Replaced the unsafe incremental `estimate` implementation that used `btrfs filesystem du --raw -s` exclusive bytes. Real-world logs showed a 20+ GiB referenced send-cache snapshot reporting `Exclusive = 0`, causing the preflight to estimate `0 B` and approve a transfer that later exhausted the destination.
+- Estimate mode now performs a parent-specific metadata-only `btrfs send --no-data` with the same selected `-p` parent, send protocol, and compressed-data setting as the real send, and pipes it into `btrfs receive --dump` on the source endpoint. It totals `UPDATE_EXTENT` lengths without reading/transferring file payload, retaining the time-saving purpose of estimate mode while tracking the actual incremental relationship.
+- Added producer return-code validation to estimate mode so a failed metadata-only `btrfs send` cannot be hidden by a successful `btrfs receive --dump` consumer.
+- Added robust parsing for both modern `size=<bytes>` and older/verbose `len=<bytes>` UPDATE_EXTENT forms.
+- Kept `transfer_size_check = false`, `transfer_size_mode = "estimate"`, and `transfer_size_safety_margin = "1G"` as the defaults. Existing explicit exact-mode configs remain supported unchanged.
+- Added an explicit terminal `DESTINATION RECEIVE FAILURE` block when local receive reports ENOSPC/quota/read-only storage failure, so downstream storage failure is visibly identified as the primary error after all pipeline reader threads finish even if upstream tools also emit secondary broken-pipe text.
+- Confirmed from the supplied 0.1.77 failure logs that structured `.err` diagnostics already prioritized the local receive ENOSPC; no `Broken pipe` text was present in the supplied `.err` or `.mbuffer` files. The terminal block improves visibility rather than changing the underlying receive-stage classification.
+- Updated README.md, INSTALL.md, all config examples, COMMENTED_CODE_MAP.md, package/config version metadata, and regression tests for the parent-specific metadata-only estimate behavior.
+- Added regression coverage for metadata-only UPDATE_EXTENT parsing, parent/protocol/compressed-data command construction, failed-producer detection, avoidance of exclusive-byte accounting, and estimate-mode capacity refusal.
+
+## 0.1.79
+
+- Fixed a real estimate-mode crash where a large `btrfs send --no-data | btrfs receive --dump` result reached the generic UTF-8 subprocess capture path and raised `UnicodeDecodeError` before the capacity estimate could complete.
+- Kept the parent-specific metadata-only estimator introduced in 0.1.78, but moved `UPDATE_EXTENT` summation fully onto the source endpoint: `btrfs send --no-data` now feeds `btrfs receive --dump`, whose output is immediately streamed through source-side `LC_ALL=C awk`. Only one ASCII `TSBTRFS_ESTIMATE_CHANGED_BYTES=<bytes>` marker returns to Python.
+- Added an explicit `btrfs receive --dump` return-code marker in addition to the existing send producer marker, so both stages are independently validated even though POSIX pipelines normally expose only the final command status.
+- Estimate mode no longer captures or transports the potentially very large dump text, reducing Python memory usage and SSH return traffic while avoiding UTF-8 decoding hazards. Exact mode is unchanged.
+- Kept the requested defaults unchanged: `transfer_size_check = false`, `transfer_size_mode = "estimate"`, and `transfer_size_safety_margin = "1G"`.
+- Updated README.md, INSTALL.md, all three config profiles, COMMENTED_CODE_MAP.md, package/config version metadata, and regression tests for the source-side streaming reduction design.
+- Added a regression test that deliberately sends non-UTF-8 binary bytes through the fake metadata-only producer and proves that Python receives only the ASCII summary, plus coverage for dump-stage failure propagation.
+
+## 0.1.80
+
+- Reworked argparse help into a self-contained CLI operational reference. Top-level `--help` now prints the installed TimeShift-BTRFS-Sync version, run-mode precedence, destructive-confirmation rules, exit codes, and a diagnosis flow.
+- Kept the existing top-level `--version` and extended it to every subcommand, so both `ts-btrfs --version` and forms such as `ts-btrfs sync --version` work even when that command normally has required flags/groups.
+- Expanded every public flag description with its actual effect, default/config interaction, dependencies, mutual-exclusion/selection rules, and safety boundaries. In particular, `--resend`, `--prune`/`--yes-delete`, restore danger overrides, maintenance danger flags, `--limit`, and profile/delete-selection choices now explain what they do and do not override.
+- Added command-specific examples and troubleshooting/guard guidance to every subcommand help page, including topology guidance for remote-source sync and explicit real-run requirements for destructive commands.
+- Changed value metavars to user-facing names such as `FILE`, `DATE`, `N`, `TEXT`, and `PROFILE` where useful, without changing the accepted CLI syntax or command behavior.
+- Added `tests/test_cli_help_contract.py` to recursively audit the argparse tree: every public option must have meaningful rendered help; every subcommand must show version information and examples; top-level/subcommand `--version` must succeed; and `--help` must exit successfully before required command-specific selections are validated.
+- Updated README.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, package/config version metadata, VERSIONING.md, and release tests for 0.1.80.
+## 0.1.81
+
+- Made the end-of-sync reporting contract explicit: every sync now finishes with `SYNC SUMMARY` followed immediately by `CLEANUP SUMMARY`. The cleanup block is present even when retention is not requested or when zero snapshots are deleted.
+- Kept retention safety behavior unchanged: cleanup still runs only when `--prune` is supplied or `prune_after_sync = true`. A skipped cleanup now explains that gate and reports `cleaned snapshots: 0` instead of ending silently.
+- Added structured `PruneResult` accounting for destination/state cleanup, legacy source-only cleanup, retry/protected items, source candidates/authorizations, and remaining state, so the final cleanup summary reports snapshot-level outcomes accurately.
+- Deferred the final sync summary until after retention work so verbose retention planning/deletion output cannot appear after it. Sync failures and cleanup failures now receive explicit final status blocks rather than losing the completion summary.
+- Added final-summary log staging: `.succes` gets the final pair before notifications (so success mail can use it), while `.log` queues the same pair until logger close so it remains the final block after the internal logging-finished marker. Terminal output is emitted after notification handling.
+- Added regression coverage for skipped cleanup, successful zero-delete cleanup, dry-run cleanup, sync summary formatting, and the requirement that `SYNC SUMMARY` precede `CLEANUP SUMMARY` at the tail of `.log` and `.succes`.
+- Updated README.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, all packaged config version headers, package version metadata, VERSIONING.md, and release tests for 0.1.81.
+
+
+## 0.1.82
+
+- Changed sync end-of-run ordering so the last three human-readable terminal/`.log` blocks are always the transferred-snapshots list, `SYNC SUMMARY`, and `CLEANUP SUMMARY`, in that order.
+- Split detailed transfer listings out of `SYNC SUMMARY`; the transfer block now explains that it contains the snapshot/subvolume payloads transferred successfully by the current run (or planned by a dry-run).
+- Added a monotonic total backup timer to `SYNC SUMMARY`. It starts when the `sync` command begins and is finalized after retention/cleanup work, so it covers discovery, preflight, transfer work, and cleanup while excluding later MQTT/SMTP notification delivery.
+- Changed final `.succes` handling so sync finalization replaces intermediate retention text with a mail-friendly body whose top is: configured run name, `SYNC SUMMARY`, `CLEANUP SUMMARY`, then the transfer list. The full `.log` remains an attachment rather than the email body.
+- Added regression coverage for final terminal/`.log` ordering, timer formatting, mail-body ordering, configured run name placement, and replacement of intermediate `.succes` text.
+- Updated README.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, packaged config comments/version headers, package metadata, and release hygiene expectations for 0.1.82.
+
+## 0.1.83
+
+- Added total successful transfer-volume accounting to `SYNC SUMMARY`; totals are automatically displayed as MB, GB, or TB.
+- Successful pipelines now return mbuffer's measured byte total when mbuffer reports one. The run summary sums only successfully completed subvolume transfers, so failed streams never inflate the total.
+- When mbuffer does not provide a total, an already-enabled `transfer_size_mode = "exact"` preflight measurement is reused as the truthful stream-size fallback without generating another Btrfs send pass. Estimate-mode values are deliberately not reported as actual transferred bytes.
+- If one or more successful transfers have no trustworthy byte measurement (for example mbuffer disabled and no exact preflight), `SYNC SUMMARY` reports the total as unavailable instead of presenting a partial/estimated number as the run total.
+- Added regression coverage for mbuffer summary/progress parsing, successful pipeline byte accounting, total-size summation, automatic GB/TB formatting, and incomplete-measurement reporting.
+- Updated README.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, packaged config version headers, package metadata, and release hygiene expectations for 0.1.83.
+
+
+## 0.1.84
+
+- Fixed successful interactive syncs reporting `total transferred: unavailable` even with `use_mbuffer = true`. mbuffer can detect a controlling terminal and reopen `/dev/tty` for status/progress output, bypassing the stderr pipe that TimeShift-BTRFS-Sync captures. The progress was visible to the user, but the final byte summary never reached transfer accounting.
+- The optional middle/mbuffer process is now launched in a fresh session (`start_new_session=True`). Its stdin/stdout remain the same streaming pipes, but it has no controlling TTY to reopen; mbuffer status/final summary therefore stays on captured stderr, is mirrored live back to the terminal, is written to `.mbuffer`, and is available to the per-transfer byte counter.
+- Kept actual-transfer accounting semantics unchanged: only successfully completed stream totals are summed; estimate-mode preflight values are not presented as actual transferred bytes, while an already-computed exact preflight remains the fallback if mbuffer supplies no usable total.
+- Extended mbuffer summary parsing to accept multi-sender forms such as `summary: 2x ...` as well as the normal summary/progress forms.
+- Documented that custom `mbuffer_extra_args` containing `-q` can intentionally suppress status/final-summary output and therefore make live byte accounting unavailable unless exact preflight provides the fallback.
+- Added regression coverage proving the middle process starts as a new session leader and that its final byte summary is captured, plus multi-sender summary parsing coverage.
+- Updated README.md, CONFIG_AND_CLI_AUDIT.md, COMMENTED_CODE_MAP.md, all packaged config version headers/comments, package metadata, VERSIONING.md, and release hygiene expectations for 0.1.84.

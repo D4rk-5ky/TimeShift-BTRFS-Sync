@@ -11,7 +11,7 @@ import json
 import sys
 import time
 from . import __version__, timeshift
-from .monitor import LiveMonitor, duplicate_event, report_phase
+from .monitor import LiveMonitor, duplicate_event, report_phase, utc_now
 from .commands import CommandError
 from .btrfs_ops import BtrfsOps
 from .endpoint import CommandEndpoint
@@ -501,7 +501,7 @@ def _format_failed_sync_summary(exc: BaseException, *, elapsed_seconds: float | 
 
 
 def cmd_sync(args) -> int:
-    backup_started = time.monotonic()
+    backup_started = getattr(args, "script_started_monotonic", time.monotonic())
     config = load_config(args.config)
     reject_pull_restore_profile_for_sync(config)
     topology = describe_sync_topology(config)
@@ -582,6 +582,8 @@ def cmd_sync(args) -> int:
         return 0
 
     def _run_locked() -> int:
+        from .monitor import configure_run
+        configure_run(cleanup=cleanup_requested)
         report_phase("inventory")
         state = _load_config_state(config)
         final_state["sync"] = sync_once(
@@ -618,7 +620,8 @@ def cmd_sync(args) -> int:
             raise
         if config.mqtt_monitor.enabled:
             try:
-                stack.enter_context(LiveMonitor(config, args.config))
+                stack.enter_context(LiveMonitor(config, args.config, started_monotonic=backup_started,
+                                                started_at=getattr(args, "script_started_at", None)))
             except Exception as exc:
                 print(f"WARNING: live MQTT monitoring could not start: {exc}", file=sys.stderr)
         return _with_logging(config, "sync", _run_locked, finalizer=_finalize, mail_finalizer=_mail_finalize)
@@ -642,6 +645,9 @@ def cmd_prune(args) -> int:
         return 0
 
     def _run_locked() -> int:
+        from .monitor import configure_run
+        configure_run(cleanup=True, operation="prune")
+        report_phase("inventory")
         prepare_destination_helper_paths(config, dry_run=False)
         state = _load_config_state(config)
         prune(
@@ -659,7 +665,19 @@ def cmd_prune(args) -> int:
     print("Run mode: real run")
     prepare_lock_path(config, dry_run=False)
     print(f"Acquiring lock: {config.lock_file}")
-    with FileLock(config.lock_file):
+    with ExitStack() as stack:
+        try:
+            stack.enter_context(FileLock(config.lock_file))
+        except BlockingIOError:
+            duplicate_event(config, args.config)
+            raise
+        if config.mqtt_monitor.enabled:
+            try:
+                stack.enter_context(LiveMonitor(config, args.config,
+                    started_monotonic=getattr(args, "script_started_monotonic", None),
+                    started_at=getattr(args, "script_started_at", None)))
+            except Exception as exc:
+                print(f"WARNING: live MQTT monitoring could not start: {exc}", file=sys.stderr)
         return _with_logging(config, "prune", _run_locked)
 
 
@@ -1026,7 +1044,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Back up Timeshift snapshot payloads from the configured source into the local destination.target_root.\n"
             "source.mode selects local versus SSH source. Normal sync never writes a remote backup destination.\n"
             "If source Timeshift reports its startup lock is busy, retry every 60 seconds and refresh the complete source inventory before planning transfers. Ctrl+C cancels the wait.\n"
-            "Real sync refreshes the inventory between completed snapshot dates and recalculates completed + remaining progress. Optional [mqtt_monitor] publishes live status and Home Assistant discovery. Dry-run does not publish live monitoring.\n"
+            "Real sync refreshes the inventory between completed snapshot dates and recalculates completed + remaining progress. Optional [mqtt_monitor] publishes measured active-stream bytes, whole-run average/runtime, retained last-success history and Home Assistant discovery. measure_transfers and progress_interval control measurement; manufacturer groups independent jobs for the automatic Markdown card. Dry-run does not publish live monitoring.\n"
             "Without --run or --dry-run, config.default_dry_run selects preview versus real execution."
         ),
         cmd_sync,
@@ -1061,7 +1079,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--limit",
         type=int,
         metavar="N",
-        help="transfer at most N individual configured subvolume payloads in this run (for example one @ or @home); useful for a first real test; does not mean N snapshot dates",
+        help="soft limit of N configured subvolume payload sends, checked between complete snapshot dates; a started date finishes all payloads, so --limit 1 can send both @ and @home; does not mean N dates",
     )
     p.add_argument(
         "--snapshot",
@@ -1094,7 +1112,8 @@ def build_parser() -> argparse.ArgumentParser:
             "source.delete_redundant_snapshots (default true) previews proven stale readonly cache dates.\n"
             "destination.delete_redundant_snapshots (default true) previews destination-only readonly dates\n"
             "no newer than the latest confirmed state pair, including older leftovers; cache absence and UUID ownership are required.\n"
-            "Real redundant cache/destination deletion runs only after successful sync; standalone prune does not delete extras."
+            "Real redundant cache/destination deletion runs only after successful sync; standalone prune does not delete extras.\n"
+            "When mqtt_monitor.enabled=true, real sync/prune publishes dynamic cleanup and overall progress after acquiring the job lock; dry-runs do not."
         ),
         cmd_prune,
         epilog=(
@@ -1343,8 +1362,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 def main(argv: list[str] | None = None) -> int:
+    script_started_monotonic = time.monotonic()
+    script_started_at = utc_now()
     parser = build_parser()
     args = parser.parse_args(argv)
+    args.script_started_monotonic = script_started_monotonic
+    args.script_started_at = script_started_at
     try:
         return int(args.func(args) or 0)
     except ConfigError as exc:
