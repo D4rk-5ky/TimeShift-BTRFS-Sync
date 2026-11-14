@@ -1,4 +1,4 @@
-# Commented code map — TimeShift-BTRFS-Sync 0.2.6
+# Commented code map — TimeShift-BTRFS-Sync 0.2.8
 
 This file explains every Python class, function, method and nested callback in the current project, plus application commands and supplied shell/integration commands. Line numbers refer to this release. COMMENTED_CODE_MAP.md is the canonical code map; VERSIONING.md is the canonical version ledger. The requested lowercase commented_code_map.md and versioning.md contain full identical copies; synchronize each pair on every release.
 
@@ -1902,7 +1902,7 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 - `build_parser` (function/method, line 889): Create the argparse parser and complete command-specific flag help. **Why:** Runs the existing guarded handlers and exposes complete help; records CLI-start time before config/path work so live runtime includes all job phases.
 
-- `main` (function/method, line 1364): Parse and dispatch CLI arguments; translate configuration, lock, runtime and interruption errors to documented exit codes. **Why:** Runs the existing guarded handlers and exposes complete help; records CLI-start time before config/path work so live runtime includes all job phases.
+- `main` (function/method, line 1365): Parse and dispatch CLI arguments; translate configuration, lock, runtime and interruption errors to documented exit codes. **Why:** Runs the existing guarded handlers and exposes complete help; records CLI-start time before config/path work so live runtime includes all job phases.
 
 ## `timeshift_btrfs_sync/commands.py`
 
@@ -2290,22 +2290,30 @@ No function or class definitions. The module exposes metadata or invokes the exi
 
 **Why:** Formats and sends optional status mail with bounded attachments while preserving the underlying backup outcome.
 
-- `MailConfig` (class, line 20): SMTP settings for optional email notifications. **Why:** Formats and sends optional status mail with bounded attachments while preserving the underlying backup outcome.
+- `MailConfig` (class, line 22): SMTP or local mailx settings for optional email notifications. **Why:** Formats and sends optional status mail with bounded attachments while preserving the underlying backup outcome.
 
-- `MailConfig.resolved_password` (function/method, line 52): Return password from config value or password_file. **Why:** Formats and sends optional status mail with bounded attachments while preserving the underlying backup outcome. Scoped within `MailConfig` to use its existing endpoint, state or callback context.
+- `MailConfig.resolved_password` (function/method, line 60): Return password from config value or password_file. **Why:** Formats and sends optional status mail with bounded attachments while preserving the underlying backup outcome. Scoped within `MailConfig` to use its existing endpoint, state or callback context.
 
-- `_subject` (function/method, line 61): Create a short readable subject line. **Why:** Formats and sends optional status mail with bounded attachments while preserving the underlying backup outcome.
+- `_subject` (function/method, line 69): Create a short readable subject line. **Why:** Formats and sends optional status mail with bounded attachments while preserving the underlying backup outcome.
 
-- `_body` (function/method, line 72): Create a fallback plain-text email body from the status payload. **Why:** Formats and sends optional status mail with bounded attachments while preserving the underlying backup outcome.
+- `_body` (function/method, line 80): Create a fallback plain-text email body from the status payload. **Why:** Formats and sends optional status mail with bounded attachments while preserving the underlying backup outcome.
 
-- `_success_body_from_paths` (function/method, line 101): Return the text content of the non-empty .succes file, if present. **Why:** Formats and sends optional status mail with bounded attachments while preserving the underlying backup outcome.
+- `_success_body_from_paths` (function/method, line 109): Return the text content of the non-empty .succes file, if present. **Why:** Formats and sends optional status mail with bounded attachments while preserving the underlying backup outcome.
 
-- `_filter_attachments` (function/method, line 118): Return existing attachment paths and human-readable skipped reasons. **Why:** Formats and sends optional status mail with bounded attachments while preserving the underlying backup outcome.
+- `_filter_attachments` (function/method, line 126): Return existing attachment paths and human-readable skipped reasons. **Why:** Formats and sends optional status mail with bounded attachments while preserving the underlying backup outcome.
 
-- `_attach_file` (function/method, line 148): Attach one file to an EmailMessage. **Why:** Formats and sends optional status mail with bounded attachments while preserving the underlying backup outcome.
+- `_attach_file` (function/method, line 156): Attach one file to an EmailMessage. **Why:** Formats and sends optional status mail with bounded attachments while preserving the underlying backup outcome.
 
-- `send_status` (function/method, line 159): Send one optional SMTP status email. **Why:** Formats and sends optional status mail with bounded attachments while preserving the underlying backup outcome.
+- `send_status` (function/method, line 224): Send one optional status email through the selected SMTP or local mailx backend. **Why:** Formats and sends optional status mail with bounded attachments while preserving the underlying backup outcome.
 
+
+- `MailConfig.recipients` (function/method, line 56): Use an explicit single recipient, otherwise preserve the existing recipient list. **Why:** Keeps mail transport selection explicit, preserves shared notification content, and handles local utility failures without changing the backup result.
+
+- `validate_mailx_address` (function/method, line 167): Accept plain mailboxes/local users, excluding mailx file, pipe and option syntax. **Why:** Keeps mail transport selection explicit, preserves shared notification content, and handles local utility failures without changing the backup result.
+
+- `_mailx_flavor` (function/method, line 173): Identify attachment syntax without sending a message or opening a mailbox. **Why:** Keeps mail transport selection explicit, preserves shared notification content, and handles local utility failures without changing the backup result.
+
+- `_send_mailx` (function/method, line 186): Submit one notification through local mailx/mail; never retry via another transport. **Why:** Keeps mail transport selection explicit, preserves shared notification content, and handles local utility failures without changing the backup result.
 ## `timeshift_btrfs_sync/maintenance.py`
 
 **Role:** Current source/build entry. Guarded maintenance commands for state and lock files.
@@ -3427,7 +3435,7 @@ Use --json when you need the complete stored structure for diagnosis or automati
 - `dist/ts-btrfs/ts-btrfs`: original artifact, byte-identical to the supplied archive. Its documentation labels it 0.1.84, but executing `--version` fails because the supplied archive lacks its `_internal` runtime, including libpython3.14.so.1.0. Use the current Python source or rebuild; its actual reported version is unverified.
 - The older nested project and its duplicate docs/tests/helpers were removed. Root documents describe current usage; REMOVED_NESTED_SOURCES.md lists every former path.
 
-Coverage: 629 current source/build symbols; 848 root test symbols.
+Coverage: 633 current source/build symbols; 901 root test symbols.
 
 ## Python environment installation
 
@@ -3847,3 +3855,119 @@ These flags are registered by `cli.build_parser`, using the shared config, run-m
 - `CleanupLifecycleTests.test_cleanup_start_replaces_old_estimate_before_first_delete` (function/method, line 267): Display a changed initial/current count at the first actual cleanup operation. **Why:** Exercises changed inventories, guarded deletion outcomes, truthful progress and actual card rendering using isolated storage/HA fixtures without production data.
 
 - `CleanupLifecycleTests.test_cleanup_start_replaces_old_estimate_before_first_delete.destination` (function/method, line 273): Check the fresh plan while the first guarded delete is active. **Why:** Exercises changed inventories, guarded deletion outcomes, truthful progress and actual card rendering using isolated storage/HA fixtures without production data.
+
+## `tests/test_mail_transports.py`
+
+**Role:** Isolated regression checks using temporary files/processes or simulated HA/broker boundaries.
+
+
+- `MailConfigurationTests` (class, line 22): Keep old SMTP validation while allowing recipient-only local utility mode. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailConfigurationTests.load` (function/method, line 25): Parse a minimal ordinary config without touching backup endpoints. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailConfigurationTests.test_old_config_retains_smtp_default` (function/method, line 32): Omitted new fields preserve disabled mail and existing SMTP defaults. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailConfigurationTests.test_mailx_requires_only_enabled_flag_and_recipient` (function/method, line 37): Local utility delivery needs no app SMTP host, sender or credentials. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailConfigurationTests.test_single_recipient_overrides_old_list` (function/method, line 43): Adding to_addr to a generated template cannot also mail its example recipients. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailConfigurationTests.test_blank_single_recipient_uses_existing_list` (function/method, line 48): Existing multiple-recipient configs keep working with either transport. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailConfigurationTests.test_smtp_still_requires_host_sender_and_recipient` (function/method, line 53): The default backend retains its original mandatory settings. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailConfigurationTests.test_smtp_accepts_single_recipient_alias` (function/method, line 60): to_addr works consistently when switching back to Python SMTP. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailConfigurationTests.test_ignored_smtp_credentials_and_tls_do_not_block_mailx` (function/method, line 65): Old SMTP settings need not be removed or resolved when mailx is selected. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailConfigurationTests.test_smtp_still_rejects_password_and_tls_conflicts` (function/method, line 70): Backend selection does not weaken existing SMTP configuration checks. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailConfigurationTests.test_new_options_are_strict_types` (function/method, line 75): Reject strings pretending to be booleans and non-string single recipients. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailConfigurationTests.test_mailx_rejects_special_destinations_and_option_injection` (function/method, line 80): A mailx recipient must never select a pipe command, file or command option. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailConfigurationTests.test_mailx_accepts_plain_remote_and_local_recipients` (function/method, line 87): Normal local users and common plus-addressed mailboxes remain usable. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailConfigurationTests.test_mailx_validates_optional_sender` (function/method, line 93): Reject header/option/file syntax in a supplied local utility sender. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests` (class, line 99): Verify formatting, arguments, error reporting and unchanged SMTP behavior. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests.options` (function/method, line 102): Create enabled mailx options without SMTP credentials. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests.run_mailx` (function/method, line 106): Capture utility argv/stdin while prohibiting SMTP and credential resolution. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests.test_mailx_sends_plain_body_with_single_recipient_and_no_sender` (function/method, line 114): The minimal feature invokes local mailx with shared subject/body via stdin. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests.test_gnu_attachments_keep_success_body_filtering_and_size_cap` (function/method, line 123): Reuse .succes text, de-duplicate files and omit empty/oversized/missing logs. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests.test_optional_sender_and_recipient_list` (function/method, line 134): Pass configured sender while preserving existing recipient-list delivery. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests.test_s_nail_uses_attachment_flag_and_waits_for_mta` (function/method, line 140): Avoid GNU -a/header confusion and s-nail asynchronous false successes. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests.test_unknown_mailx_can_send_without_attachments` (function/method, line 147): Keep basic POSIX-style utilities usable when no MIME files are selected. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests.test_unknown_attachment_syntax_is_refused_before_submission` (function/method, line 151): Never silently lose attachments or reinterpret their names as mail headers. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests.test_missing_utility_reports_setup_and_never_falls_back_to_smtp` (function/method, line 160): A missing installation gives an actionable error without trying a second transport. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests.test_mail_command_fallback_when_mailx_name_is_absent` (function/method, line 166): A GNU installation exposing only mail is discovered automatically. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests.test_disabled_mail_does_not_probe_or_send` (function/method, line 172): Turning email off performs neither subprocess nor SMTP I/O. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests.test_mailx_failure_is_reported_without_retry` (function/method, line 178): Nonzero utility status remains a notification error rather than triggering duplicates. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests.test_mailx_timeout_and_os_error_are_reported` (function/method, line 183): Detection/submission failures stay bounded and do not initiate another send. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests.test_direct_mailx_call_rejects_injected_subject_and_recipient` (function/method, line 190): Direct library users receive the same guards as TOML callers. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests.test_smtp_tls_auth_body_and_mime_attachment_are_preserved` (function/method, line 198): Default SMTP still uses the same MIME helpers and password resolver. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests.test_smtp_ssl_single_recipient_and_optional_auth` (function/method, line 212): The new singular recipient works with SSL without forcing SMTP login. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `MailTransportTests.test_notification_failure_is_warning_and_existing_filters_still_apply` (function/method, line 221): Neither backend can alter backup exit handling or bypass success/failure preferences. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `InstalledGNUUtilityTests` (class, line 231): Exercise real GNU MIME composition using an isolated fake MTA, never Postfix delivery. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `InstalledGNUUtilityTests.test_real_mailx_preserves_unicode_body_and_binary_attachment` (function/method, line 234): Run the installed utility but capture its complete message in a temporary local file. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+- `InstalledGNUUtilityTests.test_real_mailx_preserves_unicode_body_and_binary_attachment.isolated` (function/method, line 246): Force real GNU mail to an isolated capture MTA and empty mail configuration. **Why:** Verifies SMTP compatibility and local utility config, MIME, recipient and failure behavior with isolated fixtures and no real mail delivery.
+
+## `tests/test_config_profile_contract.py`
+
+**Role:** Isolated regression checks using temporary files/processes or simulated HA/broker boundaries.
+
+
+- `schema` (function/method, line 39): Reuse the loader registries and their runtime dataclasses as independent coverage checks. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+- `option_examples` (function/method, line 56): Parse actual/commented assignments by table; prose mentions cannot satisfy coverage. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+- `config_text` (function/method, line 72): Encode the scalar/list/table types used by these templates for isolated loader checks. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+- `ConfigProfileContractTests` (class, line 82): Keep generated and packaged configs complete, consistent and safe to start editing. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+- `ConfigProfileContractTests.profiles` (function/method, line 85): Read the actual profile registry instead of maintaining another filename list. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+- `ConfigProfileContractTests.test_registry_matches_runtime_fields` (function/method, line 91): An omitted registry key or stale runtime field cannot hide from the template audit. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+- `ConfigProfileContractTests.test_all_templates_are_registered_and_all_profiles_have_a_contract` (function/method, line 99): Adding another template requires an explicit supported workflow and audit expectation. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+- `ConfigProfileContractTests.test_each_supported_key_has_a_parseable_assignment_in_every_template` (function/method, line 104): Check section-specific active/optional settings, including every mail and monitor option. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+- `ConfigProfileContractTests.test_optional_examples_load_one_at_a_time_with_coherent_credentials` (function/method, line 115): Exercise optional values through the real parser without activating conflicting examples. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+- `ConfigProfileContractTests.test_workflow_modes_and_ssh_host_role_match_profile_names` (function/method, line 142): Local backup/restore, SSH pull and SSH push select the intended hosts. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+- `ConfigProfileContractTests.test_real_endpoint_constructors_agree_with_the_profile_topology` (function/method, line 155): Use actual endpoint factories without running SSH, Btrfs or Timeshift commands. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+- `ConfigProfileContractTests.test_pull_restore_profiles_still_refuse_sync` (function/method, line 168): A remote-backup restore example cannot silently create the wrong local repository. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+- `ConfigProfileContractTests.test_all_path_examples_are_absolute_and_metadata_stays_with_backup` (function/method, line 176): Match state to its backup repository while preserving local lock/log examples. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+- `ConfigProfileContractTests.test_backup_and_restore_lock_examples_match_the_running_host_role` (function/method, line 191): Backup locks follow local backup metadata; restore-only configs use explicit local locks. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+- `ConfigProfileContractTests.test_safety_and_notification_defaults_remain_consistent` (function/method, line 202): Completeness does not activate real runs, new alerts or unsafe deletion options. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+- `ConfigProfileContractTests.test_credentials_stay_optional_and_disabled_ssh_examples_are_coherent` (function/method, line 218): No template activates secrets or incompatible password/BatchMode/ControlMaster settings. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+- `ConfigProfileContractTests.test_headers_and_flag_comments_match_actual_settings` (function/method, line 229): Make profiles and mail setting locations visible, with no inverted enabled semantics. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+- `ConfigProfileContractTests.test_default_and_all_generated_profiles_match_current_packaged_resources` (function/method, line 240): Both default config.example generation and every named profile receive all current settings. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.

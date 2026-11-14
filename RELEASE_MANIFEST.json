@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
   "project": "TimeShift-BTRFS-Sync",
-  "source_version": "0.2.6",
-  "previous_source_version": "0.2.5",
-  "prepared_date": "2026-11-13",
-  "archive_root": "TimeShift-BTRFS-Sync-0.2.6",
+  "source_version": "0.2.8",
+  "previous_source_version": "0.2.7",
+  "prepared_date": "2026-11-14",
+  "archive_root": "TimeShift-BTRFS-Sync-0.2.8",
   "original_archive_name": "TimeShift-BTRFS-Sync-main.zip",
   "original_archive_sha256": "8a8510b1d546c5ffaf059e54c6ee8c3a5790d37133f8c414c03b09239c7dc840",
   "hash_algorithm": "sha256",
   "manifest_self_excluded": true,
-  "file_count": 111,
+  "file_count": 114,
   "original_file_count": 104,
   "unchanged": [
     ".gitignore",
@@ -70,7 +70,6 @@
     "timeshift_btrfs_sync/listing.py",
     "timeshift_btrfs_sync/lock.py",
     "timeshift_btrfs_sync/log.py",
-    "timeshift_btrfs_sync/mail.py",
     "timeshift_btrfs_sync/maintenance.py",
     "timeshift_btrfs_sync/models.py",
     "timeshift_btrfs_sync/mqtt.py",
@@ -114,17 +113,21 @@
     "timeshift_btrfs_sync/data/example-config-remote-pull-restore.toml",
     "timeshift_btrfs_sync/data/example-config-remote-pull.toml",
     "timeshift_btrfs_sync/data/example-config-remote-push-restore.toml",
+    "timeshift_btrfs_sync/mail.py",
     "timeshift_btrfs_sync/monitor.py",
     "timeshift_btrfs_sync/reconciliation.py",
     "timeshift_btrfs_sync/retention.py",
     "timeshift_btrfs_sync/sync.py"
   ],
   "added": [
+    "CONFIG_PROFILE_AUDIT.md",
     "RELEASE_MANIFEST.json",
     "commented_code_map.md",
     "home-assistant/manufacturer-monitor.yaml",
     "tests/test_cleanup_progress.py",
+    "tests/test_config_profile_contract.py",
     "tests/test_live_transfer_metrics.py",
+    "tests/test_mail_transports.py",
     "tests/test_manufacturer_dashboard.py",
     "versioning.md"
   ],
@@ -676,18 +679,23 @@
       "mode": "0o644"
     },
     "COMMENTED_CODE_MAP.md": {
-      "size": 609885,
-      "sha256": "bf7eb9cfe6e3c35f1d90318eba4a396de6e50e1b08638075b5a904e9d17e1b40",
+      "size": 628531,
+      "sha256": "3221b424bf82041495e65e80acf2134b852b3d90b076e2c151edcd0ab13af6ab",
       "mode": "0o644"
     },
     "CONFIG_AND_CLI_AUDIT.md": {
-      "size": 30586,
-      "sha256": "c48a4de52f2c2b9304b61a5b2aefe6e71073391d7f1b7b2dfc8025e44cea56df",
+      "size": 33181,
+      "sha256": "c43e9cf1c9da7d51f58c602d92a58b0531faae7678fbd57d896211ce9c00355e",
+      "mode": "0o644"
+    },
+    "CONFIG_PROFILE_AUDIT.md": {
+      "size": 10013,
+      "sha256": "a6927cc352ab621110a137ee4ba4175b75c1e22ef0cf5ed7f266bd9042541cd6",
       "mode": "0o644"
     },
     "INSTALL.md": {
-      "size": 32324,
-      "sha256": "8c5791428a54f92a3d69390870ea126d5d9f8efe16461aa72e3415a3036039d9",
+      "size": 33832,
+      "sha256": "4a33b0847fcdf368214ff3fd1b606e526e6304e9259a6ee117b5d704b63a132f",
       "mode": "0o644"
     },
     "LICENSE": {
@@ -701,13 +709,13 @@
       "mode": "0o644"
     },
     "README.md": {
-      "size": 182861,
-      "sha256": "ea77816fff15e2f0f1874dafd8ab08ade846c07fa3bc2c7647ccb5edd9a0645a",
+      "size": 188789,
+      "sha256": "996e8bab393f672287fcd2a8dee7b7639c34c46aa2c72e510e235eccea156376",
       "mode": "0o644"
     },
     "RELEASE_VERIFICATION.md": {
-      "size": 11335,
-      "sha256": "3875359bfd332f3d07abfde2098eb59c20e3d4ecdb10f46c279a11846acc5b98",
+      "size": 10390,
+      "sha256": "121f9db7afffc17a5710c529a42f24c250e3d8ee3edbfd365ea42e667cc7dc27",
       "mode": "0o644"
     },
     "REMOVED_NESTED_SOURCES.md": {
@@ -721,18 +729,18 @@
       "mode": "0o644"
     },
     "VERSIONING.md": {
-      "size": 179179,
-      "sha256": "1b598d637fa1bc28e9fb35e8bde593f068263bbc016f8192278474d619298cbe",
+      "size": 186413,
+      "sha256": "46b414da82626367b2ac63ad279d691c3a025e08501c30853d41526043477ab1",
       "mode": "0o644"
     },
     "commented_code_map.md": {
-      "size": 609885,
-      "sha256": "bf7eb9cfe6e3c35f1d90318eba4a396de6e50e1b08638075b5a904e9d17e1b40",
+      "size": 628531,
+      "sha256": "3221b424bf82041495e65e80acf2134b852b3d90b076e2c151edcd0ab13af6ab",
       "mode": "0o644"
     },
     "delete-btrfs-tree.sh": {
       "size": 7669,
-      "sha256": "c69ebd4ce2d9d7a68c4cdcaa2adc31b0019b60c890895a22922b703af90ffa36",
+      "sha256": "58f3f144a72b50dfa330fc5a102200679c2cbf909c34ac2adab9d00fefe385bb",
       "mode": "0o755"
     },
     "dist/ts-btrfs/ts-btrfs": {
@@ -757,7 +765,7 @@
     },
     "pyproject.toml": {
       "size": 1309,
-      "sha256": "54a557ef19d49e2b7be32406b5a47d1da3b0d8bba8c698b8017efacb898216d5",
+      "sha256": "27bef296dfb61b235caf59254f04d2b3de0ec16d3697850336758ff98d0d17ef",
       "mode": "0o644"
     },
     "requirements.txt": {
@@ -815,6 +823,11 @@
       "sha256": "19ce0e6cfbc68b373dd7650fd69a745d381682a378a9763e859d3457fad06c87",
       "mode": "0o644"
     },
+    "tests/test_config_profile_contract.py": {
+      "size": 15659,
+      "sha256": "d8c6c2cfeae7777bef9b053b09e233f4519eba53c58eda8ff816c5987029e901",
+      "mode": "0o644"
+    },
     "tests/test_config_profiles.py": {
       "size": 6576,
       "sha256": "0bfd039734ae2454f882ff949cbbaf949391348e5f89375b66f7d6f826e00139",
@@ -855,6 +868,11 @@
       "sha256": "62ec9f90bc8925ba6047fd5ec9048772e7c31500692ff782307c71f4c96efd49",
       "mode": "0o644"
     },
+    "tests/test_mail_transports.py": {
+      "size": 17589,
+      "sha256": "147c2dbc4df513652f5665a297d852d392eab6158c23b2cea93a3c464d79f973",
+      "mode": "0o644"
+    },
     "tests/test_manual_snapshot_retention.py": {
       "size": 13050,
       "sha256": "775e2c5c07772c19699185fb278f2738d95be71750fd89a096d05d9f05899786",
@@ -887,7 +905,7 @@
     },
     "tests/test_release_hygiene.py": {
       "size": 5085,
-      "sha256": "0191019fade952355b77840082fd60068fe39fc69c39af9333e2e9dc857dc6bc",
+      "sha256": "da089353184ad2b03b57370b6be5d3ba4ab46ae3daf0d92db817efb34656cffe",
       "mode": "0o644"
     },
     "tests/test_remote_file_lock.py": {
@@ -992,7 +1010,7 @@
     },
     "timeshift_btrfs_sync/__init__.py": {
       "size": 59,
-      "sha256": "5ce35a952fc7994cd7a6237754881ee31e8a6f60c1a1916beca85423acc2391e",
+      "sha256": "4004a687b076d7209a0e1d07ec1f89fa324dad80bf2bba0d478860eb56987bfd",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/__main__.py": {
@@ -1011,8 +1029,8 @@
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/cli.py": {
-      "size": 61235,
-      "sha256": "0b3ffdce71877a04949b602a14d04da93f5e5dcf41fb8aca4cde2a2b6404e40e",
+      "size": 61393,
+      "sha256": "12882983fee62fd4e1efa34560747cf0ccdf2ddc75d483ed017e991792b2a116",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/commands.py": {
@@ -1021,48 +1039,48 @@
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/config.py": {
-      "size": 33161,
-      "sha256": "ca1d9df9f536701dff22e47aac1dc248a13b7994d8236079821d0b56791487a0",
+      "size": 34086,
+      "sha256": "de81114dfa03313591d57e3ad91b5cf7dd48120b51189dcccb8463463166f0e8",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/data/config.example.toml": {
-      "size": 37669,
-      "sha256": "e98f7c91a59e9d8b8caafd19a80e1ea326edf967d30cd86763ad77ed3c18b1c9",
+      "size": 39648,
+      "sha256": "5338800c2f1c571dd748d2570ee571d1a0b0f024c0e966f95cdb0150f35f7257",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/data/config.remote-roundtrip.example.toml": {
-      "size": 37858,
-      "sha256": "2cd1d99a103896fed6f46d7551df43cd9c184cbc5d5fe963e0133682bec70fb3",
+      "size": 39856,
+      "sha256": "021f5a0f49bb9daa0152dee19fce363c5c9aa0fa80cf4e4cc5a632b64b34aa73",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/data/config.restore-pull.example.toml": {
-      "size": 38066,
-      "sha256": "069d1601ad511b21453e3d19fa5f233a0e53a629bed8f955af33690ac3848454",
+      "size": 40304,
+      "sha256": "545591aef0b1fa0d1ef55086e0cd105febd6d228ddad472f80493ff56d3f05a9",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/data/example-config-local-backup.toml": {
-      "size": 37964,
-      "sha256": "7acf60c152aa1015f5fb1263512c9eafdb6b62e01b7ebb793fdf3aef94a53e2f",
+      "size": 40023,
+      "sha256": "e33d41465e43fa291bcab4d4c05a2d2f69c7dcbd9755f4031742a8a7084c4274",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/data/example-config-local-restore.toml": {
-      "size": 38091,
-      "sha256": "e5f869f0b28f7e5d8b888775c2b4e0eea3b9563c63247f99402dd5e2789789fe",
+      "size": 40393,
+      "sha256": "30f1e2bbef10038f6e5c1947f8e2e68a27fe483242f3ae75385eb5c18f057c0b",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/data/example-config-remote-pull-restore.toml": {
-      "size": 38088,
-      "sha256": "474e4d2a67deaf26bd89cff0599c723db111cbbaf789ef146b1f8b06974d877a",
+      "size": 40246,
+      "sha256": "a44ddcfe18bf033db6a96b9f2516a6bbd7b347dc4e9db1a5c31afd8733ac7bcc",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/data/example-config-remote-pull.toml": {
-      "size": 37972,
-      "sha256": "71c4975418789a0b239a828d0f28983eb54592830d277430fa422347d706b429",
+      "size": 40002,
+      "sha256": "ae41fdc524fa0d3e078fcedfc587693e45838c02f03bd3a461a644937e7d8225",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/data/example-config-remote-push-restore.toml": {
-      "size": 38140,
-      "sha256": "a88a62cdbb4ea56218a09419a130290ea55a83ca5d14c30980051efab276b22a",
+      "size": 40308,
+      "sha256": "8ebbd0c18d528245c72caef3d9f9501a6d7037827e71bcc156316b9f1a2af7bb",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/destroy.py": {
@@ -1101,8 +1119,8 @@
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/mail.py": {
-      "size": 7219,
-      "sha256": "8d70165305dc32014344c50dca434e4ec520c74bae48f952764035845409e494",
+      "size": 11231,
+      "sha256": "4ad7046bf839c9565ae87ff5994fa13dadb4b2288962374ffde742daf9c19863",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/maintenance.py": {
@@ -1211,12 +1229,12 @@
       "mode": "0o644"
     },
     "versioning.md": {
-      "size": 179179,
-      "sha256": "1b598d637fa1bc28e9fb35e8bde593f068263bbc016f8192278474d619298cbe",
+      "size": 186413,
+      "sha256": "46b414da82626367b2ac63ad279d691c3a025e08501c30853d41526043477ab1",
       "mode": "0o644"
     }
   },
-  "prior_version": "0.2.5",
+  "prior_version": "0.2.7",
   "prior_files": {
     ".gitignore": {
       "size": 652,
@@ -1229,18 +1247,18 @@
       "mode": "0o644"
     },
     "COMMENTED_CODE_MAP.md": {
-      "size": 588294,
-      "sha256": "467199d96934a33b244bc27236b341a26544c7f6e3f2250f7d57865844c61092",
+      "size": 622478,
+      "sha256": "e1d2db8ab44a0485e6a093ce57a40aeaa941d5731145b7ed0fcc5e5eb636e974",
       "mode": "0o644"
     },
     "CONFIG_AND_CLI_AUDIT.md": {
-      "size": 29042,
-      "sha256": "3e26b80f9b7c54f15ef51e6380df5cae6049769bf258c45c25e3b1c24b2d3df3",
+      "size": 32143,
+      "sha256": "c65483f48337ad55af4164af015363b175e306665da7d31373a760ae116208f0",
       "mode": "0o644"
     },
     "INSTALL.md": {
-      "size": 31843,
-      "sha256": "a102442a822afd2197dc9b9a952b422a2e6f1413e6cc48ea5ef99440005cca87",
+      "size": 32964,
+      "sha256": "7773e5376a8cc461c9825685e1573b3a7fae6e72b1ec015e00a6b556cb889027",
       "mode": "0o644"
     },
     "LICENSE": {
@@ -1254,18 +1272,18 @@
       "mode": "0o644"
     },
     "README.md": {
-      "size": 177162,
-      "sha256": "ae3bd752395798502d51bf8fe5b7afeb14e3c05cb571cf4f57413676f94c2665",
+      "size": 186832,
+      "sha256": "f6f802b8004d06ae8d6bdc5be2bb071ef1b3e1a9a6aa37116863a7fe27f6c049",
       "mode": "0o644"
     },
     "RELEASE_MANIFEST.json": {
-      "size": 66630,
-      "sha256": "69999cd9618640d9920f1d9ce1578a0bef2338632a0b554535f685bd279ef75b",
+      "size": 67306,
+      "sha256": "bbb36291a85a060bd9e6a399d64d237f23cd06e2d91f05286bfb4634cb322f75",
       "mode": "0o644"
     },
     "RELEASE_VERIFICATION.md": {
-      "size": 8685,
-      "sha256": "4b1f5ab3867d9cd6905a71bf8a63b6e3c5a8a59a424c07294e3e5a82c831cdef",
+      "size": 10364,
+      "sha256": "a9eccb6c44d96541842800cf5a1b2e3193a001c2757fd7d467804b5a9a626dd6",
       "mode": "0o644"
     },
     "REMOVED_NESTED_SOURCES.md": {
@@ -1279,18 +1297,18 @@
       "mode": "0o644"
     },
     "VERSIONING.md": {
-      "size": 175315,
-      "sha256": "09fe999025c6e3fa73d33d9f0ec511864f0a31712d4d38387bcb4376064d6e54",
+      "size": 183139,
+      "sha256": "f788cbd409cabc07afa4dec00761ff53ae4854f8996c840cfe7b3be796afec92",
       "mode": "0o644"
     },
     "commented_code_map.md": {
-      "size": 588294,
-      "sha256": "467199d96934a33b244bc27236b341a26544c7f6e3f2250f7d57865844c61092",
+      "size": 622478,
+      "sha256": "e1d2db8ab44a0485e6a093ce57a40aeaa941d5731145b7ed0fcc5e5eb636e974",
       "mode": "0o644"
     },
     "delete-btrfs-tree.sh": {
       "size": 7669,
-      "sha256": "3a96abdd4ce5bbe70a6c822b1f722f00d0e945d811fd8941bc54edc2e9b9a480",
+      "sha256": "131053f1a3498b423af12758f9ff33df150c2627da0144d6cc544c64c377602d",
       "mode": "0o755"
     },
     "dist/ts-btrfs/ts-btrfs": {
@@ -1309,13 +1327,13 @@
       "mode": "0o644"
     },
     "home-assistant/manufacturer-monitor.yaml": {
-      "size": 12110,
-      "sha256": "6adad19387351c58c01fe72d186b22fadf31752fbff7a17b3b592e87b0d0a1b2",
+      "size": 15918,
+      "sha256": "3ac89fbf03180ee6588514be8db5e31edaf09c120355c107886181d76b892bfc",
       "mode": "0o644"
     },
     "pyproject.toml": {
       "size": 1309,
-      "sha256": "e7ca5bf222f7cb2aefaae7be384061c97f1d3c5690c79336f034e3da89da353e",
+      "sha256": "f669fea3968a935ceb2645831128a5f8d264bc4c50d41a3919e5e26bd98b6e77",
       "mode": "0o644"
     },
     "requirements.txt": {
@@ -1351,6 +1369,11 @@
     "tests/test_cache_exact_reuse.py": {
       "size": 7902,
       "sha256": "2fa6c86a6f2d7f1c1f3124d80482749bc27d4f6906547b550cc253d357186435",
+      "mode": "0o644"
+    },
+    "tests/test_cleanup_progress.py": {
+      "size": 25584,
+      "sha256": "fb2e64226b1e5d31d58220608b3cfc013d156f2f002fb9a424cc3d1e1813b339",
       "mode": "0o644"
     },
     "tests/test_cleanup_superseded_cache_modes.py": {
@@ -1408,14 +1431,19 @@
       "sha256": "62ec9f90bc8925ba6047fd5ec9048772e7c31500692ff782307c71f4c96efd49",
       "mode": "0o644"
     },
+    "tests/test_mail_transports.py": {
+      "size": 17589,
+      "sha256": "147c2dbc4df513652f5665a297d852d392eab6158c23b2cea93a3c464d79f973",
+      "mode": "0o644"
+    },
     "tests/test_manual_snapshot_retention.py": {
       "size": 13050,
       "sha256": "775e2c5c07772c19699185fb278f2738d95be71750fd89a096d05d9f05899786",
       "mode": "0o644"
     },
     "tests/test_manufacturer_dashboard.py": {
-      "size": 17739,
-      "sha256": "7e0115fb7ae9657547daa14287bb5c7fc6c3f217b841db6754294f3c22a5f082",
+      "size": 21863,
+      "sha256": "971fbf05841f3b055a463dbb7320db15fd34ab5e39224e27f5de37ef230898bb",
       "mode": "0o644"
     },
     "tests/test_pipeline_failure_diagnostics.py": {
@@ -1440,7 +1468,7 @@
     },
     "tests/test_release_hygiene.py": {
       "size": 5085,
-      "sha256": "f33f93e6549da09e4301346b361d65f018e83d6d44b9ce5f92e2f28cb52b8809",
+      "sha256": "79da7c1ed7dffea1e51497be64462c4839189a73ba706ecc279d99482a3a6fba",
       "mode": "0o644"
     },
     "tests/test_remote_file_lock.py": {
@@ -1545,7 +1573,7 @@
     },
     "timeshift_btrfs_sync/__init__.py": {
       "size": 59,
-      "sha256": "480096a4fca4483c209361a8f8663e1fc8cf251115406a96ae8da9d5f4b0f02f",
+      "sha256": "74e97623282599939702f1378cb0abe72b341d934adaa18d89a1c2c551a8213f",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/__main__.py": {
@@ -1564,8 +1592,8 @@
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/cli.py": {
-      "size": 60267,
-      "sha256": "bfe23e9ac7c6260f0fde30f3b92b04cf2a602d6c6245fe93a5e949c67c8e7702",
+      "size": 61393,
+      "sha256": "12882983fee62fd4e1efa34560747cf0ccdf2ddc75d483ed017e991792b2a116",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/commands.py": {
@@ -1574,48 +1602,48 @@
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/config.py": {
-      "size": 33161,
-      "sha256": "ca1d9df9f536701dff22e47aac1dc248a13b7994d8236079821d0b56791487a0",
+      "size": 34086,
+      "sha256": "de81114dfa03313591d57e3ad91b5cf7dd48120b51189dcccb8463463166f0e8",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/data/config.example.toml": {
-      "size": 37319,
-      "sha256": "c07e8ad2e0ba0ba9b654969d1d8a048e9cedee21ee6b75bb65e59a72cdcdb265",
+      "size": 38850,
+      "sha256": "c0a0c15ef7ccb5e360e927f7ac3a32ca2432048abd25335bac5fce42d2e08c3c",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/data/config.remote-roundtrip.example.toml": {
-      "size": 37508,
-      "sha256": "57305b2fd72745889d22cd097695389d36d7a1a34887a1b4a7843a922c141d06",
+      "size": 39039,
+      "sha256": "91c690c9f46476ad06674e95ba75cc44a6cf71686d2cdf9d62ec9e95dc860431",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/data/config.restore-pull.example.toml": {
-      "size": 37716,
-      "sha256": "0dc34aead7ad35a3f884cc1a6ec8312d233cda03388c7d26f4236ead6597883c",
+      "size": 39247,
+      "sha256": "b635ab632425ca23dedc3f258fd82dcc8a4e4654a4805ea3daddf8bc38af1894",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/data/example-config-local-backup.toml": {
-      "size": 37614,
-      "sha256": "d7bfbe0162662913febfce3d816d7b4176fa036ff06e3591d2daf467dce70e66",
+      "size": 39145,
+      "sha256": "f3eb5d69295cebc4693e090d6fab6a9dae09844e884a3b08e7189d65540b9679",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/data/example-config-local-restore.toml": {
-      "size": 37741,
-      "sha256": "b0b22f89f3a18730cdd3ec2b0509d9e93bb9e360cc3995b51140256f7dfc8b3d",
+      "size": 39272,
+      "sha256": "4ecbd34d6cfc447605db6bfb7fc7b8148f7f5ef3ce6ee50b1a799248c0b78e12",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/data/example-config-remote-pull-restore.toml": {
-      "size": 37738,
-      "sha256": "16bf8075bed404bd5045a6fb5c8f7384874e8be063b395c044a10b59e767df44",
+      "size": 39269,
+      "sha256": "3d4d52f732512ddbe2954582ecdc613f784d939275d57f783414924987fc1d42",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/data/example-config-remote-pull.toml": {
-      "size": 37622,
-      "sha256": "26bff5776068076f365552f2431d7d85bfbd3e1344f539b4d17b84cd810da2d0",
+      "size": 39153,
+      "sha256": "bad0e4e4dedb726873e49e18d673f3218a1407186f4289b9687c164592615a86",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/data/example-config-remote-push-restore.toml": {
-      "size": 37790,
-      "sha256": "43c1ee2e33fc25a922592fca6eeb52217e2a4892d0f759ae54866b15503e3d84",
+      "size": 39321,
+      "sha256": "fb52d257b2e5a1d7a201695aafa7dc37855dc1854e0a481d0fe0dd071b6307f0",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/destroy.py": {
@@ -1654,8 +1682,8 @@
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/mail.py": {
-      "size": 7219,
-      "sha256": "8d70165305dc32014344c50dca434e4ec520c74bae48f952764035845409e494",
+      "size": 11231,
+      "sha256": "4ad7046bf839c9565ae87ff5994fa13dadb4b2288962374ffde742daf9c19863",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/maintenance.py": {
@@ -1669,8 +1697,8 @@
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/monitor.py": {
-      "size": 17141,
-      "sha256": "853330aa8540ad0e75f6615e98b10dcb0cd4e19a5b8be129aec21cf6159d33ad",
+      "size": 24357,
+      "sha256": "2e44de7222add329a64b6ce613dce17818d6c889fba5268352c24ad27a484498",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/mqtt.py": {
@@ -1704,8 +1732,8 @@
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/reconciliation.py": {
-      "size": 32044,
-      "sha256": "4ca76c361dd87a4ad15751d958110cce8e995fd641191964a5c9307707f62528",
+      "size": 34503,
+      "sha256": "1005cfed5fc1dc213d3c0667432406fbb892771321bcb0d2f2169c67827a344e",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/restore.py": {
@@ -1714,8 +1742,8 @@
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/retention.py": {
-      "size": 47578,
-      "sha256": "9d0dea4d97fbb45cbb554603f737155f02dd93ca271534ea56b176a8f567732b",
+      "size": 51407,
+      "sha256": "0b90fc5963afbae2400b305377f5f8abfa63439f614ad679d10c3075b5fd5a19",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/source.py": {
@@ -1734,8 +1762,8 @@
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/sync.py": {
-      "size": 142022,
-      "sha256": "291bad4103c145b7580308476e80123c92e2aaaacd516c0c3cf65ca6475b56cb",
+      "size": 142244,
+      "sha256": "6d4eaaf5bb8ebc4056e9b390d370850abbc3ffec861de3ab137fe318ef04d83a",
       "mode": "0o644"
     },
     "timeshift_btrfs_sync/timeshift.py": {
@@ -1764,14 +1792,15 @@
       "mode": "0o644"
     },
     "versioning.md": {
-      "size": 175315,
-      "sha256": "09fe999025c6e3fa73d33d9f0ec511864f0a31712d4d38387bcb4376064d6e54",
+      "size": 183139,
+      "sha256": "f788cbd409cabc07afa4dec00761ff53ae4854f8996c840cfe7b3be796afec92",
       "mode": "0o644"
     }
   },
   "prior_removed": [],
   "prior_added": [
-    "tests/test_cleanup_progress.py"
+    "CONFIG_PROFILE_AUDIT.md",
+    "tests/test_config_profile_contract.py"
   ],
   "prior_modified": [
     "COMMENTED_CODE_MAP.md",
@@ -1782,12 +1811,9 @@
     "VERSIONING.md",
     "commented_code_map.md",
     "delete-btrfs-tree.sh",
-    "home-assistant/manufacturer-monitor.yaml",
     "pyproject.toml",
-    "tests/test_manufacturer_dashboard.py",
     "tests/test_release_hygiene.py",
     "timeshift_btrfs_sync/__init__.py",
-    "timeshift_btrfs_sync/cli.py",
     "timeshift_btrfs_sync/data/config.example.toml",
     "timeshift_btrfs_sync/data/config.remote-roundtrip.example.toml",
     "timeshift_btrfs_sync/data/config.restore-pull.example.toml",
@@ -1796,10 +1822,6 @@
     "timeshift_btrfs_sync/data/example-config-remote-pull-restore.toml",
     "timeshift_btrfs_sync/data/example-config-remote-pull.toml",
     "timeshift_btrfs_sync/data/example-config-remote-push-restore.toml",
-    "timeshift_btrfs_sync/monitor.py",
-    "timeshift_btrfs_sync/reconciliation.py",
-    "timeshift_btrfs_sync/retention.py",
-    "timeshift_btrfs_sync/sync.py",
     "versioning.md",
     "RELEASE_MANIFEST.json"
   ],
@@ -1813,6 +1835,7 @@
     "dist/ts-btrfs/ts-btrfs",
     "home-assistant/automations.yaml",
     "home-assistant/dashboard.yaml",
+    "home-assistant/manufacturer-monitor.yaml",
     "requirements.txt",
     "scripts/build_pyinstaller.py",
     "sudoers/source-minimal.example",
@@ -1820,6 +1843,7 @@
     "systemd/ts-btrfs-sync.timer",
     "tests/test_btrfs_only_layout.py",
     "tests/test_cache_exact_reuse.py",
+    "tests/test_cleanup_progress.py",
     "tests/test_cleanup_superseded_cache_modes.py",
     "tests/test_cli_help_contract.py",
     "tests/test_config_attribute_surface.py",
@@ -1831,7 +1855,9 @@
     "tests/test_incremental_parent_recovery.py",
     "tests/test_live_monitor.py",
     "tests/test_live_transfer_metrics.py",
+    "tests/test_mail_transports.py",
     "tests/test_manual_snapshot_retention.py",
+    "tests/test_manufacturer_dashboard.py",
     "tests/test_pipeline_failure_diagnostics.py",
     "tests/test_pre_restore_snapshot.py",
     "tests/test_profiles_and_packaging.py",
@@ -1859,6 +1885,7 @@
     "timeshift_btrfs_sync/__main__.py",
     "timeshift_btrfs_sync/btrfs_ops.py",
     "timeshift_btrfs_sync/cache_ops.py",
+    "timeshift_btrfs_sync/cli.py",
     "timeshift_btrfs_sync/commands.py",
     "timeshift_btrfs_sync/config.py",
     "timeshift_btrfs_sync/destroy.py",
@@ -1871,16 +1898,20 @@
     "timeshift_btrfs_sync/mail.py",
     "timeshift_btrfs_sync/maintenance.py",
     "timeshift_btrfs_sync/models.py",
+    "timeshift_btrfs_sync/monitor.py",
     "timeshift_btrfs_sync/mqtt.py",
     "timeshift_btrfs_sync/notify.py",
     "timeshift_btrfs_sync/paths.py",
     "timeshift_btrfs_sync/payload_stats.py",
     "timeshift_btrfs_sync/planning.py",
     "timeshift_btrfs_sync/preflight.py",
+    "timeshift_btrfs_sync/reconciliation.py",
     "timeshift_btrfs_sync/restore.py",
+    "timeshift_btrfs_sync/retention.py",
     "timeshift_btrfs_sync/source.py",
     "timeshift_btrfs_sync/ssh.py",
     "timeshift_btrfs_sync/state.py",
+    "timeshift_btrfs_sync/sync.py",
     "timeshift_btrfs_sync/timeshift.py",
     "timeshift_btrfs_sync/topology.py",
     "timeshift_btrfs_sync/transfer_size.py",

@@ -895,7 +895,8 @@ def build_parser() -> argparse.ArgumentParser:
             f"TimeShift-BTRFS-Sync {__version__}\n\n"
             "Safely back up and restore Timeshift Btrfs snapshots locally or over SSH.\n"
             "Normal sync always writes destination.target_root on the machine running sync;\n"
-            "restore direction is controlled separately by [restore].mode."
+            "restore direction is controlled separately by [restore].mode.\n"
+            "Optional [mail] notifications use Python SMTP by default; use_mailx_util=true selects local mailx/mail with to_addr or to_addrs (see README)."
         ),
         epilog=TOP_LEVEL_HELP,
         formatter_class=CLI_FORMATTER,

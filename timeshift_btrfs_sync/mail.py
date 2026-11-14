@@ -1,8 +1,7 @@
 """Optional email notifications for timeshift-btrfs-sync.
 
-All SMTP/email logic lives in this module so the rest of the project can keep
-notification handling small and easy to audit. It uses only Python standard
-library modules: smtplib and email.message.
+Email formatting is shared by Python SMTP and the optional local mailx utility.
+No Python dependency beyond the standard library is required.
 """
 
 from __future__ import annotations
@@ -13,12 +12,15 @@ from pathlib import Path
 from typing import Any, Iterable
 import json
 import mimetypes
+import re
+import shutil
 import smtplib
+import subprocess
 
 
 @dataclass(slots=True)
 class MailConfig:
-    """SMTP settings for optional email notifications.
+    """SMTP or local mailx settings for optional email notifications.
 
     username/password are optional. If username is blank, the SMTP connection
     is made without login. password_file is supported so passwords do not have
@@ -48,6 +50,12 @@ class MailConfig:
     include_json: bool = True
     attach_logs: bool = True
     max_attachment_bytes: int = 0
+    use_mailx_util: bool = False
+    to_addr: str = ""
+
+    def recipients(self) -> list[str]:
+        """Use an explicit single recipient, otherwise preserve the existing recipient list."""
+        return [self.to_addr] if self.to_addr else list(self.to_addrs)
 
     def resolved_password(self) -> str | None:
         """Return password from config value or password_file."""
@@ -156,8 +164,65 @@ def _attach_file(msg: EmailMessage, path: Path) -> None:
     msg.add_attachment(data, maintype=maintype, subtype=subtype, filename=path.name)
 
 
+def validate_mailx_address(address: str, label: str) -> None:
+    """Accept plain mailboxes/local users, excluding mailx file, pipe and option syntax."""
+    if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.+%-]*(?:@[A-Za-z0-9][A-Za-z0-9.-]*)?", address):
+        raise ValueError(f"{label} must be a plain email address or local username in mailx mode; display names, lists, file/pipe destinations and options are not supported")
+
+
+def _mailx_flavor(command: str, timeout: int) -> str:
+    """Identify attachment syntax without sending a message or opening a mailbox."""
+    result = subprocess.run([command, "--version"], stdin=subprocess.DEVNULL,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=min(timeout, 5), check=False)
+    version = (result.stdout + result.stderr).lower()
+    if result.returncode == 0 and "gnu mailutils" in version:
+        return "gnu"
+    if result.returncode == 0 and "s-nail" in version:
+        return "s-nail"
+    return "posix"
+
+
+def _send_mailx(config: MailConfig, subject: str, body: str, attached: list[Path]) -> None:
+    """Submit one notification through local mailx/mail; never retry via another transport."""
+    recipients = config.recipients()
+    for address in recipients:
+        validate_mailx_address(address, "mail recipient")
+    if config.from_addr:
+        validate_mailx_address(config.from_addr, "mail.from_addr")
+    if any(ord(char) < 32 or ord(char) == 127 for char in subject):
+        raise ValueError("mail subject must not contain control characters")
+    command = shutil.which("mailx") or shutil.which("mail") or shutil.which("s-nail")
+    if command is None:
+        raise RuntimeError("mail.use_mailx_util=true requires mailx/mail (GNU Mailutils or s-nail for attachments) on PATH and a configured local mail system such as Postfix")
+    try:
+        flavor = _mailx_flavor(command, config.timeout)
+        args = [command, "-s", subject]
+        if config.from_addr:
+            args += ["-r", config.from_addr]
+        if flavor == "s-nail":
+            # Wait for the MTA's result instead of silently launching it asynchronously.
+            args += ["-S", "sendwait"]
+        if attached and flavor == "posix":
+            raise RuntimeError("This mailx variant has no supported attachment syntax; install GNU Mailutils or s-nail, or set mail.attach_logs=false. No message was submitted")
+        for path in attached:
+            # Absolute paths cannot become options; GNU -a is a header, not an attachment.
+            args += ["--attach" if flavor == "gnu" else "-a", str(path.absolute())]
+        # Every recipient is validated above; in s-nail '--' starts MTA options.
+        args += recipients
+        result = subprocess.run(args, input=body, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=config.timeout, check=False)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"mailx timed out (limit {config.timeout}s per submission, at most 5s for detection); delivery is unknown and was not retried") from exc
+    except OSError as exc:
+        raise RuntimeError(f"Could not run local mailx utility: {exc}") from exc
+    if result.returncode != 0:
+        detail = result.stderr.strip()[-2000:] or "no diagnostic output"
+        raise RuntimeError(f"mailx exited {result.returncode}: {detail}; delivery was not retried")
+
+
 def send_status(config: MailConfig, payload: dict[str, Any], *, attachments: Iterable[str | Path] | None = None) -> None:
-    """Send one optional SMTP status email.
+    """Send one optional status email through the selected SMTP or mailx transport.
 
     Sending errors are raised to the caller. CLI code catches them and prints a
     warning because notification failure should not hide the real backup exit
@@ -166,21 +231,27 @@ def send_status(config: MailConfig, payload: dict[str, Any], *, attachments: Ite
 
     if not config.enabled:
         return
-    if not config.smtp_host:
+    if not config.use_mailx_util and not config.smtp_host:
         raise RuntimeError("mail.smtp_host is required when mail.enabled = true")
-    if not config.from_addr:
+    if not config.use_mailx_util and not config.from_addr:
         raise RuntimeError("mail.from_addr is required when mail.enabled = true")
-    if not config.to_addrs:
-        raise RuntimeError("mail.to_addrs must contain at least one address when mail.enabled = true")
+    if not config.recipients():
+        raise RuntimeError("mail.to_addrs must contain at least one address or mail.to_addr must be set when mail.enabled = true")
 
+    attachments = list(attachments) if attachments is not None else None
     success_body = _success_body_from_paths(attachments)
     attached, skipped = _filter_attachments(config, attachments)
+    subject = _subject(config, payload)
+    body = success_body or _body(config, payload, attached=attached, skipped=skipped)
+    if config.use_mailx_util:
+        _send_mailx(config, subject, body, attached)
+        return
 
     msg = EmailMessage()
     msg["From"] = config.from_addr
-    msg["To"] = ", ".join(config.to_addrs)
-    msg["Subject"] = _subject(config, payload)
-    msg.set_content(success_body or _body(config, payload, attached=attached, skipped=skipped))
+    msg["To"] = ", ".join(config.recipients())
+    msg["Subject"] = subject
+    msg.set_content(body)
 
     for path in attached:
         _attach_file(msg, path)

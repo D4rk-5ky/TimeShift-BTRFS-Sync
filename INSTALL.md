@@ -1,6 +1,6 @@
 # Installation
 
-Current source release: **0.2.6**. Install from the project root. The original `dist/ts-btrfs/ts-btrfs` is preserved unchanged and was documented as **0.1.84**. It cannot start as supplied because the archive lacks `_internal/libpython3.14.so.1.0` and its companion runtime directory; its version could not be verified. Use `python3 -m timeshift_btrfs_sync` or rebuild from this source with the dependencies below. The active package is timeshift_btrfs_sync/; project documentation and helpers live at the project root.
+Current source release: **0.2.8**. Install from the project root. The original `dist/ts-btrfs/ts-btrfs` is preserved unchanged and was documented as **0.1.84**. It cannot start as supplied because the archive lacks `_internal/libpython3.14.so.1.0` and its companion runtime directory; its version could not be verified. Use `python3 -m timeshift_btrfs_sync` or rebuild from this source with the dependencies below. The active package is timeshift_btrfs_sync/; project documentation and helpers live at the project root.
 
 Normal sync runs on the backup/destination machine. The Timeshift source is reached over SSH or selected locally. Restore may also run on the Timeshift machine and pull a backup repository over SSH when `[restore] mode = "ssh"` is selected. The selected endpoints need the commands and minimal permissions described in the README. `cat` and `id` are not run through sudo during normal discovery. The configured source account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
 
@@ -92,9 +92,13 @@ To activate the same environment in another terminal or a later session, run `. 
 
 For a smaller source-only environment, the alternative `python -m pip install -e .` installs the core application. `python -m pip install -e '.[mqtt]'` installs the core with MQTT only; `python -m pip install -e '.[pyinstaller]'` installs the core with the executable builder only. These alternatives are not required after installing the full `requirements.txt`.
 
-Email notifications use Python standard library modules, so they do not need an extra Python package.
+Email notifications use Python standard library modules, so they need no extra Python package. The default Python SMTP backend uses the app SMTP settings. To reuse a working local Postfix/other MTA, install GNU Mailutils or s-nail and set `[mail] enabled = true`, `use_mailx_util = true`, and `to_addr = "admin@example.com"`; optionally leave `from_addr = ""` for the system sender. The app discovers mailx/mail/s-nail on PATH and does not configure the MTA or require app SMTP credentials in this mode. Verify local mail under the same backup/systemd user. Existing log attachments and filters remain available; see the [mail reference](README.md#mail) for recipient precedence, supported attachment utilities and timeout/delivery behavior.
 
 ## Create a config
+
+All eight complete examples are under `timeshift_btrfs_sync/data/`, including `config.example.toml`. Each has all 108 supported settings as active or commented assignments. The mailx options are in `[mail]`; optional credentials stay commented. See [CONFIG_PROFILE_AUDIT.md](CONFIG_PROFILE_AUDIT.md) for every key and each profile's host/path roles. The four restore-only templates disable automatic backup-time manual snapshots; restore safety snapshots remain explicitly opt-in.
+
+`init-config` reads templates from the app version being invoked. Check `python3 -m timeshift_btrfs_sync --version` from this project root and compare `ts-btrfs --version` before generating; an older installed command retains its own templates. Use the current source command or install/rebuild this release. Config generation preserves an existing file unless `--force` is requested.
 
 Generate the normal sync/local-restore profile and edit it:
 
