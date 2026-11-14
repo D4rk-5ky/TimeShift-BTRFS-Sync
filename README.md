@@ -29,7 +29,7 @@ You are responsible for reviewing the code, testing it in a safe environment, ma
 
 ## Choose the current source application
 
-This source release is **0.2.6**. Run it from the project root with Python 3.11 or newer:
+This source release is **0.2.8**. Run it from the project root with Python 3.11 or newer:
 
 ```bash
 python3 -m timeshift_btrfs_sync --version
@@ -91,17 +91,29 @@ host = "the-timeshift-source.example.lan"
 
 This means: pull Timeshift snapshots from that SSH host into the local backup, then push the local backup back to that same SSH Timeshift host. For pull restore, use a separate `restore-pull` profile on the Timeshift machine; its SSH host is the backup machine.
 
-Eight complete commented profiles are supplied under `timeshift_btrfs_sync/data/`. Each includes every available config option. The five explicit workflow examples are:
+Eight complete commented profiles live in `timeshift_btrfs_sync/data/`. Each covers all **108 supported settings**, either as an active value or a commented optional example. Credentials and mutually exclusive alternatives stay commented; do not enable every example together. In particular, `config.example.toml` contains `[mail].use_mailx_util = false` and `to_addr = ""` in its `[mail]` section. See the [complete profile and option audit](CONFIG_PROFILE_AUDIT.md).
 
-| Profile for `init-config --profile` | Example file | Run on | Direction |
+| Profile for `init-config --profile` | Complete example | Run on | Intended workflow |
 |---|---|---|---|
-| `local-backup` | `example-config-local-backup.toml` | Timeshift host with backup filesystem mounted | Local Timeshift → local backup |
-| `remote-pull` | `example-config-remote-pull.toml` | Backup host | SSH Timeshift → local backup |
-| `local-restore` | `example-config-local-restore.toml` | Timeshift host with backup filesystem mounted | Local backup → local Timeshift |
-| `remote-push-restore` | `example-config-remote-push-restore.toml` | Backup host | Local backup → SSH Timeshift |
-| `remote-pull-restore` | `example-config-remote-pull-restore.toml` | Timeshift host | SSH backup → local Timeshift |
+| `sync` | [config.example.toml](timeshift_btrfs_sync/data/config.example.toml) | Backup host | SSH Timeshift → local backup; local restore default |
+| `remote-roundtrip` | [config.remote-roundtrip.example.toml](timeshift_btrfs_sync/data/config.remote-roundtrip.example.toml) | Backup host | SSH Timeshift → local backup → same SSH Timeshift |
+| `restore-pull` | [config.restore-pull.example.toml](timeshift_btrfs_sync/data/config.restore-pull.example.toml) | Local Timeshift host | SSH backup → local Timeshift |
+| `local-backup` | [example-config-local-backup.toml](timeshift_btrfs_sync/data/example-config-local-backup.toml) | Timeshift host with backup mounted | Local Timeshift → local backup |
+| `remote-pull` | [example-config-remote-pull.toml](timeshift_btrfs_sync/data/example-config-remote-pull.toml) | Backup host | SSH Timeshift → local backup |
+| `local-restore` | [example-config-local-restore.toml](timeshift_btrfs_sync/data/example-config-local-restore.toml) | Timeshift host with backup mounted | Local backup → local Timeshift |
+| `remote-push-restore` | [example-config-remote-push-restore.toml](timeshift_btrfs_sync/data/example-config-remote-push-restore.toml) | Backup host | Local backup → SSH Timeshift |
+| `remote-pull-restore` | [example-config-remote-pull-restore.toml](timeshift_btrfs_sync/data/example-config-remote-pull-restore.toml) | Local Timeshift host | SSH backup → local Timeshift |
 
-The existing `sync`, `restore-pull`, and `remote-roundtrip` profiles remain available, using `config.example.toml`, `config.restore-pull.example.toml`, and `config.remote-roundtrip.example.toml`. `remote-pull` is a backup profile; choose the separate `remote-push-restore` profile to send that backup back to its SSH Timeshift host.
+`remote-pull` is a backup profile; choose `remote-push-restore` to send that backup back to its SSH Timeshift host. The four restore-only examples disable `manual_snapshot.enabled`, which belongs to normal sync; restore ignores that switch and offers the separate explicit `--create-pre-restore-snapshot` option. Existing cleanup consent, ownership checks and default dry-run mode apply.
+
+To generate `config.example.toml` from this source version, run from the extracted project root:
+
+```bash
+python3 -m timeshift_btrfs_sync --version
+python3 -m timeshift_btrfs_sync init-config --profile sync --path ./config.example.toml
+```
+
+The default `init-config` profile is also `sync`. Existing output files are preserved unless `--force` is explicitly given. Generated templates come from the version of the command you actually invoke: an older installed `ts-btrfs` does not pick up an extracted source release automatically. Compare `ts-btrfs --version` with the source command above if a generated config lacks current options. The original preserved executable cannot generate current profiles without its missing runtime and a current rebuild.
 
 ```bash
 python3 -m timeshift_btrfs_sync init-config --profile local-backup --path ./local-backup.toml
@@ -111,7 +123,7 @@ python3 -m timeshift_btrfs_sync init-config --profile remote-push-restore --path
 python3 -m timeshift_btrfs_sync init-config --profile remote-pull-restore --path ./remote-pull-restore.toml
 ```
 
-Edit mount paths, SSH host/account, privileges and retention before use. The new examples use `/mnt/system/timeshift-btrfs/snapshots` on the Timeshift side and `/mnt/backup/timeshift-btrfs` on the backup side. For pull restore the backup path and optional state file are remote, while `lock_file` and `log_dir` stay local. Restore requires the local lock parent to exist; prepare the explicitly configured local directory before running it. Native Timeshift restore requires `@`, optionally `@home`, under one snapshot root on one filesystem. A home-only/custom backup is not a Timeshift system snapshot, and split-filesystem root/home restore is outside the supported layout.
+Edit mount paths, SSH host/account, privileges and retention before use. The explicit workflow examples use `/mnt/system/timeshift-btrfs/snapshots` on the Timeshift side and `/mnt/backup/timeshift-btrfs` on the backup side. For pull restore the backup path and optional state file are remote, while `lock_file` and `log_dir` stay local. Restore requires the local lock parent to exist; prepare the explicitly configured local directory before running it. Native Timeshift restore requires `@`, optionally `@home`, under one snapshot root on one filesystem. A home-only/custom backup is not a Timeshift system snapshot, and split-filesystem root/home restore is outside the supported layout.
 
 ## Live MQTT snapshot progress and Home Assistant
 
@@ -840,7 +852,7 @@ For `destroy-leftovers`, logs must survive the cleanup. If the configured `log_d
 
 Email notifications can attach these log files when `mail.attach_logs = true`. Missing files and 0-byte files are skipped. `mail.max_attachment_bytes` can limit attachment size. When `.succes` exists and has content, its text is used as the plain-text email message body. For `sync`, finalization replaces any intermediate `.succes` retention text so the body always starts with the configured top-level `name`, followed immediately by `SYNC SUMMARY` and the overall/destination/source-cache cleanup blocks; the transferred-snapshots list follows those summaries. The full `.log` remains a separate attachment rather than being copied into the message body.
 
-MQTT notifications publish simple JSON status to the configured topic. Failure messages include exit code, error text, and latest captured stderr. MQTT uses optional `paho-mqtt`; email uses Python standard library `smtplib` / `email`.
+MQTT notifications publish simple JSON status to the configured topic. Failure messages include exit code, error text, and latest captured stderr. MQTT uses optional `paho-mqtt`; email uses Python standard library `smtplib` / `email` by default, or the local `mailx`/`mail` utility when `[mail].use_mailx_util = true`.
 
 ## Transfer output
 
@@ -1256,7 +1268,7 @@ Every option below is present in all packaged profiles. Commented entries are op
 
 ### `[mqtt_monitor]`
 
-Live status is enabled independently of completion notifications and runs only during a real `sync` under its exclusive lock. It reuses `[mqtt]` broker, credentials, client ID base, QoS and timeout. Dry-run and other commands publish no live status. All eight complete profiles include these options.
+Live status is enabled independently of completion notifications and runs during real `sync` and standalone `prune` under their exclusive lock. It reuses `[mqtt]` broker, credentials, client ID base, QoS and timeout. Dry-run, restore and listing commands publish no live status. All eight complete profiles include these options.
 
 | Option | Default | What it does and why |
 |---|---|---|
@@ -1275,19 +1287,40 @@ Live status and events are non-retained; last result, last successful run and di
 
 ### `[mail]`
 
+**Choose Python SMTP or local mail delivery.** The default `use_mailx_util = false` sends through Python's `smtplib` using the SMTP settings below. With `use_mailx_util = true`, the app runs the installed `mailx`, otherwise `mail`, otherwise `s-nail` from the running account's `PATH` and passes it the notification body, recipients and optional log attachments. No app SMTP host, username or password is required in this mode. Mailx is a separate mail client; configure it to hand mail to your already working local mail system, such as Postfix. Postfix provides the local mail transport, not the mailx client itself. See [GNU Mailutils invocation](https://mailutils.org/manual/html_node/Invoking-Mail.html), [s-nail options](https://www.sdaoden.eu/code-nail.html) and [Postfix local submission](https://www.postfix.org/sendmail.1.html).
+
+Merge this fragment into your existing `[mail]` table; do not add a duplicate table:
+
+```toml
+[mail]
+enabled = true
+use_mailx_util = true
+to_addr = "admin@example.com"
+from_addr = ""  # Optional in mailx mode: blank uses the mail utility/system sender.
+```
+
+Install a mail client (GNU Mailutils or s-nail for attachments), configure local Postfix/another MTA or relay, and verify it works under the **same user and environment** that runs the backup, including systemd/cron if used. The app runs the utility locally without sudo or SSH and does not install, start or configure Postfix. Its usual mail-client/MTA settings determine routing and any relay credentials; app SMTP settings are ignored while mailx is selected. Supplied SMTP values must still have valid TOML/schema types. Switching back to `false` restores normal SMTP validation, including sender, host, TLS/password conflicts and password-file checks.
+
+`to_addr` is one recipient. A nonblank value overrides `to_addrs`, so adding it to a template will not also notify that template's example recipients. Leave it blank to use the existing `to_addrs = ["one@example.com", "two@example.com"]` list. Both recipient forms work with either backend. Mailx mode accepts plain email addresses or local usernames, with no display names, comma-separated strings, command options or file/pipe destinations. Blank `from_addr` uses the local utility's default sender; set it to a plain address if your MTA requires a specific sender.
+
+Both modes reuse the same success/failure filters, subject, `.succes` body, JSON fallback, attachment filtering and per-file size cap. GNU Mailutils attachments use `--attach`; s-nail uses `-a` and waits for its MTA result. Other POSIX-style utilities can send plain bodies, but if nonempty attachments are selected and their attachment syntax is not recognized the app reports a notification warning rather than silently omitting logs. Use GNU Mailutils/s-nail or explicitly set `attach_logs = false` in that case. Missing utilities, nonzero exits and timeouts produce the existing mail warning without changing backup success/exit status. Submission is attempted once, without an automatic SMTP fallback; a utility success means handoff/acceptance, not proof of inbox delivery. If a submission times out its delivery is unknown. `timeout` bounds the mailx submission; a separate version probe takes at most five seconds (or the configured timeout if smaller).
+
+
 | Option | What it does | Why it may be needed |
 |---|---|---|
-| `enabled` | Turns email notifications on or off. | Keep false unless you want SMTP status mail. |
-| `smtp_host` | SMTP server hostname or IP. | Required when mail is enabled. |
+| `enabled` | Turns email notifications on or off for either backend. | Must be true to send notification mail. |
+| `use_mailx_util` | Boolean, default `false`: select local mailx/mail instead of Python SMTP. | Use an already configured system mail transport such as Postfix without app SMTP credentials. |
+| `to_addr` | Single recipient string, default blank; nonblank overrides `to_addrs`. | Set one address easily for either transport. |
+| `smtp_host` | SMTP server hostname or IP. | Required for enabled Python SMTP; ignored by mailx mode. |
 | `smtp_port` | SMTP server port, commonly `587` for STARTTLS or `465` for implicit SSL. | Must match your mail provider/server. |
 | `smtp_ssl` | Uses implicit SSL with `smtplib.SMTP_SSL`. | Use for port `465` style SMTP. |
 | `starttls` | Upgrades a plain SMTP connection with STARTTLS. | Use for port `587` style SMTP when `smtp_ssl = false`. |
-| `timeout` | SMTP connect/send timeout in seconds. | Prevents notification delivery from hanging the backup process too long. |
+| `timeout` | Positive seconds: SMTP connect/send timeout or mailx submission timeout; version detection separately uses at most five seconds. | Bounds notification operations; a timeout does not prove the mail was undelivered. |
 | `username` | Optional SMTP username. | Needed when the SMTP server requires login. |
 | `password` | Optional SMTP password directly in config. | Works, but `password_file` is safer. Use only one of `password` or `password_file`. |
 | `password_file` | File containing the SMTP password. | Keeps secrets out of the main config file. |
-| `from_addr` | Sender email address. | Required by most SMTP servers and for readable mail. |
-| `to_addrs` | Recipient list. | Required when mail is enabled. |
+| `from_addr` | Sender email address. | Required for Python SMTP; optional for mailx, where blank uses the system sender. |
+| `to_addrs` | Existing list of recipients; used when `to_addr` is blank. | Enabled mail needs a nonblank `to_addr` or a nonempty list. |
 | `subject_prefix` | Prefix added to success/failure subjects. | Helps filter or recognize backup emails. |
 | `include_json` | Adds the JSON status payload to the email body. | Useful for debugging or parsing mail content. |
 | `attach_logs` | Attaches non-empty `.log`, `.err`, `.btrfs`, `.mbuffer`, and `.succes` files. | Useful for diagnostics without logging into the backup host. Requires `log_dir`. The `.succes` text is also used as the email body when present; sync mail is finalized as run name → SYNC SUMMARY → overall/destination/source-cache cleanup → transferred snapshots. |

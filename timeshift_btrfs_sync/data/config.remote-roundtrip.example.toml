@@ -1,4 +1,12 @@
-# timeshift-btrfs-sync v0.2.6 config
+# timeshift-btrfs-sync v0.2.8 config
+# Profile: remote-roundtrip. Primary command: sync / restore.
+# Run on: Backup/destination host.
+# Backup direction: SSH Timeshift -> local backup.
+# Restore direction: Local backup -> the same SSH Timeshift.
+# SSH role: Original Timeshift host for both backup and restore.
+# All 108 supported settings are active or have commented TOML examples below.
+# Mailx options use_mailx_util and to_addr are in the [mail] section.
+# Optional credentials/overrides stay commented; do not enable alternatives together.
 # Inventory: ts-btrfs list-snapshots --config ./config.toml
 # Prints Timeshift, cache_root, target_root; uses configured sudo only for Btrfs/Timeshift reads.
 # Timeshift supplies source metadata; omitted dates use ordinary source info.json reads.
@@ -30,7 +38,9 @@ default_dry_run = true
 prune_after_sync = false
 
 # Optional split file logging. If blank or omitted, only terminal output is used.
-# When set, the directory is created automatically and each run writes:
+# Logging stays local for all workflows. Its parent must already exist; real
+# sync/prune helper preparation can create parents inside the local backup root.
+# Restore requires its local lock parent to exist before it starts. Each run writes:
 #   *.log = normal commands and captured command output
 #   *.err = real command/pipeline error output
 #   *.btrfs = btrfs send/receive status/verbose output and commands
@@ -154,16 +164,34 @@ discovery_prefix = "homeassistant"
 events = true
 
 [mail]
-# Optional email notifications using Python standard library smtplib/email.
+# Optional email: Python SMTP (default), or local mailx/mail using an existing MTA.
 # No extra Python dependency is required. If enabled = false, no mail is sent.
 enabled = false
 
-# SMTP server settings. Typical STARTTLS setup uses port 587 with starttls=true.
+# Set true to use mailx, otherwise mail, otherwise s-nail from this user's PATH.
+# Install GNU Mailutils/s-nail and configure local Postfix/another MTA first.
+# Verify local mail works as the same user/environment that runs this backup.
+# Mailx is a separate client; the MTA handles delivery/relay credentials.
+# With true, app SMTP settings below are ignored; no SMTP host/login is required.
+# Log attachment flags are detected for GNU Mailutils and s-nail. Other mailx
+# variants need attach_logs=false when nonempty attachments would be sent.
+# Utility errors/timeouts warn without changing backup exit status; no retry.
+use_mailx_util = false
+
+# One plain recipient for either backend; blank uses the to_addrs list below.
+# A nonblank to_addr OVERRIDES to_addrs, including any example recipients.
+# Minimal local mail: enabled=true, use_mailx_util=true, to_addr="you@example.com".
+# In mailx mode addresses must be plain email addresses or local usernames.
+to_addr = ""
+
+# Python SMTP settings (used only when use_mailx_util=false).
+# Typical STARTTLS setup uses port 587 with starttls=true.
 # Typical implicit SSL setup uses port 465 with smtp_ssl=true and starttls=false.
 smtp_host = "smtp.example.com"
 smtp_port = 587
 smtp_ssl = false
 starttls = true
+# SMTP timeout, or mailx submission timeout; version probe uses at most 5s.
 timeout = 10
 
 # Optional SMTP authentication. Use either password or password_file, not both.
@@ -171,7 +199,8 @@ timeout = 10
 # password = "smtp-password"
 # password_file = "/root/.config/ts-btrfs-mail.password"
 
-# Sender and recipients. to_addrs must contain at least one address when enabled=true.
+# Sender: required for Python SMTP; mailx may use from_addr="" for system default.
+# Recipients: nonblank to_addr takes precedence; otherwise to_addrs must be nonempty.
 from_addr = "timeshift-btrfs-sync@example.com"
 to_addrs = ["admin@example.com"]
 
@@ -290,8 +319,9 @@ extra_args = ["-o", "BatchMode=yes"]
 
 
 [manual_snapshot]
-# This section is used only by `sync` and `create-manual`. It is ignored by
-# `restore`. To create a safety snapshot on the Timeshift restore target, use
+# Creation options apply to `sync` and `create-manual`; cleanup_enabled, marker
+# and retention_count also guide `prune`. Restore ignores this section.
+# To create a safety snapshot on the Timeshift restore target, use
 # the explicit restore flag --create-pre-restore-snapshot. That flag never
 # creates a snapshot on the backup repository and uses a separate fixed comment.
 #
@@ -485,8 +515,9 @@ create_readonly_cache = true
 # also deletes that snapshot's matching source
 # send-cache subvolumes with:
 #   sudo -n btrfs subvolume delete <cache-subvolume>
-# Safety invariant: source.snapshot_root and all Timeshift snapshots below it
-# are never delete candidates. Only paths inside source.cache_root may be cleaned.
+# This source-cache cleanup only touches paths inside source.cache_root.
+# It never raw-deletes source.snapshot_root or its Timeshift payloads. Separate
+# paired retention may retire verified app-created O dates through Timeshift.
 # The timestamp cache parent <cache_root>/<snapshot-name> is deleted only after
 # a final live `btrfs subvolume list -o <cache_root>/<snapshot-name>` check and
 # cleanup confirms no cached child subvolumes remain below it. Child cache
@@ -675,7 +706,7 @@ ondemand = 10
 cleanup_ondemand = false
 
 
-# Extra safety: always keep newest snapshot and latest likely incremental parent.
+# Extra safety: keep the newest snapshot and latest live UUID-proven common parent.
 keep_latest = true
 # Before prune deletes anything, require a complete live read-only UUID-matching parent.
 # Protect that actual date/cache pair even when newer unshared hourlies exist.

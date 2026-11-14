@@ -11,7 +11,7 @@ import tomllib
 from .ssh import SSHConfig, validate_control_path_safety
 from .mqtt import MQTTConfig
 from .monitor import MonitorConfig
-from .mail import MailConfig
+from .mail import MailConfig, validate_mailx_address
 from .transfer_size import parse_size_bytes
 
 # One registry drives packaged template selection and CLI help. Keep the three
@@ -45,7 +45,7 @@ RESTORE_KEYS = {"mode"}
 SSH_KEYS = {"host", "user", "port", "identity_file", "identity_passphrase", "identity_passphrase_file", "password", "password_file", "compression", "cipher", "control_master", "control_persist", "control_path", "extra_args"}
 MQTT_KEYS = {"enabled", "host", "port", "topic", "username", "password", "password_file", "client_id", "qos", "retain", "timeout", "notify_on_success", "notify_on_failure"}
 MONITOR_KEYS = {"enabled", "topic_prefix", "heartbeat_interval", "expire_after", "discovery", "discovery_prefix", "events", "measure_transfers", "progress_interval", "manufacturer"}
-MAIL_KEYS = {"enabled", "smtp_host", "smtp_port", "smtp_ssl", "starttls", "username", "password", "password_file", "from_addr", "to_addrs", "subject_prefix", "timeout", "notify_on_success", "notify_on_failure", "include_json", "attach_logs", "max_attachment_bytes"}
+MAIL_KEYS = {"enabled", "use_mailx_util", "to_addr", "smtp_host", "smtp_port", "smtp_ssl", "starttls", "username", "password", "password_file", "from_addr", "to_addrs", "subject_prefix", "timeout", "notify_on_success", "notify_on_failure", "include_json", "attach_logs", "max_attachment_bytes"}
 
 
 def _reject_unknown_keys(table: dict[str, Any], label: str, allowed: set[str]) -> None:
@@ -581,6 +581,11 @@ def load_config(path: str | Path) -> AppConfig:
 
     mail_raw = _table(raw, "mail")
     _reject_unknown_keys(mail_raw, "[mail]", MAIL_KEYS)
+    mail_use_mailx = _bool(mail_raw, "mail", "use_mailx_util", False)
+    mail_to_addr = mail_raw.get("to_addr", "")
+    if not isinstance(mail_to_addr, str):
+        raise ConfigError("mail.to_addr must be a string")
+    mail_to_addr = mail_to_addr.strip()
     mail_port = _positive_int(mail_raw.get("smtp_port"), "mail.smtp_port", 587)
     mail_timeout = _positive_int(mail_raw.get("timeout"), "mail.timeout", 10)
     mail_max_attachment_bytes = mail_raw.get("max_attachment_bytes", 0)
@@ -588,9 +593,9 @@ def load_config(path: str | Path) -> AppConfig:
         raise ConfigError("mail.max_attachment_bytes must be a non-negative integer")
     mail_password = _optional_str(mail_raw, "password")
     mail_password_file = _optional_str(mail_raw, "password_file")
-    if mail_password and mail_password_file:
+    if not mail_use_mailx and mail_password and mail_password_file:
         raise ConfigError("Use either mail.password or mail.password_file, not both")
-    if mail_password_file and not Path(mail_password_file).expanduser().is_file():
+    if not mail_use_mailx and mail_password_file and not Path(mail_password_file).expanduser().is_file():
         raise ConfigError(f"mail.password_file does not exist or is not a file: {mail_password_file}")
     mail_enabled = _bool(mail_raw, "mail", "enabled", False)
     mail_smtp_host = _stripped(mail_raw, "smtp_host")
@@ -598,16 +603,26 @@ def load_config(path: str | Path) -> AppConfig:
     mail_to_addrs = _string_list(mail_raw.get("to_addrs"), "mail.to_addrs")
     mail_smtp_ssl = _bool(mail_raw, "mail", "smtp_ssl", False)
     mail_starttls = _bool(mail_raw, "mail", "starttls", True)
-    if mail_smtp_ssl and mail_starttls:
+    if not mail_use_mailx and mail_smtp_ssl and mail_starttls:
         raise ConfigError("mail.smtp_ssl and mail.starttls cannot both be true")
-    if mail_enabled and not mail_smtp_host:
+    if mail_enabled and not mail_use_mailx and not mail_smtp_host:
         raise ConfigError("mail.smtp_host is required when mail.enabled = true")
-    if mail_enabled and not mail_from_addr:
+    if mail_enabled and not mail_use_mailx and not mail_from_addr:
         raise ConfigError("mail.from_addr is required when mail.enabled = true")
-    if mail_enabled and not mail_to_addrs:
-        raise ConfigError("mail.to_addrs must contain at least one address when mail.enabled = true")
+    if mail_enabled and not (mail_to_addr or mail_to_addrs):
+        raise ConfigError("mail.to_addrs must contain at least one address or mail.to_addr must be set when mail.enabled = true")
+    if mail_enabled and mail_use_mailx:
+        try:
+            for address in [mail_to_addr] if mail_to_addr else mail_to_addrs:
+                validate_mailx_address(address, "mail recipient")
+            if mail_from_addr:
+                validate_mailx_address(mail_from_addr, "mail.from_addr")
+        except ValueError as exc:
+            raise ConfigError(str(exc)) from exc
     mail = MailConfig(
         enabled=mail_enabled,
+        use_mailx_util=mail_use_mailx,
+        to_addr=mail_to_addr,
         smtp_host=mail_smtp_host,
         smtp_port=mail_port,
         smtp_ssl=mail_smtp_ssl,
