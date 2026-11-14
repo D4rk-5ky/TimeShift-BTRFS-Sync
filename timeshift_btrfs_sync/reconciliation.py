@@ -9,6 +9,7 @@ import re
 from datetime import datetime
 
 from . import inventory
+from .monitor import cleanup_progress
 from .btrfs_ops import BtrfsOps
 from .cache_ops import cache_parent_path, cache_child_path
 from .config import AppConfig
@@ -277,15 +278,54 @@ done"""
     return None
 
 
+def cache_cleanup_candidates(config: AppConfig, state: dict, cache: inventory.BtrfsIndex, latest: str) -> list[str]:
+    """Select bounded untracked cache dates; live ownership/absence proofs still follow."""
+
+    protected = _protected_cache_dates(config, state)
+    names = {PurePosixPath(path).relative_to(config.source.cache_root).parts[0]
+             for path in cache.by_path if is_same_or_under(path, config.source.cache_root)
+             and PurePosixPath(path) != PurePosixPath(config.source.cache_root)}
+    candidates = sorted(name for name in names if SNAPSHOT_RE.fullmatch(name) and name <= latest and name not in protected)
+    return candidates
+
+
+def destination_cleanup_candidates(config: AppConfig, state: dict, cache: inventory.BtrfsIndex, target: inventory.BtrfsIndex, latest: str) -> list[str]:
+    """Select bounded receiver-only dates using the existing counterpart and date rules."""
+
+    protected = _protected_cache_dates(config, state)
+    root = str(config.destination.target_root / "snapshots")
+    names = {PurePosixPath(path).relative_to(root).parts[0] for path in target.by_path
+             if is_same_or_under(path, root) and PurePosixPath(path) != PurePosixPath(root)}
+    candidates = []
+    for name in sorted(names - protected):
+        if not SNAPSHOT_RE.fullmatch(name) or name > latest:
+            continue
+        try:
+            datetime.strptime(name, "%Y-%m-%d_%H-%M-%S")
+        except ValueError:
+            continue
+        parent = cache_parent_path(config.source.cache_root, name)
+        if not any(is_same_or_under(path, parent) for path in cache.by_path):
+            candidates.append(name)
+    return candidates
+
+
 def cleanup_redundant_cache(config: AppConfig, state: dict, context: ReconciliationContext, *, dry_run: bool, yes_delete: bool, successful_sync: bool = False) -> RedundantCacheResult:
     """After successful sync, delete proven stale native cache dates no newer than the latest pair."""
 
+    progress = None if dry_run else cleanup_progress()
+    if progress:
+        progress.plan("cache", None)
     result = RedundantCacheResult()
     if not (config.source.delete_redundant_snapshots and config.source.cleanup_superseded_cache and config.source.cache_root):
+        if progress:
+            progress.plan("cache", [])
         return result
     if not dry_run and not successful_sync:
         result.skipped_reason = "requires a successful sync in this run"
         print("Redundant cache cleanup: skipped; " + result.skipped_reason)
+        if progress:
+            progress.plan("cache", [])
         return result
     # Paired retention ran first and may have removed dates from both sides.
     # Refresh the two physical views before trusting ownership or absence.
@@ -304,12 +344,10 @@ def cleanup_redundant_cache(config: AppConfig, state: dict, context: Reconciliat
     if not window or cache is None or cache.root_missing or cache.errors or context.destination_index.errors:
         print("Redundant cache cleanup: no complete verified window/inventory; cache preserved")
         return result
-    protected = _protected_cache_dates(config, state)
-    names = {PurePosixPath(path).relative_to(config.source.cache_root).parts[0]
-             for path in cache.by_path if is_same_or_under(path, config.source.cache_root)
-             and PurePosixPath(path) != PurePosixPath(config.source.cache_root)}
-    candidates = sorted(name for name in names if SNAPSHOT_RE.fullmatch(name) and name <= window[1] and name not in protected)
+    candidates = cache_cleanup_candidates(config, state, cache, window[1])
     result.candidates = len(candidates)
+    if progress:
+        progress.plan("cache", candidates)
     if candidates and not dry_run and not yes_delete:
         raise RuntimeError("Refusing redundant cache deletion without --yes-delete")
     print(f"Redundant cache cleanup: confirmed pairs {window[0]} .. {window[1]}; {len(candidates)} untracked date(s) no newer than latest pair")
@@ -318,15 +356,22 @@ def cleanup_redundant_cache(config: AppConfig, state: dict, context: Reconciliat
     owned_root, ownership_error = _verified_managed_cache_root(config, state, context, ops)
     if not owned_root:
         result.blocked = [f"{name}: {ownership_error}" for name in candidates]
+        if progress:
+            for name in candidates:
+                progress.complete("cache", name, False)
         for reason in result.blocked:
             print(f"  [KEEP] {reason}")
         return result
     print("  ownership: native cache root, state and received UUID pairs confirmed; ordinary cache listing not required")
     for name in candidates:
+        if progress:
+            progress.current("cache", name)
         parent = cache_parent_path(config.source.cache_root, name)
         reason = "destination date exists or cannot be proven absent" if name in context.destination_records or not _destination_date_absent(config, name) else _safe_cache_date(config, context, name, ops, native_owned=True)
         if reason:
             result.blocked.append(f"{name}: {reason}")
+            if progress:
+                progress.complete("cache", name, False)
             print(f"  [KEEP] {result.blocked[-1]}")
             continue
         print(f"  [{'WOULD DELETE' if dry_run else 'DELETE'}] redundant cache {parent}")
@@ -336,6 +381,8 @@ def cleanup_redundant_cache(config: AppConfig, state: dict, context: Reconciliat
         # newly received counterpart just because the earlier index lacked it.
         if not _destination_date_absent(config, name):
             result.blocked.append(f"{name}: destination appeared or absence became unknown")
+            if progress:
+                progress.complete("cache", name, False)
             continue
         result.attempted += 1
         deleted = delete_subvolume_tree(
@@ -348,9 +395,13 @@ def cleanup_redundant_cache(config: AppConfig, state: dict, context: Reconciliat
         )
         if deleted.success:
             result.completed += 1
+            if progress:
+                progress.complete("cache", name, True)
             cache.remove_tree(parent)
         else:
             result.blocked.append(f"{name}: " + "; ".join(deleted.errors or ["deletion not confirmed"]))
+            if progress:
+                progress.complete("cache", name, False)
             print(f"  [RETRY] {result.blocked[-1]}")
     return result
 
@@ -440,8 +491,13 @@ def _refresh_absent_cache_date(config: AppConfig, context: ReconciliationContext
 def cleanup_redundant_destination(config: AppConfig, state: dict, context: ReconciliationContext, *, dry_run: bool, yes_delete: bool, successful_sync: bool = False) -> RedundantCacheResult:
     """After successful sync, remove untracked destination-only RO dates no newer than the newest proven pair."""
 
+    progress = None if dry_run else cleanup_progress()
+    if progress:
+        progress.plan("destination", None)
     result = RedundantCacheResult()
     if not config.destination.delete_redundant_snapshots:
+        if progress:
+            progress.plan("destination", [])
         return result
     if not dry_run and not successful_sync:
         result.skipped_reason = "requires a successful sync in this run"
@@ -449,6 +505,8 @@ def cleanup_redundant_destination(config: AppConfig, state: dict, context: Recon
         result.skipped_reason = "source cache_root is required to prove destination-only snapshots"
     if result.skipped_reason:
         print("Redundant destination cleanup: skipped; " + result.skipped_reason)
+        if progress:
+            progress.plan("destination", [])
         return result
     cache_ops = BtrfsOps(CommandEndpoint.for_source(context.source), config.source.sudo, config.source.btrfs_command)
     ops = BtrfsOps(CommandEndpoint.local(), config.destination.sudo, config.destination.btrfs_command)
@@ -465,22 +523,10 @@ def cleanup_redundant_destination(config: AppConfig, state: dict, context: Recon
         result.skipped_reason = "no complete UUID-confirmed state/cache/destination range"
         print("Redundant destination cleanup: skipped; " + result.skipped_reason)
         return result
-    protected = _protected_cache_dates(config, state)
-    root = str(config.destination.target_root / "snapshots")
-    names = {PurePosixPath(path).relative_to(root).parts[0] for path in target.by_path
-             if is_same_or_under(path, root) and PurePosixPath(path) != PurePosixPath(root)}
-    candidates = []
-    for name in sorted(names - protected):
-        if not SNAPSHOT_RE.fullmatch(name) or name > window[1]:
-            continue
-        try:
-            datetime.strptime(name, "%Y-%m-%d_%H-%M-%S")
-        except ValueError:
-            continue
-        parent = cache_parent_path(config.source.cache_root, name)
-        if not any(is_same_or_under(path, parent) for path in cache.by_path):
-            candidates.append(name)
+    candidates = destination_cleanup_candidates(config, state, cache, target, window[1])
     result.candidates = len(candidates)
+    if progress:
+        progress.plan("destination", candidates)
     if not candidates:
         print(f"Redundant destination cleanup: confirmed pairs {window[0]} .. {window[1]}; no untracked destination-only dates no newer than latest pair")
         return result
@@ -491,21 +537,31 @@ def cleanup_redundant_destination(config: AppConfig, state: dict, context: Recon
     anchor, error = _verified_destination_root(config, state, context, ops, cache_ops)
     if not anchor:
         result.blocked = [f"{name}: {error}" for name in candidates]
+        if progress:
+            for name in candidates:
+                progress.complete("destination", name, False)
         for reason in result.blocked:
             print(f"  [KEEP] {reason}")
         return result
     if cache_anchor is None:
         result.blocked = [f"{name}: source cache anchor unavailable" for name in candidates]
+        if progress:
+            for name in candidates:
+                progress.complete("destination", name, False)
         return result
     print("  ownership: native destination root, state, cache and received UUID pairs confirmed")
     if dry_run:
         print("  preview only: real redundant deletion requires successful sync before cleanup")
     for name in candidates:
+        if progress:
+            progress.current("destination", name)
         parent = str(config.destination.target_root / "snapshots" / name)
         reason = _refresh_absent_cache_date(config, context, name, cache_ops, cache_anchor)
         reason = reason or _safe_native_destination_date(config, context, name, ops)
         if reason:
             result.blocked.append(f"{name}: {reason}")
+            if progress:
+                progress.complete("destination", name, False)
             print(f"  [KEEP] {result.blocked[-1]}")
             continue
         print(f"  [{'WOULD DELETE' if dry_run else 'DELETE'}] redundant destination {parent}")
@@ -515,6 +571,8 @@ def cleanup_redundant_destination(config: AppConfig, state: dict, context: Recon
         reason = reason or _safe_native_destination_date(config, context, name, ops)
         if reason:
             result.blocked.append(f"{name}: {reason}")
+            if progress:
+                progress.complete("destination", name, False)
             print(f"  [KEEP] {result.blocked[-1]}")
             continue
         result.attempted += 1
@@ -525,9 +583,13 @@ def cleanup_redundant_destination(config: AppConfig, state: dict, context: Recon
             }))
         if deleted.success:
             result.completed += 1
+            if progress:
+                progress.complete("destination", name, True)
             target.remove_tree(parent)
             context.destination_records.pop(name, None)
         else:
             result.blocked.append(f"{name}: " + "; ".join(deleted.errors or ["deletion not confirmed"]))
+            if progress:
+                progress.complete("destination", name, False)
             print(f"  [RETRY] {result.blocked[-1]}")
     return result

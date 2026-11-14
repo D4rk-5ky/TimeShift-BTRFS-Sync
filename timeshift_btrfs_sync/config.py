@@ -44,7 +44,7 @@ MANUAL_SNAPSHOT_KEYS = {"enabled", "cleanup_enabled", "comment", "marker", "rete
 RESTORE_KEYS = {"mode"}
 SSH_KEYS = {"host", "user", "port", "identity_file", "identity_passphrase", "identity_passphrase_file", "password", "password_file", "compression", "cipher", "control_master", "control_persist", "control_path", "extra_args"}
 MQTT_KEYS = {"enabled", "host", "port", "topic", "username", "password", "password_file", "client_id", "qos", "retain", "timeout", "notify_on_success", "notify_on_failure"}
-MONITOR_KEYS = {"enabled", "topic_prefix", "heartbeat_interval", "expire_after", "discovery", "discovery_prefix", "events"}
+MONITOR_KEYS = {"enabled", "topic_prefix", "heartbeat_interval", "expire_after", "discovery", "discovery_prefix", "events", "measure_transfers", "progress_interval", "manufacturer"}
 MAIL_KEYS = {"enabled", "smtp_host", "smtp_port", "smtp_ssl", "starttls", "username", "password", "password_file", "from_addr", "to_addrs", "subject_prefix", "timeout", "notify_on_success", "notify_on_failure", "include_json", "attach_logs", "max_attachment_bytes"}
 
 
@@ -553,7 +553,7 @@ def load_config(path: str | Path) -> AppConfig:
     monitor_raw = _table(raw, "mqtt_monitor")
     _reject_unknown_keys(monitor_raw, "[mqtt_monitor]", MONITOR_KEYS)
     monitor_values = {}
-    for key, default in (("heartbeat_interval", 60), ("expire_after", 180)):
+    for key, default in (("heartbeat_interval", 60), ("expire_after", 180), ("progress_interval", 1)):
         value = monitor_raw.get(key, default)
         if type(value) is not int or value <= 0:
             raise ConfigError(f"mqtt_monitor.{key} must be a positive integer")
@@ -565,11 +565,16 @@ def load_config(path: str | Path) -> AppConfig:
         if not isinstance(value, str) or not value.strip().strip("/") or any(ch in value for ch in ("+", "#", "\0")):
             raise ConfigError(f"mqtt_monitor.{key} must be a nonempty MQTT prefix without wildcards or NUL")
         monitor_values[key] = value.strip().rstrip("/")
+    manufacturer = monitor_raw.get("manufacturer", "TimeShift-BTRFS-Sync")
+    if not isinstance(manufacturer, str) or not manufacturer.strip() or any(ord(ch) < 32 or ord(ch) == 127 for ch in manufacturer):
+        raise ConfigError("mqtt_monitor.manufacturer must be a nonempty string without control characters")
     mqtt_monitor = MonitorConfig(
         **monitor_values,
+        manufacturer=manufacturer.strip(),
         enabled=_bool(monitor_raw, "mqtt_monitor", "enabled", False),
         discovery=_bool(monitor_raw, "mqtt_monitor", "discovery", True),
         events=_bool(monitor_raw, "mqtt_monitor", "events", True),
+        measure_transfers=_bool(monitor_raw, "mqtt_monitor", "measure_transfers", True),
     )
     if mqtt_monitor.enabled and not mqtt_host:
         raise ConfigError("mqtt.host is required when mqtt_monitor.enabled = true")

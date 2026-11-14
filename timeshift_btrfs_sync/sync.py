@@ -18,7 +18,7 @@ from dataclasses import dataclass
 import os
 import tempfile
 from . import timeshift
-from .monitor import SnapshotProgress, report_phase
+from .monitor import transfer_reporter, SnapshotProgress, report_phase
 from .btrfs_ops import BtrfsOps
 from .cache_ops import CacheManager, cache_parent_path, cache_child_path
 from .endpoint import CommandEndpoint
@@ -2506,6 +2506,10 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
         queue = [source_by_name[name] for name in ordered_names if name in source_by_name
                  and name not in progress.completed and name not in processed_names]
         progress.replan(pending_snapshot_names(queue))
+        if not dry_run:
+            from .retention import forecast_cleanup
+            forecast_cleanup(config, state, source_by_name, source_cache_index,
+                             destination_index, progress.pending)
         return queue
 
     snapshot_queue = build_snapshot_queue(require_requested_snapshot=True)
@@ -2967,6 +2971,8 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
                     # output appear live in the terminal. mbuffer remains the real
                     # byte/throughput progress display.
                     passthrough_right_stdout=config.stream.btrfs_verbose,
+                    progress_callback=transfer_reporter(),
+                    progress_interval=config.mqtt_monitor.progress_interval,
                 )
             except CommandError as pipeline_exc:
                 terminal_receive_reason = _terminal_destination_receive_failure_reason(pipeline_exc)
@@ -3112,7 +3118,7 @@ def sync_once(config: AppConfig, state: dict, *, dry_run: bool, limit: int | Non
             save_state(config.state_file, state)
             trusted_parent_send_paths.add(current_send_path)
             transferred_bytes = pipeline_result.transferred_bytes
-            transferred_bytes_source = "mbuffer" if transferred_bytes is not None else None
+            transferred_bytes_source = getattr(pipeline_result, "transferred_bytes_source", None) or ("mbuffer" if transferred_bytes is not None else None)
             if (
                 transferred_bytes is None
                 and transfer_size_measurement is not None

@@ -29,7 +29,7 @@ You are responsible for reviewing the code, testing it in a safe environment, ma
 
 ## Choose the current source application
 
-This source release is **0.2.2**. Run it from the project root with Python 3.11 or newer:
+This source release is **0.2.6**. Run it from the project root with Python 3.11 or newer:
 
 ```bash
 python3 -m timeshift_btrfs_sync --version
@@ -41,7 +41,7 @@ python3 -m timeshift_btrfs_sync sync --config ./config.toml --dry-run
 
 After installation, `ts-btrfs` exposes the same commands. See [INSTALL.md](INSTALL.md) for installation and building an executable.
 
-The preserved `dist/ts-btrfs` executable reports **0.1.84**. It is the original binary and does not include the current source behavior. Rebuild it before using this release's fixes. Use the source commands above or rebuild with `python3 scripts/build_pyinstaller.py --mode onefile` before using an executable for this release.
+The supplied `dist/ts-btrfs/ts-btrfs` artifact is preserved unchanged. The original documentation labels it **0.1.84**, but the archive omits its required `_internal` runtime, so it cannot start as supplied. Use the Python source commands above for this release, or install the build dependencies and rebuild with `python3 scripts/build_pyinstaller.py --mode onefile`. Its reported version could not be verified here.
 
 The application package is `timeshift_btrfs_sync/` directly under the project root. Run source commands from that root, where this README, tests, build helpers and integration examples live. Current configuration examples are in `timeshift_btrfs_sync/data/`.
 
@@ -137,6 +137,9 @@ expire_after = 180
 discovery = true
 discovery_prefix = "homeassistant"
 events = true
+manufacturer = "TimeShift-BTRFS-Sync"
+measure_transfers = true
+progress_interval = 1
 ```
 
 This is a fragment to merge into your complete configuration; do not duplicate tables. All eight complete examples include every monitoring option, disabled by default. `[mqtt_monitor]` reuses `[mqtt]` host/port/username/password/password_file/client_id/QoS/timeout. Its enablement, topics and retention are separate from `[mqtt].enabled`, `.topic`, `.retain` and notification filters. Leave existing completion notification settings as you prefer. A missing `name` falls back to the TOML filename without its suffix. Canonical config path plus local hostname determine the stable hashed backup ID, so equal filenames in different directories and jobs on different machines stay separate. Symlinks to the same config share its ID; moving a config or changing hostname creates a new HA device.
@@ -147,7 +150,7 @@ Run your ordinary real backup command, for example:
 python3 -m timeshift_btrfs_sync sync --config ./config.toml --run --prune --yes-delete
 ```
 
-Monitoring starts after the existing exclusive local backup lock is acquired, before inventory or transfer work. A duplicate launch emits only a `duplicate_run` event and cannot replace the owner's live status or last result. Dry-runs and other commands (including restore, prune and listing) do not publish live backup status. Existing completion notifications retain their own behavior for those commands.
+Monitoring starts after the existing exclusive local backup lock is acquired, before inventory or transfer work. A duplicate launch emits only a `duplicate_run` event and cannot replace the owner's live status or last result. Real standalone `prune` publishes the same live metrics for cleanup, with zero transfer dates. Dry-runs, restore and listing do not publish live backup status. Sync and standalone prune using the same config share its device/current/latest-run record; the payload `operation` distinguishes them. Existing completion notifications retain their own behavior for those commands.
 
 The initial total comes from the existing source inventory and retained queue: no stream-size estimate, send dry pass or extra byte preflight is needed. A real sync refreshes the complete Timeshift/JSON/Btrfs inventory after every completed date, before replanning the next one. This metadata refresh works with local and SSH sources and uses the existing Timeshift busy wait. It adds metadata reads, not data reads for stream sizing. New dates and changed O/H/D/W/M/B retention selection can grow or shrink remaining work. Already completed dates stay counted even if removed from the source or no longer selected by their tags. Valid immutable completed backups are not resent just to update a progress count. Changed or non-readonly parent identities lose their in-run trust and must pass the existing lineage checks again.
 
@@ -155,17 +158,89 @@ The initial total comes from the existing source inventory and retained queue: n
 
 The current total is always **completed dates + remaining planned dates**. For example, `5 / 23` becomes `5 / 22` if an unsent date is no longer retained, then finishes `22 / 22`. If a new date becomes eligible it can become `5 / 24` and finish `24 / 24`. Completed work is retained throughout these updates. A failed second payload or failed metadata copy does not complete the date. Whole-date recovery invalidates its failed version's metrics before retrying. Failures keep truthful partial counts, such as `21 / 22`; the app never turns an actual failure into `22 / 22`. Unexpected unfinished work with a normal CLI return is labeled `incomplete` by monitoring. A cleanup failure can correctly report `failed` with all snapshot transfers complete.
 
+### Cleanup counts and combined progress
+
+When `--prune` or `prune_after_sync = true` requests cleanup, the manufacturer card shows three separate bars: transfer dates, cleanup jobs, and overall steps. No extra monitoring setting is needed. Standalone real `prune --config ./config.toml --run --yes-delete` also publishes cleanup/overall progress while holding the same exclusive lock. It cannot delete redundant-only extras, which still require a successful sync in this invocation.
+
+The first cleanup total is an **estimate**, calculated once the normal source inventory and transfer queue are ready. The app reuses `build_prune_plan` and the redundant-date selectors against a disposable projection of the current state plus queued future sends. It does not run a second send, probe data sizes, authorize deletion, save projected state, or add inventory calls for the forecast. Source inventory/queue refreshes update the estimate as dates/tags change. The card keeps the first estimate alongside the current expected count.
+
+At cleanup start, existing reconciliation and current Timeshift/UUID checks refresh the real paired/source-only plans. Each enabled redundant cache/destination stage then refreshes its physical inventory and replaces its own estimate before processing candidates. Totals can shrink or grow. The same protections, fresh identity/absence checks, successful-sync restriction and `--yes-delete` consent still decide every deletion. A forecast is never permission to delete.
+
+**One cleanup job is one snapshot date workflow**, rather than one Btrfs child subvolume. Paired retention is one job covering all required destination, optional source send-cache and app-created source Timeshift deletions, plus state removal. It completes only when every required action succeeds. Each source-only legacy, redundant cache-only or redundant destination-only date is a separate job. For example, deleting `@`, `@home` and their date container on both paired sides completes one paired job. This matches the whole-date backup model. Existing CLI per-side deletion summaries remain available when individual side totals are needed. Ordinary source H/D/W/M/B snapshot retention remains managed by Timeshift.
+
+The card displays confirmed cleanup jobs / current expected jobs, evaluated items, blocked/unconfirmed items, current group/date and the item number reached. Evaluated includes refusals; it is not a deletion count. A partial paired deletion remains pending and preserves state for retry. Blocked or failed work never advances the confirmed bar. An incomplete inventory remains unknown rather than becoming a fabricated zero. `cleanup_status` is `planning`, `estimated`, `running`, `complete`, `incomplete`, `unverified` or `disabled`. An unchecked forecast or unfinished cleanup produces monitor result `incomplete` even if the command returned normally; the existing CLI return behavior and completion-message format remain unchanged. Such a run does not replace retained last success.
+
+**Overall steps = transfer-date jobs + cleanup-date jobs**, with **completed steps = confirmed transferred dates + confirmed cleanup jobs**. Each is equally weighted; this is not a byte percentage or estimate of remaining time. Planning/inventory/wait/logging are included in runtime but are not separate counted steps. Completed work remains counted when pending plans change; for example `4 / 10` can become `4 / 8` if two pending jobs disappear, or `4 / 12` if two are added. A percentage can decrease when work is added. Unknown component totals keep the overall total unknown. Zero selected work is shown as `0 / 0` with no invented 100%; incomplete percentages are rounded down.
+
+The existing status/result JSON attributes expose these counters without adding or renaming discovery sensors:
+
+| Attribute | Meaning |
+|---|---|
+| `cleanup_enabled`, `cleanup_status` | Whether requested, and current plan/execution status |
+| `cleanup_total`, `cleanup_completed`, `cleanup_remaining` | Current expected, confirmed complete, and still-pending cleanup jobs; unknown totals use `null` |
+| `cleanup_processed`, `cleanup_blocked` | Distinct evaluated jobs and blocked/unconfirmed jobs |
+| `cleanup_initial_total`, `cleanup_initial_plan_estimated` | First known count and whether it was a forecast |
+| `cleanup_plan_estimated` | At least one group's current plan is still provisional |
+| `cleanup_current_snapshot`, `cleanup_current_group`, `cleanup_current_number` | Active date, paired/source/cache/destination group and evaluated-item ordinal |
+| `cleanup_groups` | Per-group total/completed/blocked/estimated breakdown |
+| `overall_total_steps`, `overall_completed_steps`, `overall_remaining_steps` | Combined current work and confirmed progress |
+| `overall_plan_estimated`, `overall_progress_basis`, `cleanup_progress_basis` | Provisional flag and explicit counting units |
+| `operation` | `sync` or standalone `prune` |
+
+Manufacturer remains the only card selector: every matching config keeps its own counts, runtime and last-success metadata. Older compatible scripts without cleanup/overall fields still display their existing transfer metrics; absent cleanup fields are not invented. Replace the whole supplied card YAML to receive these sections.
+
 | Topic under `<topic_prefix>/<backup_id>/` | Meaning | Retained |
 |---|---|---|
-| `status` | Running/terminal state, heartbeat and current counters | Never |
+| `status` | Running/terminal state, heartbeat and current transfer/cleanup/overall counters | Never |
 | `last_result` | Most recent completed real run, including failures/interruption | Yes |
 | `events` | Started, completed, failed or duplicate launch | Never |
 
-Payloads contain `backup_id`, `backup_name`, `hostname`, unique `run_id`, version, timestamps, status/phase, current snapshot/subvolume, total/completed/remaining/skipped/failed snapshot counts, runtime and confirmed transferred bytes. The total is `null` and progress is `planning` until inventory is ready. Known bytes are summed only after validated payload success; they exclude an active stream and invalidated retry versions. `bytes_complete = false` means some successful payload sizes were unavailable; this is a snapshot-count progress bar, not a byte percentage. Runtime includes inventory, Timeshift waiting, cleanup and completion-notification time while the job lock remains held. Status is `running`, `success`, `failed`, `interrupted` or `incomplete`; Ctrl+C retains CLI exit 130.
+Payloads contain `backup_id`, `backup_name`, `hostname`, unique `run_id`, version, timestamps, status/phase, current snapshot/subvolume, total/completed/remaining/skipped/failed snapshot counts, whole-run runtime, cumulative streamed bytes and whole-run average speed. The total is `null` and progress is `planning` until inventory is ready. With `measure_transfers = true` (default when live monitoring is enabled), actual Btrfs send-stream bytes handed to receive are counted during the active payload, after mbuffer when it is used or directly from send output otherwise. This uses Linux kernel pipe splice, with a bounded-copy fallback, and does not reread snapshot files or depend on Btrfs verbose output. Counts include failed/retried attempts because they really transferred bytes. They measure stream traffic, not disk allocation, SSH framing or receive success. `average_speed_bytes_per_second` is cumulative streamed bytes divided by full CLI elapsed time, recalculated for every live packet; it is not an average of snapshot speeds. Byte callbacks are throttled by `progress_interval` (default one second) and coalesced by the existing asynchronous publisher. Setting `measure_transfers = false` retains the direct pipeline and legacy confirmed-known-payload totals; `bytes_complete = false` then labels missing payload measurements. This remains a snapshot-count progress bar, not a byte percentage. Runtime starts at CLI entry before argument/config loading and path preparation, includes inventory, Timeshift waits, transfers, cleanup and completion notifications, and freezes when work finalizes. Its own final bounded MQTT drain and interpreter startup/teardown are outside that timestamp. Status is `running`, `success`, `failed`, `interrupted` or `incomplete`; Ctrl+C retains CLI exit 130.
 
 A daemon worker publishes every `heartbeat_interval` seconds, plus coalesced snapshot/phase changes. Inventory and a long send can block the backup thread while heartbeats continue. Network/DNS failures or missing paho do not fail replication. Final publishing gets at most one second to drain before the app releases its lock. If that expires, the worker is cancelled from issuing further publishes, including when a slow connect later returns; packets already on the wire can still arrive late. Delivery is best effort: an outage, slow broker or abrupt process exit can lose events/final packets; there is no on-disk MQTT queue or guaranteed last-will failure assertion. Consumers can use run IDs/timestamps to distinguish runs. Existing completion notification timeouts remain independent. No extra mail/Pushover/start alerts are enabled by this feature; `events = false` disables lifecycle events while retaining live status.
 
-When `discovery = true`, retained MQTT Discovery creates one Home Assistant device per config with twelve sensors: live status/progress/completed/expected/remaining/failed snapshots, confirmed bytes, runtime, current snapshot, started time, heartbeat and last result. Live sensors expire after `expire_after` seconds without updates, including normal idle expiry after completion. This means **unknown/unavailable**, not proof of backup failure; check the separate retained last result. Keep `expire_after` greater than `heartbeat_interval`. Non-retained live state prevents stale running state being replayed after a restart. These settings follow [Home Assistant MQTT sensor expiry](https://www.home-assistant.io/integrations/sensor.mqtt/) and [MQTT Discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery).
+When `discovery = true`, retained MQTT Discovery creates one Home Assistant device per config with fourteen sensors: live status/progress/completed/expected/remaining/failed snapshots, transferred bytes, run average speed, runtime, current snapshot, started time, heartbeat, last result and last successful run. Both real sync and standalone prune use this device; its last success refers to its latest successful monitored operation. Last result and the separate `/last_success` topic are retained and do not expire. Only a successful completed real run updates last success; later failed/interrupted/incomplete runs leave that history intact. Brokers must permit this topic, and an undelivered message cannot update the retained history. Existing successful last-result data is a card fallback until a new successful run publishes the dedicated sensor.
+
+Live sensors expire after `expire_after` seconds without updates, including normal idle expiry after completion. This means **unknown/unavailable**, not proof of backup failure; check the separate retained last result. Keep `expire_after` greater than `heartbeat_interval`. Non-retained live state prevents stale running state being replayed after a restart. These settings follow [Home Assistant MQTT sensor expiry](https://www.home-assistant.io/integrations/sensor.mqtt/) and [MQTT Discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery).
+
+### One Markdown card for every backup job
+
+Paste the complete [home-assistant/manufacturer-monitor.yaml](home-assistant/manufacturer-monitor.yaml) into a Home Assistant **Manual** card. It is one built-in Markdown card like the Syncerate overview: running/success/failed/other counts, then one entry per backup config with current snapshot and payload, phase, transfer/cleanup/overall progress, initial/current cleanup expectations, current cleanup item, blocked counts, failed/skipped transfers, bytes transferred so far, run-average speed, full script runtime, heartbeat, last-success time and latest result/error. No custom card or per-job `BACKUP_ID` editing is required.
+
+For every backup config in one group, use the same manufacturer value:
+
+```toml
+[mqtt_monitor]
+enabled = true
+discovery = true
+manufacturer = "My backup group"
+measure_transfers = true
+progress_interval = 1
+```
+
+Edit the existing table; do not add a duplicate. Configure the broker under `[mqtt]`. In the Markdown card, change **only this one line** to select the group:
+
+```jinja
+{% set manufacturer = 'My backup group' -%}
+```
+
+The heading, matching devices, status counters, backup names, measurements, runtimes and result timestamps all follow that manufacturer automatically. No backup names, hosts, MQTT topics, unique IDs or entity IDs need to be entered in the card. The match uses the HA device registry manufacturer and is exact/case-sensitive; payload fields cannot move a device into another group. `manufacturer` defaults to `TimeShift-BTRFS-Sync` for older configs. It must be a nonempty string without control characters; surrounding whitespace is trimmed. It is a grouping label, not a job identity or credential.
+
+Run a real monitored sync after changing a config so retained MQTT Discovery refreshes the existing device's manufacturer. Every config keeps its own canonical-path/hostname job ID, sensor IDs, topics and retained history. Several configs or machines can share a manufacturer without merging jobs; give different groups different values. Monitoring/discovery must be enabled for this update. Existing completion notifications remain independent.
+
+Status, last-result and last-success discovery attributes include `live_preview_role`. The card uses those roles before old name/suffix fallbacks, so fully renamed entity IDs and friendly labels work after current discovery/state data has arrived. User device names are respected. Older producers can keep their suggested suffixes/friendly labels until they expose explicit roles.
+
+Other scripts can share the manufacturer if they expose compatible status/result sensors and metrics. The card accepts snapshot fields (`total_snapshots`, `completed_snapshots`, etc.), dataset fields (`total_datasets`, `completed_datasets`, etc.) and generic fields (`total`, `completed`, `failed`, `skipped`, `item_unit`, `transferred_bytes`, `current_item`). It reads runtime from `runtime_seconds`, errors/status/run identity from the status/result attributes, and finish/success timestamps from `ended_at`, `completed_at` or `finished_at`. Unknown unsupported fields remain unknown; assigning the same manufacturer does not translate an arbitrary protocol. Roles are `status`, `last_result` and `last_success`; the application's MQTT attribute templates preserve every original incoming metric while adding the role.
+
+Each entry is a backup job's current/latest run with its separately retained last success. This is not an unlimited history of every past invocation; older overwritten last-result packets cannot be reconstructed from manufacturer metadata.
+
+The card lists all discovered backup jobs, including their current snapshot date/payload. It does not publish a history of individual snapshot names. Progress counts dates only after all configured payloads and info.json complete. Expected total is completed dates plus the current remaining retention-selected plan, refreshed at completed-date and source-recovery inventory checkpoints. Deleted hourly/daily/weekly/monthly snapshots and changed tags can shrink or grow that remaining plan; completed run history is preserved. It is not an unsynchronized background filesystem scan on every heartbeat. With byte measurement enabled, transferred bytes include the active stream and retries; unknown/partial legacy values are labeled when measurement is disabled. A no-op shows `0 / 0` without an invented percentage.
+
+Live availability uses each sensor's configured MQTT expiry. A known unfinished newer run with an expired heartbeat shows **HEARTBEAT LOST / outcome unknown**, rather than borrowing an older success. A matching/newer retained result can resolve stale live state. `incomplete` and `interrupted` remain distinct outcomes. Retained results are labeled historical whenever they are used; they do not establish current activity.
+
+Updates follow measured-byte callbacks (default one-second minimum), snapshot/phase changes and MQTT heartbeats (default 60 seconds during idle/wait periods). Slow broker calls coalesce changes rather than blocking replication. The domain-wide `states.sensor` scan can be limited by HA to one render per second; `now()` is not needed to invent expiry. See [HA template updates](https://www.home-assistant.io/docs/templating/states/#how-often-templates-update), [device manufacturer lookup](https://www.home-assistant.io/template-functions/device_attr/), and the [Markdown card](https://www.home-assistant.io/dashboards/markdown/). The original per-job dashboard below remains available for customized layouts.
+
+### Optional fixed per-job dashboard
 
 Use the built-in-card view in [home-assistant/dashboard.yaml](home-assistant/dashboard.yaml). No custom cards are required. Get this config's ID without contacting the broker:
 
@@ -1004,8 +1079,8 @@ Pulls missing source snapshot subvolumes to the destination.
 |---|---|---|
 | `--config`, `-c` | Loads the chosen TOML config. | Needed for all source, destination, stream, retention, and notification settings. |
 | `--dry-run` | Prints the sync/prune plan without destination preparation, lock creation, receiving, state writing, manual snapshot creation, or deletion. | Safest way to inspect what the app intends to do without touching the destination, except optional log files. |
-| `--run` | Performs real send/receive work. | Required for actual backup changes. |
-| `--limit LIMIT` | Transfers at most this many subvolumes. | Useful for first live testing, for example `--run --limit 1`. |
+| `--run` | Forces real send/receive work. | Overrides `default_dry_run = true`; without either run-mode flag, `default_dry_run` decides. |
+| `--limit LIMIT` | Soft payload-send limit checked between whole snapshot dates; a started date completes all configured payloads. | For example, `--limit 1` can send both `@` and `@home` for one date. It does not mean one payload or N dates. |
 | `--snapshot SNAPSHOT` | Syncs only one Timeshift snapshot name. | Useful for targeted testing or retrying one known snapshot. Automatic manual snapshot creation is skipped. |
 | `--resend` | Tries to transfer even if `state.json` says it was already synced. | Useful for controlled repair/testing, but should be used carefully to avoid conflicts. |
 | `--prune` | Runs retention pruning after sync. | Applies backup retention and guarded paired cleanup of old app-created `O` snapshots. Real deletion still needs `--run --yes-delete`. |
@@ -1154,8 +1229,8 @@ Every option below is present in all packaged profiles. Commented entries are op
 
 | Option | What it does | Why it may be needed |
 |---|---|---|
-| `name` | Human-readable job name used in output, notifications, and log filenames. | Helps recognize which backup job sent a mail/MQTT message or produced a log. |
-| `default_dry_run` | Makes commands preview by default unless `--run` is passed. Dry-run skips destination preparation, lock creation, receives, state writes, manual snapshot creation, and prune deletion. | Safe default to avoid accidental writes or deletes while checking the plan. |
+| `name` | Human-readable job name used in output, notifications, and log filenames; if omitted or blank, uses the config filename without its suffix. | Helps recognize which backup job sent a mail/MQTT message or produced a log. |
+| `default_dry_run` | Selects the default for `sync`, `prune`, and `restore` when neither run-mode flag is supplied. Default `true` previews; `false` selects real mode. Explicit `--dry-run`/`--run` overrides it. Maintenance commands default to preview independently; `create-manual` is always real. | Safe default to avoid accidental writes or deletes while checking the plan. |
 | `prune_after_sync` | Automatically runs the prune step after successful sync. | Useful for scheduled jobs, but real deletion still requires `--run --yes-delete`. |
 | `log_dir` | Directory for split per-run log files; blank/omitted disables file logging. The logger creates only the exact log directory when its parent already exists; destination helper preflight prepares missing log directories during real sync/prune. | Needed for persistent debug logs and email log attachments without letting logging accidentally create destination roots as ordinary directories. |
 | `state_file` | Optional custom path for `state.json`; default is under `<target_root>/.ts-btrfs-sync/`. | Use only when you need app metadata outside `target_root`. |
@@ -1165,8 +1240,8 @@ Every option below is present in all packaged profiles. Commented entries are op
 
 | Option | What it does | Why it may be needed |
 |---|---|---|
-| `enabled` | Turns MQTT notifications on or off. | Keep false unless you want MQTT status messages. If false, `paho-mqtt` is not required. |
-| `host` | MQTT broker hostname or IP. | Needed when MQTT is enabled so the app knows where to publish. |
+| `enabled` | Turns MQTT notifications on or off. | Keep false unless you want MQTT status messages. `paho-mqtt` is needed when completion notifications or live monitoring is enabled. |
+| `host` | MQTT broker hostname or IP. | Required when `[mqtt].enabled` or `[mqtt_monitor].enabled` is true. |
 | `port` | MQTT broker port, normally `1883`. | Change if your broker uses a non-default port. |
 | `topic` | MQTT topic for JSON status messages. | Home Assistant sensors/automations subscribe to this topic. |
 | `username` | Optional MQTT username. | Needed for brokers that require authentication. |
@@ -1178,6 +1253,25 @@ Every option below is present in all packaged profiles. Commented entries are op
 | `timeout` | Connect/publish timeout in seconds. | Avoids notification hangs if the broker is unreachable. |
 | `notify_on_success` | Publishes success messages. | Disable if you only want failure alerts. |
 | `notify_on_failure` | Publishes failure messages. | Usually keep true so failed backups alert you. |
+
+### `[mqtt_monitor]`
+
+Live status is enabled independently of completion notifications and runs only during a real `sync` under its exclusive lock. It reuses `[mqtt]` broker, credentials, client ID base, QoS and timeout. Dry-run and other commands publish no live status. All eight complete profiles include these options.
+
+| Option | Default | What it does and why |
+|---|---|---|
+| `enabled` | `false` | Enables live MQTT progress and heartbeat publishing; requires `[mqtt].host` and the optional `paho-mqtt` dependency. |
+| `topic_prefix` | `"timeshift-btrfs-sync"` | Prefix for this backup's live status, events and retained last result. Must be nonempty without MQTT wildcards or NUL. |
+| `heartbeat_interval` | `60` | Positive integer seconds between heartbeats, including long sends and Timeshift waits, so consumers can detect an expired live run. |
+| `expire_after` | `180` | Home Assistant live-sensor expiry in seconds; must be a positive integer greater than `heartbeat_interval`. Normal idle expiry does not establish backup failure. |
+| `discovery` | `true` | Publishes retained Home Assistant discovery for one device and fourteen sensors when monitoring is enabled. Disable if configuring consumers manually. |
+| `discovery_prefix` | `"homeassistant"` | Nonempty MQTT discovery prefix without wildcards or NUL; match the Home Assistant discovery configuration. |
+| `events` | `true` | Publishes non-retained lifecycle and duplicate-launch events when monitoring is enabled. Duplicate attempts do not overwrite the active run's status or result. |
+| `manufacturer` | `"TimeShift-BTRFS-Sync"` | Exact HA device manufacturer for grouping multiple independent configs/scripts. Match the card's sole manufacturer variable. Nonempty string without control characters; outer whitespace is trimmed. A group change updates discovery on the next real monitored run and preserves job IDs/topics/history. |
+| `measure_transfers` | `true` | Counts actual send/mbuffer output bytes during a real monitored sync, including active and retry traffic. Disable to retain direct pipes and legacy confirmed-only byte summaries. |
+| `progress_interval` | `1` | Positive integer seconds between stream-byte callbacks; publisher coalescing keeps broker work off the transfer path. Idle heartbeat still uses `heartbeat_interval`. |
+
+Live status and events are non-retained; last result, last successful run and discovery are retained. Broker/worker failures do not fail an otherwise healthy backup. Read the retained last result when live state expires.
 
 ### `[mail]`
 
@@ -1374,7 +1468,7 @@ The supplied file named `TimeShift-BTRFS-Sync - Sequential Backup Queue - With c
 
 ## Complete command flag help
 
-The tables below reproduce the current parser help. `--help` and `--version` work both globally and after every application command. Required combinations and examples are available with `ts-btrfs COMMAND --help`.
+These tables come from the current argparse command definitions. Run `ts-btrfs COMMAND --help` for required flag combinations, examples and safety rules.
 
 ### Global flags
 
@@ -1390,8 +1484,19 @@ The tables below reproduce the current parser help. `--help` and `--version` wor
 | `-h`, `--help` | show this help message and exit |
 | `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
 | `--path` | output TOML path; parent directories are created as needed; default: ./ts-btrfs.toml |
-| `--profile` | complete configuration workflow to write; default: sync.<br>  sync = SSH Timeshift source -> local backup; local restore default<br>  restore-pull = SSH backup -> local Timeshift restore<br>  remote-roundtrip = SSH Timeshift -> local backup -> SSH Timeshift restore<br>  local-backup = local Timeshift -> local backup<br>  remote-pull = SSH Timeshift -> local backup<br>  local-restore = local backup -> local Timeshift restore<br>  remote-push-restore = local backup -> SSH Timeshift restore<br>  remote-pull-restore = SSH backup -> local Timeshift restore Allowed values: `sync`, `restore-pull`, `remote-roundtrip`, `local-backup`, `remote-pull`, `local-restore`, `remote-push-restore`, `remote-pull-restore`. |
+| `--profile` | complete configuration workflow to write; default: sync.<br>  sync = SSH Timeshift source -> local backup; local restore default<br>  restore-pull = SSH backup -> local Timeshift restore<br>  remote-roundtrip = SSH Timeshift -> local backup -> SSH Timeshift restore<br>  local-backup = local Timeshift -> local backup<br>  remote-pull = SSH Timeshift -> local backup<br>  local-restore = local backup -> local Timeshift restore<br>  remote-push-restore = local backup -> SSH Timeshift restore<br>  remote-pull-restore = SSH backup -> local Timeshift restore |
 | `--force` | overwrite FILE if it already exists; without this flag an existing file is left untouched and the command exits with code 2 |
+
+### Flags for `list-snapshots`
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | show this help message and exit |
+| `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
+| `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
+| `--check-pairs` | exit 1 unless enabled cache/destination inventories are complete and every date has a matching readonly UUID pair; comparison is always displayed, without cleanup or state writes |
+| `--workflow` | endpoint interpretation; auto (default) follows non-local restore.mode, otherwise backup; backup follows source.mode with local destination; restore follows restore.mode for both hosts |
+| `--include-timeshift` | accepted for compatibility; Timeshift snapshots are now always included first, followed by cache_root and target_root |
 
 ### Flags for `test-source`
 
@@ -1419,11 +1524,11 @@ The tables below reproduce the current parser help. `--help` and `--version` wor
 | `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
 | `--dry-run` | force strict preview mode even when default_dry_run=false: no destination preparation, lock creation, receive, state write, automatic manual snapshot, or deletion |
 | `--run` | force real backup mode even when default_dry_run=true: prepare paths/lock and perform send/receive; pruning still cannot delete without --yes-delete |
-| `--limit` | transfer at most N individual configured subvolume payloads in this run (for example one @ or @home); useful for a first real test; does not mean N snapshot dates |
+| `--limit` | soft limit of N configured subvolume payload sends, checked between complete snapshot dates; a started date finishes all payloads, so --limit 1 can send both @ and @home; does not mean N dates |
 | `--snapshot` | consider only this Timeshift timestamp (for example 2026-08-14_16-33-59); useful for a targeted retry/test; does not bypass normal safety checks |
 | `--resend` | do not skip a payload merely because state.json marks it complete; all UUID/lineage/path/conflict checks still apply, so this is not a force-overwrite option |
 | `--prune` | run retention after sync regardless of prune_after_sync=false; if prune_after_sync=true, pruning runs even without this flag; actual deletion also requires real-run mode and --yes-delete |
-| `--yes-delete` | authorize actual retention deletion during a real sync when --prune or prune_after_sync=true requests pruning; has no force/override effect on non-retention safety checks |
+| `--yes-delete` | authorize actual paired retention and configured redundant cache/destination deletion during a real sync when --prune or prune_after_sync=true requests pruning; has no force/override effect on non-retention safety checks |
 
 ### Flags for `prune`
 
@@ -1432,9 +1537,9 @@ The tables below reproduce the current parser help. `--help` and `--version` wor
 | `-h`, `--help` | show this help message and exit |
 | `--version` | print the installed TimeShift-BTRFS-Sync version and exit; valid before or after a subcommand |
 | `--config`, `-c` | required TOML configuration file. It selects the job name, source/restore topology, source and destination paths, SSH/sudo settings, retention, logging/notifications, and default_dry_run behavior. The CLI does not auto-discover a config file. |
-| `--dry-run` | force preview mode: refresh/read metadata and show retention decisions, but do not create a lock, save state changes, or delete anything |
+| `--dry-run` | force preview mode: reconcile state in memory and show retention and redundant cache/destination decisions; no lock, state write or deletion |
 | `--run` | force real prune mode: acquire the lock and apply retention; actual deletion still requires --yes-delete |
-| `--yes-delete` | explicit authorization for real retention deletes; required in addition to real-run mode whenever the plan contains destination/source deletions |
+| `--yes-delete` | explicit authorization for real paired retention; post-sync extras require this consent and successful sync; requires real-run mode and never bypasses UUID/layout/ownership protections |
 
 ### Flags for `restore`
 
@@ -1510,6 +1615,7 @@ The tables below reproduce the current parser help. `--help` and `--version` wor
 
 | Flag | Meaning |
 |---|---|
+| `-h`, `--help` | Show all build options and exit without building. |
 | `--version` | Print the source release version and exit without building. |
 | `--mode` | Build folder-style executable, one-file executable, or both. Default: onedir. |
 | `--name` | Executable name. Default: ts-btrfs. |
@@ -1517,4 +1623,4 @@ The tables below reproduce the current parser help. `--help` and `--version` wor
 | `--no-clean` | Do not pass --clean to PyInstaller. |
 | `--extra-pyinstaller-arg` | Extra raw argument passed to PyInstaller. Can be used more than once. |
 
-Project documentation: `VERSIONING.md` records release changes; `COMMENTED_CODE_MAP.md` explains the current functions and commands. These original capitalized filenames are the canonical documents.
+Project documentation: [VERSIONING.md](VERSIONING.md) records all release changes; [COMMENTED_CODE_MAP.md](COMMENTED_CODE_MAP.md) explains functions and commands. The requested [versioning.md](versioning.md) and [commented_code_map.md](commented_code_map.md) contain identical copies. Keep each pair synchronized. [RELEASE_VERIFICATION.md](RELEASE_VERIFICATION.md) records the current checks and limits; [RELEASE_MANIFEST.json](RELEASE_MANIFEST.json) records file hashes and the comparison with the supplied archive.

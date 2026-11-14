@@ -10,8 +10,10 @@ File logging is delegated to timeshift_btrfs_sync.log. This keeps naming,
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Callable, Iterable
 import os
+import errno
+import time
 import re
 import shlex
 import subprocess
@@ -61,6 +63,7 @@ class PipelineResult:
     """Successful streaming-pipeline statistics needed by higher-level summaries."""
 
     transferred_bytes: int | None = None
+    transferred_bytes_source: str | None = None
 
 
 def parse_mbuffer_transferred_bytes(text: str) -> int | None:
@@ -256,6 +259,70 @@ def _log_failed_streams(streams: list[tuple]) -> None:
             logger.err("".join(capture))
 
 
+class _StreamMeter:
+    """Forward the actual send/mbuffer stream and count bytes handed to receive.
+
+    Linux splice keeps stream data in kernel pipes. The bounded-copy fallback
+    supports environments without splice. Neither path parses Btrfs diagnostics
+    or reads snapshot files a second time. Observer failures cannot break I/O.
+    """
+
+    def __init__(self, source, target, observer, interval):
+        self.source, self.target, self.observer = source, target, observer
+        self.interval = interval
+        self.total = 0
+        self.error = None
+
+    def _report(self):
+        """Send cumulative per-attempt bytes without making monitoring authoritative."""
+        try:
+            self.observer(self.total)
+        except Exception:
+            pass
+
+    def _run(self):
+        """Relay exact bytes, retain transport failures and close owned pipe ends."""
+        splice = getattr(os, "splice", None)
+        last_report = time.monotonic()
+        self._report()
+        try:
+            while True:
+                if splice is not None:
+                    try:
+                        size = splice(self.source.fileno(), self.target.fileno(), 1024 * 1024)
+                    except OSError as exc:
+                        if exc.errno not in {errno.EINVAL, errno.ENOSYS, errno.ENOTSUP}:
+                            raise
+                        splice = None
+                        continue
+                else:
+                    block = os.read(self.source.fileno(), 256 * 1024)
+                    if not block:
+                        break
+                    view = memoryview(block)
+                    while view:
+                        written = os.write(self.target.fileno(), view)
+                        if written <= 0:
+                            raise OSError("stream relay made no write progress")
+                        self.total += written
+                        view = view[written:]
+                    size = 0  # Copy path has already counted every successful write.
+                if splice is not None:
+                    if not size:
+                        break
+                    self.total += size
+                now = time.monotonic()
+                if now - last_report >= self.interval:
+                    self._report()
+                    last_report = now
+        except OSError as exc:
+            self.error = exc
+        finally:
+            self.source.close()
+            self.target.close()
+            self._report()
+
+
 def stream_pipeline(
     left_cmd: list[str],
     right_cmd: list[str],
@@ -269,6 +336,8 @@ def stream_pipeline(
     left_label: str = "REMOTE SEND",
     middle_label: str = "STREAM BUFFER",
     right_label: str = "LOCAL RECEIVE",
+    progress_callback: Callable[[int], None] | None = None,
+    progress_interval: float = 1.0,
 ) -> PipelineResult:
     """Stream left command into optional middle command, then right command.
 
@@ -277,6 +346,12 @@ def stream_pipeline(
 
     With mbuffer:
       ssh source 'btrfs send ...' | mbuffer -m 256M | btrfs receive ...
+
+    When progress_callback is supplied, count the actual binary stream between
+    send/mbuffer and receive with a Linux splice relay (bounded-copy fallback).
+    Report cumulative bytes during the active payload, independent of stderr
+    rounding or verbose flags. Without the callback, retain the direct pipe.
+    Byte counts prove traffic, not successful receive; all stage checks remain.
 
     Logging behavior when log_dir is set:
       * command/control output goes to .log
@@ -346,14 +421,26 @@ def stream_pipeline(
         assert middle.stdout is not None
         receive_stdin = middle.stdout
 
-    right = subprocess.Popen(
-        right_cmd,
-        stdin=receive_stdin,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=_merged_env(right_env),
-    )
-    receive_stdin.close()
+    try:
+        right = subprocess.Popen(
+            right_cmd,
+            stdin=subprocess.PIPE if progress_callback is not None else receive_stdin,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=_merged_env(right_env),
+        )
+    except BaseException:
+        receive_stdin.close()
+        for process in [middle, left]:
+            if process is not None:
+                process.terminate()
+                process.wait()
+        raise
+    meter = None
+    if progress_callback is not None:
+        meter = _StreamMeter(receive_stdin, right.stdin, progress_callback, max(0.01, progress_interval))
+    else:
+        receive_stdin.close()
 
     left_err_chunks: list[str] = []
     middle_err_chunks: list[str] = []
@@ -371,19 +458,41 @@ def stream_pipeline(
     ]
     threads = _start_pipeline_readers(streams)
 
-    right_return = right.wait()
-    middle_return = middle.wait() if middle else 0
-    left_return = left.wait()
+    try:
+        if meter is not None:
+            meter._run()
+        right_return = right.wait()
+        middle_return = middle.wait() if middle else 0
+        left_return = left.wait()
+    except BaseException:
+        # Cancellation must also stop the optional independent mbuffer session.
+        for process in [right, middle, left]:
+            if process is not None and process.poll() is None:
+                process.terminate()
+        for process in [right, middle, left]:
+            if process is not None:
+                try:
+                    process.wait(timeout=1)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+        for thread in threads:
+            thread.join(timeout=1)
+        raise
 
     for thread in threads:
         thread.join()
 
     returncode = right_return if right_return != 0 else middle_return if middle_return != 0 else left_return
+    if meter is not None and meter.error:
+        returncode = returncode or 1
     if logger:
         logger.pipeline_summary(returncode)
 
-    if left_return != 0 or middle_return != 0 or right_return != 0:
+    if left_return != 0 or middle_return != 0 or right_return != 0 or (meter is not None and meter.error):
         stderr = _failed_stderr(streams)
+        if meter is not None and meter.error:
+            stderr += f"\nStream relay failed: {meter.error}\n"
         stdout = "".join(right_out_chunks)
         pipe_text = shlex.join(left_cmd)
         if middle_cmd:
@@ -415,4 +524,8 @@ def stream_pipeline(
         )
 
     transferred_bytes = parse_mbuffer_transferred_bytes("".join(middle_err_chunks)) if middle else None
-    return PipelineResult(transferred_bytes=transferred_bytes)
+    if meter is not None:
+        return PipelineResult(transferred_bytes=meter.total,
+                              transferred_bytes_source="mbuffer-output" if middle else "btrfs-send-stream")
+    return PipelineResult(transferred_bytes=transferred_bytes,
+                          transferred_bytes_source="mbuffer" if transferred_bytes is not None else None)

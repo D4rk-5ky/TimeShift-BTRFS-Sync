@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
+from .monitor import cleanup_progress, report_phase
 from . import inventory, timeshift
 from .btrfs_ops import BtrfsOps
 from .cache_ops import cache_parent_path
@@ -895,6 +896,45 @@ def _confirmed_prune_parent(config: AppConfig, state: dict) -> str:
     return name
 
 
+def forecast_cleanup(config, state, source_by_name, cache_index, destination_index, pending_names, *, prune_plan=None) -> None:
+    """Estimate post-send date jobs from existing inventory; never probe, authorize or delete."""
+    progress = cleanup_progress()
+    if progress is None or not progress.enabled:
+        return
+    try:
+        from copy import deepcopy
+        from .reconciliation import cache_cleanup_candidates, destination_cleanup_candidates
+        projected = deepcopy(state)
+        snapshots = projected.setdefault("snapshots", {})
+        # Pending dates are hypothetical completed sends for retention counting only.
+        for name in set(snapshots) | set(pending_names):
+            meta = source_by_name.get(name)
+            if meta is not None:
+                snapshots.setdefault(name, {}).update(tags=list(meta.tags), comment=meta.comment)
+        plan = prune_plan if prune_plan is not None else build_prune_plan(config, projected)
+        progress.plan("paired", plan.delete, estimated=True)
+        source_only = _source_app_retention_delete_names(config, source_by_name) - set(snapshots)
+        progress.plan("source", source_only, estimated=True)
+        for name in plan.delete:
+            snapshots.pop(name, None)
+        latest = max(snapshots, default=None)
+        cache_enabled = bool(config.source.delete_redundant_snapshots and config.source.cleanup_superseded_cache and config.source.cache_root)
+        if not cache_enabled or not latest:
+            cache_names = []
+        else:
+            cache_names = None if cache_index is None else set(cache_cleanup_candidates(config, projected, cache_index, latest)) - plan.delete
+        progress.plan("cache", cache_names, estimated=True)
+        if not config.destination.delete_redundant_snapshots or not latest or not config.source.cache_root:
+            destination_names = []
+        else:
+            destination_names = None if cache_index is None or destination_index is None else set(destination_cleanup_candidates(config, projected, cache_index, destination_index, latest)) - plan.delete
+        progress.plan("destination", destination_names, estimated=True)
+    except Exception:
+        # Forecasting is optional; unknown is safer than a stale or fabricated zero.
+        for group in progress.GROUPS:
+            progress.plan(group, None, estimated=True)
+
+
 def prune(
     config: AppConfig,
     state: dict,
@@ -907,6 +947,9 @@ def prune(
 ) -> PruneResult:
     """Apply paired retention; CLI callers enable inventory reconciliation and bounded extra cache cleanup."""
 
+    progress = None if dry_run else cleanup_progress()
+    if progress:
+        report_phase("cleanup_planning")
     context = None
     if reconcile_inventory:
         from .reconciliation import prepare_reconciliation
@@ -976,6 +1019,19 @@ def prune(
             print(f"  [{action}] {name}: {authorization}")
         print()
 
+    if progress:
+        if context is not None:
+            forecast_cleanup(config, state, context.source_by_name,
+                             context.source_inventory.cache_index, context.destination_index,
+                             [], prune_plan=plan)
+        progress.plan("paired", plan.delete)
+        progress.plan("source", legacy_source_only_candidates)
+        if context is None or not successful_sync or not (config.source.delete_redundant_snapshots and config.source.cleanup_superseded_cache and config.source.cache_root):
+            progress.plan("cache", [])
+        if context is None or not successful_sync or not (config.destination.delete_redundant_snapshots and config.source.cache_root):
+            progress.plan("destination", [])
+        report_phase("cleanup")
+
     cleanup_result = PruneResult(
         plan=plan,
         dry_run=dry_run,
@@ -1027,7 +1083,9 @@ def prune(
 
     deleted = 0
     for name in sorted(plan.delete):
-        if _delete_prune_item(
+        if progress:
+            progress.current("paired", name)
+        confirmed = _delete_prune_item(
             config,
             state,
             plan,
@@ -1037,7 +1095,10 @@ def prune(
             name,
             source_cache_index=source_cache_index,
             cleanup_result=cleanup_result,
-        ):
+        )
+        if progress:
+            progress.complete("paired", name, confirmed)
+        if confirmed:
             deleted += 1
 
     # Clean source-only leftovers created by the old one-sided retention
@@ -1046,21 +1107,28 @@ def prune(
     legacy_deleted = 0
     if source_runner is not None and source_timeshift_index is not None:
         for name in sorted(legacy_source_only_candidates):
+            if progress:
+                progress.current("source", name)
             if name not in source_delete_allowed:
+                if progress:
+                    progress.complete("source", name, False)
                 print()
                 print(f"SOURCE TIMESHIFT LEGACY RETENTION SKIP: {name}")
                 print("  reason: newest retained app-snapshot backup window is not fully proven")
                 continue
             print()
             print(f"SOURCE TIMESHIFT LEGACY RETENTION DELETE: {name}")
-            if _delete_source_timeshift_snapshot_for_prune(
+            confirmed = _delete_source_timeshift_snapshot_for_prune(
                 config,
                 state,
                 source_runner,
                 source_timeshift_index,
                 name,
                 require_synced_state=False,
-            ):
+            )
+            if progress:
+                progress.complete("source", name, confirmed)
+            if confirmed:
                 legacy_deleted += 1
                 cleanup_result.source_timeshift_cleanup_completed += 1
 
@@ -1068,6 +1136,8 @@ def prune(
         _apply_redundant_cache_cleanup(config, state, context, cleanup_result, yes_delete=yes_delete, successful_sync=successful_sync)
         _apply_redundant_destination_cleanup(config, state, context, cleanup_result, yes_delete=yes_delete, successful_sync=successful_sync)
     save_state(config.state_file, state)
+    if progress:
+        progress.finish()
     cleanup_result.destination_state_deleted = deleted
     cleanup_result.legacy_source_deleted = legacy_deleted
     cleanup_result.remaining_state = len(state.get("snapshots", {}))

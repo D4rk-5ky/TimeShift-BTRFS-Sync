@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.2.2 config
+# timeshift-btrfs-sync v0.2.6 config
 # Inventory: ts-btrfs list-snapshots --config ./config.toml
 # Prints Timeshift, cache_root, target_root; uses configured sudo only for Btrfs/Timeshift reads.
 # Timeshift supplies source metadata; omitted dates use ordinary source info.json reads.
@@ -87,7 +87,8 @@ mode = "ssh-target"
 # This feature uses the paho-mqtt Python module. Install optional dependency with:
 #   python3 -m pip install -e '.[mqtt]'
 #
-# If enabled = false, paho-mqtt is not required and nothing is published.
+# This switch controls completion messages only. Live monitoring is independent;
+# paho-mqtt is required when either MQTT feature is enabled.
 enabled = false
 
 # MQTT broker address and port. For Home Assistant add-on broker this is often
@@ -120,12 +121,27 @@ notify_on_failure = true
 
 
 [mqtt_monitor]
-# Independent live monitoring of real sync only; dry-runs/restore/prune do not
+# Group any number of independent backup configs under one HA manufacturer.
+# Match this exact value in the Markdown card's one manufacturer variable.
+manufacturer = "TimeShift-BTRFS-Sync"
+# Measure actual streamed bytes during real sync (with or without mbuffer).
+# Includes active/failed/retried attempts; does not count preflight reads.
+measure_transfers = true
+# Minimum seconds between byte-progress callbacks; broker work stays asynchronous.
+progress_interval = 1
+# One automatic HA Markdown card for all discovered backup jobs:
+# home-assistant/manufacturer-monitor.yaml filters the manufacturer set above.
+# Enable monitoring/discovery, then run real sync or prune to publish group changes.
+# Card bars: transferred dates, confirmed cleanup date jobs, and their combined steps.
+# Initial cleanup is estimated from existing metadata/queued sends; real cleanup
+# refreshes candidate plans. Blocked/unknown work is never counted as completed.
+# Paired source/cache/destination deletion is one date job, not one per subvolume.
+# Independent live monitoring of real sync/prune; dry-runs/restore/list do not
 # replace backup status. Broker/auth/QoS/timeout come from [mqtt], even if its
 # legacy completion notifications have enabled=false. Optional paho-mqtt is needed.
 enabled = false
 # Each canonical config path + hostname gets its own stable hashed backup ID.
-# Topics: <topic_prefix>/<backup_id>/{status,last_result,events}.
+# Topics: <topic_prefix>/<backup_id>/{status,last_result,last_success,events}.
 topic_prefix = "timeshift-btrfs-sync"
 # Live status is NEVER retained. Publish every 60s plus snapshot/phase changes.
 heartbeat_interval = 60

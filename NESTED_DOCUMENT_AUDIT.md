@@ -1,5 +1,7 @@
 # Nested document comparison — 0.1.89
 
+Historical audit supplied with the original project. Its statements about absent lowercase files and older canonical-document policy describe 0.1.89 only. The current release intentionally includes full synchronized `versioning.md` and `commented_code_map.md` copies at the user’s request while preserving the original uppercase documents. No removal instructions below apply to this release.
+
 Compared all seven original files under `timeshift_btrfs_sync/` in the uploaded archive with the current root documents on 2026-10-12. These package-local duplicates were already removed in 0.1.87 and remain absent. The active package contains Python modules and its eight config examples; the root contains the canonical documentation, license and ignore rules.
 
 | Original nested file | Result in the current root |

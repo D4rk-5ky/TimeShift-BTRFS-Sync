@@ -69,6 +69,30 @@ class MonitorConfigTests(unittest.TestCase):
         for p in TEMPLATE.parent.glob('*.toml'):
             self.assertEqual(set(tomllib.loads(p.read_text())['mqtt_monitor']),cfg.MONITOR_KEYS);self.assertFalse(load_config(p).mqtt_monitor.enabled)
 
+    def test_manufacturer_default_and_custom_group(self):
+        """Preserve old configs while allowing an exact shared manufacturer group."""
+        self.assertEqual(self.load_extra('').mqtt_monitor.manufacturer, 'TimeShift-BTRFS-Sync')
+        self.assertEqual(self.load_extra('[mqtt_monitor]\nmanufacturer="  My backup group  "\n').mqtt_monitor.manufacturer, 'My backup group')
+
+    def test_manufacturer_strict_validation(self):
+        """Reject empty, mistyped or control-containing registry manufacturer names."""
+        for value in ['""', '"   "', 'true', '42', '[]', '"bad\\nname"', '"bad\\u0000name"']:
+            with self.subTest(value=value), self.assertRaisesRegex(ConfigError, 'manufacturer'):
+                self.load_extra('[mqtt_monitor]\nmanufacturer='+value+'\n')
+
+    def test_manufacturer_changes_group_without_changing_job_identity(self):
+        """Changing only the manufacturer must not merge jobs or fork MQTT history."""
+        options = monitor.MonitorConfig()
+        before = monitor.discovery_messages(options, 'job', 'Backup', 'x/status', 'x/last_result')
+        options.manufacturer = 'Shared backups'
+        after = monitor.discovery_messages(options, 'job', 'Backup', 'x/status', 'x/last_result')
+        self.assertEqual([topic for topic, body, retain in before], [topic for topic, body, retain in after])
+        for (_, old, _), (_, new, _) in zip(before, after):
+            self.assertEqual(new['device']['manufacturer'], 'Shared backups')
+            self.assertEqual(old['device']['identifiers'], new['device']['identifiers'])
+            self.assertEqual(old['unique_id'], new['unique_id'])
+            self.assertEqual(old['state_topic'], new['state_topic'])
+
 class MonitorLifecycleTests(unittest.TestCase):
     def setUp(self):
         self.config=load_config(TEMPLATE);self.config.mqtt_monitor.enabled=True;self.config.mqtt_monitor.discovery=False;self.messages=[]
@@ -77,10 +101,10 @@ class MonitorLifecycleTests(unittest.TestCase):
     def last(self):
         return [body for topic,body,_ in self.messages if topic.endswith('/last_result')][-1]
     def test_discovery_groups_live_expiring_and_durable_result_sensors(self):
-        messages=monitor.discovery_messages(monitor.MonitorConfig(),'id','Backup','x/status','x/last_result');self.assertEqual(len(messages),12)
+        messages=monitor.discovery_messages(monitor.MonitorConfig(),'id','Backup','x/status','x/last_result');self.assertEqual(len(messages),14)
         for topic,body,retain in messages:
             self.assertTrue(retain);self.assertEqual(body['device']['identifiers'],['id'])
-            if topic.endswith('/last_result/config'):self.assertNotIn('expire_after',body)
+            if topic.endswith(('/last_result/config','/last_success/config')):self.assertNotIn('expire_after',body)
             else:self.assertEqual(body['expire_after'],180)
     def test_live_and_events_nonretained_last_result_retained(self):
         with patch.object(monitor,'publish_messages',side_effect=self.publish):
