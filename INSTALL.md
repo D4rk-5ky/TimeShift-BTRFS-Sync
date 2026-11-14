@@ -1,11 +1,28 @@
 # Installation
 
-Current source release: **0.2.8**. Install from the project root. The original `dist/ts-btrfs/ts-btrfs` is preserved unchanged and was documented as **0.1.84**. It cannot start as supplied because the archive lacks `_internal/libpython3.14.so.1.0` and its companion runtime directory; its version could not be verified. Use `python3 -m timeshift_btrfs_sync` or rebuild from this source with the dependencies below. The active package is timeshift_btrfs_sync/; project documentation and helpers live at the project root.
+Current source release: **0.2.9**. Run the direct Python launcher or install from the project root. The original `dist/ts-btrfs/ts-btrfs` is preserved unchanged and was documented as **0.1.84**. It cannot start as supplied because the archive lacks `_internal/libpython3.14.so.1.0` and its companion runtime directory; its version could not be verified. Use `python3 -m timeshift_btrfs_sync` or rebuild from this source with the dependencies below. The active package is timeshift_btrfs_sync/; project documentation and helpers live at the project root.
 
 Normal sync runs on the backup/destination machine. The Timeshift source is reached over SSH or selected locally. Restore may also run on the Timeshift machine and pull a backup repository over SSH when `[restore] mode = "ssh"` is selected. The selected endpoints need the commands and minimal permissions described in the README. `cat` and `id` are not run through sudo during normal discovery. The configured source account must have normal traversal/list/read permission for `<source.snapshot_root>/<date>/info.json`. When metadata access fails, the app reports the effective source account name and UID. Prefer a stable source Btrfs mount created by a privileged administrator in `/etc/fstab`, then grant that account narrow Unix mode or POSIX ACL access as documented in README.md.
 
 
 The executable or Python install does **not** include system tools such as `btrfs`, `timeshift`, `ssh`, `sudo`, `wc`, `mbuffer`, or `sshpass`. Those must be installed on the relevant machines.
+
+## Run directly with Python, without a venv
+
+Extract the full source ZIP and keep the root `timeshift_btrfs_sync.py` launcher beside the `timeshift_btrfs_sync/` directory. Core operation uses the Python standard library and needs Python 3.11 or newer; no pip install, virtual environment or binary build is required:
+
+```bash
+python3 --version
+python3 timeshift_btrfs_sync.py --help
+python3 timeshift_btrfs_sync.py --version
+python3 timeshift_btrfs_sync.py init-config --profile local-backup --path ./config.toml
+# Edit config.toml before using real mounts/hosts.
+python3 timeshift_btrfs_sync.py sync --config ./config.toml --dry-run
+```
+
+All commands/flags use the existing CLI. You can substitute `python3 timeshift_btrfs_sync.py` for `ts-btrfs` or `python3 -m timeshift_btrfs_sync` elsewhere in this guide. An absolute script path works from another directory, without changing that directory or relative path handling. The script also runs as `./timeshift_btrfs_sync.py` when executable; if your archive extractor loses that bit, use `chmod +x timeshift_btrfs_sync.py` or invoke it explicitly with Python.
+
+MQTT still needs `paho-mqtt` installed for the Python interpreter you use. For a direct system-Python setup, use your normal distribution/environment package management; check with `python3 -c "import paho.mqtt.client"` if MQTT is enabled. SMTP/local mail notification formatting needs no additional Python package; local mailx delivery requires its installed utility/MTA. The configured Btrfs/Timeshift/SSH/sudo and optional mbuffer/sshpass tools remain required on their relevant machines. The app does not auto-install dependencies or modify services. The venv-based full build/MQTT workflow below remains available as an optional alternative, and PyInstaller is only needed for building an executable.
 
 ## Enable live MQTT and Home Assistant monitoring
 

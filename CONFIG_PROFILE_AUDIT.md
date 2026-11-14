@@ -1,4 +1,4 @@
-# Configuration profile audit — TimeShift-BTRFS-Sync 0.2.8
+# Configuration profile audit — TimeShift-BTRFS-Sync 0.2.9
 
 All eight examples cover 108 supported scalar/list settings across the top level and ten tables. The runtime registries match their dataclass fields; active documents load with the real parser. Each commented option example parses as TOML and is loaded separately with coherent temporary credentials where file/auth prerequisites apply. Optional examples are alternatives, not instructions to uncomment all settings together. This document describes example configuration, not a deployed machine's mounts or credentials.
 

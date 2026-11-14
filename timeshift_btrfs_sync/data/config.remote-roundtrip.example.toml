@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.2.8 config
+# timeshift-btrfs-sync v0.2.9 config
 # Profile: remote-roundtrip. Primary command: sync / restore.
 # Run on: Backup/destination host.
 # Backup direction: SSH Timeshift -> local backup.

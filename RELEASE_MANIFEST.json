@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
   "project": "TimeShift-BTRFS-Sync",
-  "source_version": "0.2.8",
-  "previous_source_version": "0.2.7",
+  "source_version": "0.2.9",
+  "previous_source_version": "0.2.8",
   "prepared_date": "2026-11-14",
-  "archive_root": "TimeShift-BTRFS-Sync-0.2.8",
+  "archive_root": "TimeShift-BTRFS-Sync-0.2.9",
   "original_archive_name": "TimeShift-BTRFS-Sync-main.zip",
   "original_archive_sha256": "8a8510b1d546c5ffaf059e54c6ee8c3a5790d37133f8c414c03b09239c7dc840",
   "hash_algorithm": "sha256",
   "manifest_self_excluded": true,
-  "file_count": 114,
+  "file_count": 116,
   "original_file_count": 104,
   "unchanged": [
     ".gitignore",
@@ -129,6 +129,8 @@
     "tests/test_live_transfer_metrics.py",
     "tests/test_mail_transports.py",
     "tests/test_manufacturer_dashboard.py",
+    "tests/test_script_launcher.py",
+    "timeshift_btrfs_sync.py",
     "versioning.md"
   ],
   "removed": [],
@@ -679,6 +681,584 @@
       "mode": "0o644"
     },
     "COMMENTED_CODE_MAP.md": {
+      "size": 634806,
+      "sha256": "8c29a42ddfb362ac75638fc37616b7f3aac50ee62339999f24647b94c7057b86",
+      "mode": "0o644"
+    },
+    "CONFIG_AND_CLI_AUDIT.md": {
+      "size": 34020,
+      "sha256": "77f85a184eddb3878ea729e6b35fda295ef9ced0cb991dc0a89c7cb38cc5fc02",
+      "mode": "0o644"
+    },
+    "CONFIG_PROFILE_AUDIT.md": {
+      "size": 10013,
+      "sha256": "ffad8622a73a86230385f1d83b096c91f9aaeb3c6ba1fc01ab7500075e7f48ad",
+      "mode": "0o644"
+    },
+    "INSTALL.md": {
+      "size": 35684,
+      "sha256": "6e482b7cfdfcf443278629be8f500c1efdfbd457739557d03966eb0c7de7830a",
+      "mode": "0o644"
+    },
+    "LICENSE": {
+      "size": 1090,
+      "sha256": "222cc41db9b84ad67de06112792c941a0388c3e74669d2f89ea16ca1632255ce",
+      "mode": "0o644"
+    },
+    "NESTED_DOCUMENT_AUDIT.md": {
+      "size": 3792,
+      "sha256": "79a0bdace0d0f78d38c67b75769bf3ad6511642fbb9f04d527e57488ff9b9057",
+      "mode": "0o644"
+    },
+    "README.md": {
+      "size": 190762,
+      "sha256": "811802b6d50f88f894111af9ba3e91b45ca811fff055e9d8a3633527ef125183",
+      "mode": "0o644"
+    },
+    "RELEASE_VERIFICATION.md": {
+      "size": 9043,
+      "sha256": "cf0eabe57a5b614bff2971b93319ed3229a3b99fd9030df4cb4c726e3c0cc8f0",
+      "mode": "0o644"
+    },
+    "REMOVED_NESTED_SOURCES.md": {
+      "size": 4169,
+      "sha256": "27c06777e2727f35f2e249997dd02f81b8a2422bd5aad317b29733a92d3ce64c",
+      "mode": "0o644"
+    },
+    "TimeShift-BTRFS-Sync - Sequential Backup Queue - With continue on failure": {
+      "size": 39866,
+      "sha256": "36af4fc4f54d1bacf8b866d8f3dcad984638f9e59aa036d698cb134ebd92b404",
+      "mode": "0o644"
+    },
+    "VERSIONING.md": {
+      "size": 189148,
+      "sha256": "ca8d706d76c31c259fb4d3e5f5ccc3df58f9974295b73e3d76a93a9ca4f351c8",
+      "mode": "0o644"
+    },
+    "commented_code_map.md": {
+      "size": 634806,
+      "sha256": "8c29a42ddfb362ac75638fc37616b7f3aac50ee62339999f24647b94c7057b86",
+      "mode": "0o644"
+    },
+    "delete-btrfs-tree.sh": {
+      "size": 7669,
+      "sha256": "08b2e6ef9724c31692a8e788db78e6c6a5c0cbeb67c79e27d65a0887f1e71120",
+      "mode": "0o755"
+    },
+    "dist/ts-btrfs/ts-btrfs": {
+      "size": 2440552,
+      "sha256": "46da73219b748a2f17958a5071720bd561f73a6ce388745b2fe3f69050284949",
+      "mode": "0o755"
+    },
+    "home-assistant/automations.yaml": {
+      "size": 1517,
+      "sha256": "bd36112107c0bbf6220a25204f7a643255cc39bc74c788186b1fa57b45d80947",
+      "mode": "0o644"
+    },
+    "home-assistant/dashboard.yaml": {
+      "size": 1709,
+      "sha256": "a90995b448b8c7b317a9a02c7bf8713bcdcc3ee63bc7145fd4697ebd8bb54b77",
+      "mode": "0o644"
+    },
+    "home-assistant/manufacturer-monitor.yaml": {
+      "size": 15918,
+      "sha256": "3ac89fbf03180ee6588514be8db5e31edaf09c120355c107886181d76b892bfc",
+      "mode": "0o644"
+    },
+    "pyproject.toml": {
+      "size": 1309,
+      "sha256": "56949cf7b7566bb4647866981a2b7a61215bc2da362f1ebe9d9d262ec748d58b",
+      "mode": "0o644"
+    },
+    "requirements.txt": {
+      "size": 517,
+      "sha256": "2e45522e0110355deeba9e7e741534085585c7125c8d206d705b3c768ccec5c2",
+      "mode": "0o644"
+    },
+    "scripts/build_pyinstaller.py": {
+      "size": 4008,
+      "sha256": "03a903b817e12279ce625b76defb2fedcc25afb5b36a5ad7f26ba445d05c2bfd",
+      "mode": "0o755"
+    },
+    "sudoers/source-minimal.example": {
+      "size": 608,
+      "sha256": "3646946d18ed5f54c241af0202ae6d65eeefe2750f15f0663349631017a87f10",
+      "mode": "0o644"
+    },
+    "systemd/ts-btrfs-sync.service": {
+      "size": 262,
+      "sha256": "dd7f4bc0f86c2efa70df36f063a7351e97b542b91362e15fee46e01a090dce33",
+      "mode": "0o644"
+    },
+    "systemd/ts-btrfs-sync.timer": {
+      "size": 156,
+      "sha256": "42a59ca6c50102cbcc80da570fbd83431295f78642b300c48fd75aee47ea431e",
+      "mode": "0o644"
+    },
+    "tests/test_btrfs_only_layout.py": {
+      "size": 4888,
+      "sha256": "3f650d5c5189db385a237b062986f2bcc77139bb67f348a7df6d93a37938528f",
+      "mode": "0o644"
+    },
+    "tests/test_cache_exact_reuse.py": {
+      "size": 7902,
+      "sha256": "2fa6c86a6f2d7f1c1f3124d80482749bc27d4f6906547b550cc253d357186435",
+      "mode": "0o644"
+    },
+    "tests/test_cleanup_progress.py": {
+      "size": 25584,
+      "sha256": "fb2e64226b1e5d31d58220608b3cfc013d156f2f002fb9a424cc3d1e1813b339",
+      "mode": "0o644"
+    },
+    "tests/test_cleanup_superseded_cache_modes.py": {
+      "size": 9535,
+      "sha256": "fdb19c2feccd96276eae2f315f070fd34e7849e8835d5efdf8b7f3bd2dad65d7",
+      "mode": "0o644"
+    },
+    "tests/test_cli_help_contract.py": {
+      "size": 4382,
+      "sha256": "4265e2a826bb0e2314babc68cb20324896b9a1f593d9e3f6368928f1d1521c64",
+      "mode": "0o644"
+    },
+    "tests/test_config_attribute_surface.py": {
+      "size": 2172,
+      "sha256": "19ce0e6cfbc68b373dd7650fd69a745d381682a378a9763e859d3457fad06c87",
+      "mode": "0o644"
+    },
+    "tests/test_config_profile_contract.py": {
+      "size": 15659,
+      "sha256": "d8c6c2cfeae7777bef9b053b09e233f4519eba53c58eda8ff816c5987029e901",
+      "mode": "0o644"
+    },
+    "tests/test_config_profiles.py": {
+      "size": 6576,
+      "sha256": "0bfd039734ae2454f882ff949cbbaf949391348e5f89375b66f7d6f826e00139",
+      "mode": "0o644"
+    },
+    "tests/test_current_surface.py": {
+      "size": 3047,
+      "sha256": "5c8e17631e6987325bac5530c6b5dd8086d97583fa6d2a0b70cdfe7b626673f2",
+      "mode": "0o644"
+    },
+    "tests/test_destination_inventory_regression.py": {
+      "size": 5774,
+      "sha256": "f9e69343857e4e305d9b174a545a397878681ed0cf21696f1a86c256c408ddcb",
+      "mode": "0o644"
+    },
+    "tests/test_destroy_both_payload_match.py": {
+      "size": 4952,
+      "sha256": "9f44c146169f4f7d0528150fccac7c715784f1a3eed5fe459d87bf7deb71384c",
+      "mode": "0o644"
+    },
+    "tests/test_destroy_post_verification.py": {
+      "size": 6410,
+      "sha256": "623996115c66fdb2c2e94acddc2a08a3a02dd84796f5deb3103b6c3558cee10b",
+      "mode": "0o644"
+    },
+    "tests/test_incremental_parent_recovery.py": {
+      "size": 11822,
+      "sha256": "64ef73a148f7e85f4243d606e5a7ebdff23e5158a941803cf2937542b787cd90",
+      "mode": "0o644"
+    },
+    "tests/test_live_monitor.py": {
+      "size": 27063,
+      "sha256": "f22666c3f551f2a151290847c46926bd51ea2cfe64d3de5b04b75b51b51a8f96",
+      "mode": "0o644"
+    },
+    "tests/test_live_transfer_metrics.py": {
+      "size": 13568,
+      "sha256": "62ec9f90bc8925ba6047fd5ec9048772e7c31500692ff782307c71f4c96efd49",
+      "mode": "0o644"
+    },
+    "tests/test_mail_transports.py": {
+      "size": 17589,
+      "sha256": "147c2dbc4df513652f5665a297d852d392eab6158c23b2cea93a3c464d79f973",
+      "mode": "0o644"
+    },
+    "tests/test_manual_snapshot_retention.py": {
+      "size": 13050,
+      "sha256": "775e2c5c07772c19699185fb278f2738d95be71750fd89a096d05d9f05899786",
+      "mode": "0o644"
+    },
+    "tests/test_manufacturer_dashboard.py": {
+      "size": 21863,
+      "sha256": "971fbf05841f3b055a463dbb7320db15fd34ab5e39224e27f5de37ef230898bb",
+      "mode": "0o644"
+    },
+    "tests/test_pipeline_failure_diagnostics.py": {
+      "size": 5895,
+      "sha256": "bd57a504919bf02e9da93f9ff43d0560c2bc26647661326c3d8264d2c6a72dc9",
+      "mode": "0o644"
+    },
+    "tests/test_pre_restore_snapshot.py": {
+      "size": 11667,
+      "sha256": "e2484806dc63a824edfc48e4f6957e4ef400283890771e6f257d38e80b698c9e",
+      "mode": "0o644"
+    },
+    "tests/test_profiles_and_packaging.py": {
+      "size": 6489,
+      "sha256": "4ed4ddb0588bff33faf31cb73396717782af4aa698f8ef78117a30f5cd431b9f",
+      "mode": "0o644"
+    },
+    "tests/test_recursive_bulk_deletion.py": {
+      "size": 6870,
+      "sha256": "d259b9124d348cab130f34c58c5777a3629eb0080ac07e9cd9dbc43f06938745",
+      "mode": "0o644"
+    },
+    "tests/test_release_hygiene.py": {
+      "size": 5085,
+      "sha256": "4fcb91b8799b7f2cb3ecbe6b462eb029ec3d811b9330ecd3c47e0f414d86a30a",
+      "mode": "0o644"
+    },
+    "tests/test_remote_file_lock.py": {
+      "size": 3723,
+      "sha256": "fe174761e6ede6a47d539e2107b889cb99998de3e791391c475739cc951a87c6",
+      "mode": "0o644"
+    },
+    "tests/test_repository_reconciliation.py": {
+      "size": 47856,
+      "sha256": "e3457682d9b885fefb628609e24cdef9fad352ca0633c83fd0a069b7f5b210c7",
+      "mode": "0o644"
+    },
+    "tests/test_restore_remote_backup.py": {
+      "size": 27111,
+      "sha256": "efc0391b1ea5892ddb8ee21b023a10b5b262530df0292332e903385a7bea66de",
+      "mode": "0o644"
+    },
+    "tests/test_restore_snapshot.py": {
+      "size": 63030,
+      "sha256": "f1c318fbd4b06b44d41d3689d776054151390eb55c4cdd9bb84a8ff624143bd9",
+      "mode": "0o644"
+    },
+    "tests/test_restore_timeshift_layout.py": {
+      "size": 2547,
+      "sha256": "f3a447a2e260aac9fdaeb7b6b3947bf0f0dad92b7587f1bef3e46fce429a1711",
+      "mode": "0o644"
+    },
+    "tests/test_restore_topology_regressions.py": {
+      "size": 8606,
+      "sha256": "c343768211c0481ab1b3b5b2c2d7855f15da5b6229adec1da51093ed20d82f99",
+      "mode": "0o644"
+    },
+    "tests/test_restricted_snapshot_listing.py": {
+      "size": 17738,
+      "sha256": "0eae678bb80f2cc2362f117b4e68b8211b2ad1bbfd6f4070d44ec1fda880a521",
+      "mode": "0o644"
+    },
+    "tests/test_retention_cleanup_accounting.py": {
+      "size": 9617,
+      "sha256": "b137492e16f3f4a7b4ed70e6ab7e08be18fa6ad9fbe7b4c8b0d16cd394ea7236",
+      "mode": "0o644"
+    },
+    "tests/test_runtime_safety.py": {
+      "size": 6724,
+      "sha256": "d48bde41cd84ba75d8e0f0d6f9f11f5c1d4b8ab5c88b2da95d82d62abc8d21dd",
+      "mode": "0o644"
+    },
+    "tests/test_script_launcher.py": {
+      "size": 8159,
+      "sha256": "6fdb259e698258836398f7c814d5bf9ce82f710afab2f50e104cc4d0f468252e",
+      "mode": "0o644"
+    },
+    "tests/test_shared_workflows.py": {
+      "size": 7833,
+      "sha256": "2c8e183cb473d8d764c16ed9c3333080b47d8e8292520cd55b4f2c029f5707be",
+      "mode": "0o644"
+    },
+    "tests/test_snapshot_info_json.py": {
+      "size": 11555,
+      "sha256": "8e348768251612388573ae154197462679c3376f0978a3d65101f176b107e354",
+      "mode": "0o644"
+    },
+    "tests/test_snapshot_listing.py": {
+      "size": 26914,
+      "sha256": "685b2c2f333ee37d9f4e163b460bd53359cac4320e98d55085ac6d689c0b9e9b",
+      "mode": "0o644"
+    },
+    "tests/test_source_inventory.py": {
+      "size": 31376,
+      "sha256": "f8430de598a04e7cfb2ffaeb2db30495e124cd9d8e31aee41a1a58bd0151e175",
+      "mode": "0o644"
+    },
+    "tests/test_ssh_auth_regressions.py": {
+      "size": 7564,
+      "sha256": "aaa79d47f131ee8f1353e2335d951d6d50050e714358e22717ef5cf0e8a44b69",
+      "mode": "0o644"
+    },
+    "tests/test_ssh_identity_passphrase.py": {
+      "size": 8904,
+      "sha256": "af6cb6b9a469c64513346a032f1edbf931cf6a5c1df22fd80fbd33122849b084",
+      "mode": "0o644"
+    },
+    "tests/test_state_path_portability.py": {
+      "size": 11019,
+      "sha256": "f834b3eeb6f1265e5208aa6b1aa78f1daca17e489b7a4f495f7a3e798695b1f7",
+      "mode": "0o644"
+    },
+    "tests/test_sync_cleanup_summary.py": {
+      "size": 7375,
+      "sha256": "e6a689cad9494dacb9016b1878bbfddec0b62c7ec81f80a83ba5b5ee0d5e9bbd",
+      "mode": "0o644"
+    },
+    "tests/test_topology_safety.py": {
+      "size": 4037,
+      "sha256": "73989a10b59390f33dd2f4bc13cefca56fc353f91412cb30e4135606ebd739ea",
+      "mode": "0o644"
+    },
+    "tests/test_transfer_accounting.py": {
+      "size": 4265,
+      "sha256": "ba2d587d78842b94ac4f2cea4990f3dea9083effb5a8607065c5b6cf446d3592",
+      "mode": "0o644"
+    },
+    "tests/test_transfer_size_preflight.py": {
+      "size": 13330,
+      "sha256": "ecef229502ecc78e59c2cd43908da174bfa6d15c1dc26f231180d03fbdebc22f",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/__init__.py": {
+      "size": 59,
+      "sha256": "16b45659a315fba68b526f439fd4a68b877c977bafbeac93144305e6d3667418",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/__main__.py": {
+      "size": 136,
+      "sha256": "b408010a906fe9bf20cb4971f3f6cdc571d3374a9f1549c7b969f3752983835b",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/btrfs_ops.py": {
+      "size": 11017,
+      "sha256": "bb04eb00f7f593dbcb323afb2dea8e668a7c25543485982c9a6593a4384a94bf",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/cache_ops.py": {
+      "size": 15499,
+      "sha256": "8a4e5e1ba0c26306eeac1ce0f58806f815afb31eeb766acbe82c5a42faaad2d0",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/cli.py": {
+      "size": 61393,
+      "sha256": "12882983fee62fd4e1efa34560747cf0ccdf2ddc75d483ed017e991792b2a116",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/commands.py": {
+      "size": 19764,
+      "sha256": "a3432804726d359d5e0f2744079d93bb2100c2312b0a106acb3f4050406ea5be",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/config.py": {
+      "size": 34086,
+      "sha256": "de81114dfa03313591d57e3ad91b5cf7dd48120b51189dcccb8463463166f0e8",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/data/config.example.toml": {
+      "size": 39648,
+      "sha256": "14e1387572248437c53d050bda1f866cf7c20f1325a2b32bdc41e27c40a35d5c",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/data/config.remote-roundtrip.example.toml": {
+      "size": 39856,
+      "sha256": "81a087e52a08689da68cc3da89dfad40996890b81e62e7668a56a49c33c1ec35",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/data/config.restore-pull.example.toml": {
+      "size": 40304,
+      "sha256": "faf6986d6a90807f759862981023b6fd883bc00a08e7e89c51d98cfe98b2c177",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/data/example-config-local-backup.toml": {
+      "size": 40023,
+      "sha256": "6720e21b5868a30c39fa95c94e7bd71a523c4ebf512936b0e952adde7c2192c8",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/data/example-config-local-restore.toml": {
+      "size": 40393,
+      "sha256": "2287500bf12afa47eb621fbc24d8ecd11d99ae86a3008847239a1d95903cfe43",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/data/example-config-remote-pull-restore.toml": {
+      "size": 40246,
+      "sha256": "78e4f21001a31faa5756587260a78a12069a54d965117a7b7562c229922d4f53",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/data/example-config-remote-pull.toml": {
+      "size": 40002,
+      "sha256": "4389921778f8bab789eb0e6991de9ea72cb104b67ba59dd4c1d5ccc1850888ab",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/data/example-config-remote-push-restore.toml": {
+      "size": 40308,
+      "sha256": "94ed32e626a2c1117e7d806b1f18f7d2c883f124ec96df576addc27de7f2cdf1",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/destroy.py": {
+      "size": 8485,
+      "sha256": "3b1b5f0e96eb408410d14d3b7c0665b3b97d6a23a5ed98f549765b294eccf7c6",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/endpoint.py": {
+      "size": 3460,
+      "sha256": "9d7fc48ed249e6857c3dfcaf3ef03cdd46636f0d4790b5936a10c1cd214ee7fb",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/executor.py": {
+      "size": 1198,
+      "sha256": "babf27a0148af85daa6683a5b34c879c6485daf659b4739323f538d935e7a716",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/inventory.py": {
+      "size": 34336,
+      "sha256": "93143280b2acbc9aefe7fdb8482a1f832342443f429ba3fab5b77d56ffd15534",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/listing.py": {
+      "size": 36966,
+      "sha256": "7ecb8f05f924a993846d40e43aae49297b36d1a5e84e07a7d0abd7804a9b954e",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/lock.py": {
+      "size": 984,
+      "sha256": "acf80f027b592f6d166890f5c2985ce9fccdff590093a2fba82c893593554d77",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/log.py": {
+      "size": 18217,
+      "sha256": "dff63c3cee4d193bf03dcb8bebdf66346c923320f5cd5d3cd0f273e744409322",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/mail.py": {
+      "size": 11231,
+      "sha256": "4ad7046bf839c9565ae87ff5994fa13dadb4b2288962374ffde742daf9c19863",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/maintenance.py": {
+      "size": 7279,
+      "sha256": "f4ac7a852823a787e8bc03179f863631cfd03e3cd0843234cdb96372bb4fdd98",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/models.py": {
+      "size": 1500,
+      "sha256": "7530505270db419d1431e5fd63c96a05790291710319cacf8925226cbec779e6",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/monitor.py": {
+      "size": 24357,
+      "sha256": "2e44de7222add329a64b6ce613dce17818d6c889fba5268352c24ad27a484498",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/mqtt.py": {
+      "size": 4290,
+      "sha256": "047e282feb324714fcdec6f14fdfd216fe51070b516a47e7a4aaa0a7a54a41c8",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/notify.py": {
+      "size": 1027,
+      "sha256": "8f4e6fdda23de8dd0840b506a00b5be3b85d6637925bcf09a0db446419b94c28",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/paths.py": {
+      "size": 4661,
+      "sha256": "920b9b16819d87b31928580ebad60791b67a69b296ce4b9ebdcc787ae9d321fe",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/payload_stats.py": {
+      "size": 11718,
+      "sha256": "5b256125d44a1205b3a398f2168ae1f764e0cef614be1d3906a71e392ce31c7b",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/planning.py": {
+      "size": 4572,
+      "sha256": "5c904de6028c53be6bf93c4304abb8f355a3d26e5f6f1dd334fe4c59c3744301",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/preflight.py": {
+      "size": 32560,
+      "sha256": "96ad38c088581e41f9bd4f62fe0a3eceadd617448fc332278a0269ee6258a1fb",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/reconciliation.py": {
+      "size": 34503,
+      "sha256": "1005cfed5fc1dc213d3c0667432406fbb892771321bcb0d2f2169c67827a344e",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/restore.py": {
+      "size": 85242,
+      "sha256": "7a68895d355057ebdb63a12d3740ce891a4bcdf5caf9ed38e495866a6610b937",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/retention.py": {
+      "size": 51407,
+      "sha256": "0b90fc5963afbae2400b305377f5f8abfa63439f614ad679d10c3075b5fd5a19",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/source.py": {
+      "size": 3348,
+      "sha256": "34a3de77d833881f62c8010a36012a93fd99478d3d069a47ef78b6e58fd6c77a",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/ssh.py": {
+      "size": 12285,
+      "sha256": "147d1bb40593935f6c1e50afcad0893916af5e02674388ce158a1a1e0017a54f",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/state.py": {
+      "size": 23542,
+      "sha256": "7713776ad57f0d9b5846b76e35dade48cd943497dedfecb7f46b7633b004789f",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/sync.py": {
+      "size": 142244,
+      "sha256": "6d4eaaf5bb8ebc4056e9b390d370850abbc3ffec861de3ab137fe318ef04d83a",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/timeshift.py": {
+      "size": 10047,
+      "sha256": "15a46c1ff883a89df222b5263e705aa1ab6a34a40687f75c76d166d47c2cc787",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/topology.py": {
+      "size": 3969,
+      "sha256": "86f9253f0c750fc8cc04eeacacc05954783c3deb426311466860d9cd74920f22",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/transfer_size.py": {
+      "size": 12222,
+      "sha256": "28fd6a28591ee574a87e24c5f0f7df77dbd3470c045cfac3d79c90e83428f579",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync/tree_ops.py": {
+      "size": 15184,
+      "sha256": "7f78df8b313d1b9367954d06bee264c27e94e0830845b835a5684fe6059b1b5c",
+      "mode": "0o644"
+    },
+    "timeshift_btrfs_sync.py": {
+      "size": 675,
+      "sha256": "94b0b206d871ecb14bda49e109613c04c2bebfb3204fe119c5e27fe75a7af48f",
+      "mode": "0o755"
+    },
+    "tools/pyinstaller_entry.py": {
+      "size": 445,
+      "sha256": "96d83fec1b3291e686f41e5660117e86e52ccd3aa8d9c745c50a4f4a09fb0828",
+      "mode": "0o644"
+    },
+    "versioning.md": {
+      "size": 189148,
+      "sha256": "ca8d706d76c31c259fb4d3e5f5ccc3df58f9974295b73e3d76a93a9ca4f351c8",
+      "mode": "0o644"
+    }
+  },
+  "prior_version": "0.2.8",
+  "prior_files": {
+    ".gitignore": {
+      "size": 652,
+      "sha256": "bacaa8ca8576fca57ccb8e324ee74f81701c757a7cd50448e49a4cd5ae328a5b",
+      "mode": "0o644"
+    },
+    "BTRFS_TIMESHIFT_AUDIT.md": {
+      "size": 10817,
+      "sha256": "8da5c343d70b90b1b871c3103428def1aa09b9bc02fb47c5c23284e6279af9b1",
+      "mode": "0o644"
+    },
+    "COMMENTED_CODE_MAP.md": {
       "size": 628531,
       "sha256": "3221b424bf82041495e65e80acf2134b852b3d90b076e2c151edcd0ab13af6ab",
       "mode": "0o644"
@@ -711,6 +1291,11 @@
     "README.md": {
       "size": 188789,
       "sha256": "996e8bab393f672287fcd2a8dee7b7639c34c46aa2c72e510e235eccea156376",
+      "mode": "0o644"
+    },
+    "RELEASE_MANIFEST.json": {
+      "size": 67980,
+      "sha256": "437f9483e193cfe217b811a8ae92f65adb103f87bfb85650db877009cc341ca3",
       "mode": "0o644"
     },
     "RELEASE_VERIFICATION.md": {
@@ -1234,577 +1819,15 @@
       "mode": "0o644"
     }
   },
-  "prior_version": "0.2.7",
-  "prior_files": {
-    ".gitignore": {
-      "size": 652,
-      "sha256": "bacaa8ca8576fca57ccb8e324ee74f81701c757a7cd50448e49a4cd5ae328a5b",
-      "mode": "0o644"
-    },
-    "BTRFS_TIMESHIFT_AUDIT.md": {
-      "size": 10817,
-      "sha256": "8da5c343d70b90b1b871c3103428def1aa09b9bc02fb47c5c23284e6279af9b1",
-      "mode": "0o644"
-    },
-    "COMMENTED_CODE_MAP.md": {
-      "size": 622478,
-      "sha256": "e1d2db8ab44a0485e6a093ce57a40aeaa941d5731145b7ed0fcc5e5eb636e974",
-      "mode": "0o644"
-    },
-    "CONFIG_AND_CLI_AUDIT.md": {
-      "size": 32143,
-      "sha256": "c65483f48337ad55af4164af015363b175e306665da7d31373a760ae116208f0",
-      "mode": "0o644"
-    },
-    "INSTALL.md": {
-      "size": 32964,
-      "sha256": "7773e5376a8cc461c9825685e1573b3a7fae6e72b1ec015e00a6b556cb889027",
-      "mode": "0o644"
-    },
-    "LICENSE": {
-      "size": 1090,
-      "sha256": "222cc41db9b84ad67de06112792c941a0388c3e74669d2f89ea16ca1632255ce",
-      "mode": "0o644"
-    },
-    "NESTED_DOCUMENT_AUDIT.md": {
-      "size": 3792,
-      "sha256": "79a0bdace0d0f78d38c67b75769bf3ad6511642fbb9f04d527e57488ff9b9057",
-      "mode": "0o644"
-    },
-    "README.md": {
-      "size": 186832,
-      "sha256": "f6f802b8004d06ae8d6bdc5be2bb071ef1b3e1a9a6aa37116863a7fe27f6c049",
-      "mode": "0o644"
-    },
-    "RELEASE_MANIFEST.json": {
-      "size": 67306,
-      "sha256": "bbb36291a85a060bd9e6a399d64d237f23cd06e2d91f05286bfb4634cb322f75",
-      "mode": "0o644"
-    },
-    "RELEASE_VERIFICATION.md": {
-      "size": 10364,
-      "sha256": "a9eccb6c44d96541842800cf5a1b2e3193a001c2757fd7d467804b5a9a626dd6",
-      "mode": "0o644"
-    },
-    "REMOVED_NESTED_SOURCES.md": {
-      "size": 4169,
-      "sha256": "27c06777e2727f35f2e249997dd02f81b8a2422bd5aad317b29733a92d3ce64c",
-      "mode": "0o644"
-    },
-    "TimeShift-BTRFS-Sync - Sequential Backup Queue - With continue on failure": {
-      "size": 39866,
-      "sha256": "36af4fc4f54d1bacf8b866d8f3dcad984638f9e59aa036d698cb134ebd92b404",
-      "mode": "0o644"
-    },
-    "VERSIONING.md": {
-      "size": 183139,
-      "sha256": "f788cbd409cabc07afa4dec00761ff53ae4854f8996c840cfe7b3be796afec92",
-      "mode": "0o644"
-    },
-    "commented_code_map.md": {
-      "size": 622478,
-      "sha256": "e1d2db8ab44a0485e6a093ce57a40aeaa941d5731145b7ed0fcc5e5eb636e974",
-      "mode": "0o644"
-    },
-    "delete-btrfs-tree.sh": {
-      "size": 7669,
-      "sha256": "131053f1a3498b423af12758f9ff33df150c2627da0144d6cc544c64c377602d",
-      "mode": "0o755"
-    },
-    "dist/ts-btrfs/ts-btrfs": {
-      "size": 2440552,
-      "sha256": "46da73219b748a2f17958a5071720bd561f73a6ce388745b2fe3f69050284949",
-      "mode": "0o755"
-    },
-    "home-assistant/automations.yaml": {
-      "size": 1517,
-      "sha256": "bd36112107c0bbf6220a25204f7a643255cc39bc74c788186b1fa57b45d80947",
-      "mode": "0o644"
-    },
-    "home-assistant/dashboard.yaml": {
-      "size": 1709,
-      "sha256": "a90995b448b8c7b317a9a02c7bf8713bcdcc3ee63bc7145fd4697ebd8bb54b77",
-      "mode": "0o644"
-    },
-    "home-assistant/manufacturer-monitor.yaml": {
-      "size": 15918,
-      "sha256": "3ac89fbf03180ee6588514be8db5e31edaf09c120355c107886181d76b892bfc",
-      "mode": "0o644"
-    },
-    "pyproject.toml": {
-      "size": 1309,
-      "sha256": "f669fea3968a935ceb2645831128a5f8d264bc4c50d41a3919e5e26bd98b6e77",
-      "mode": "0o644"
-    },
-    "requirements.txt": {
-      "size": 517,
-      "sha256": "2e45522e0110355deeba9e7e741534085585c7125c8d206d705b3c768ccec5c2",
-      "mode": "0o644"
-    },
-    "scripts/build_pyinstaller.py": {
-      "size": 4008,
-      "sha256": "03a903b817e12279ce625b76defb2fedcc25afb5b36a5ad7f26ba445d05c2bfd",
-      "mode": "0o755"
-    },
-    "sudoers/source-minimal.example": {
-      "size": 608,
-      "sha256": "3646946d18ed5f54c241af0202ae6d65eeefe2750f15f0663349631017a87f10",
-      "mode": "0o644"
-    },
-    "systemd/ts-btrfs-sync.service": {
-      "size": 262,
-      "sha256": "dd7f4bc0f86c2efa70df36f063a7351e97b542b91362e15fee46e01a090dce33",
-      "mode": "0o644"
-    },
-    "systemd/ts-btrfs-sync.timer": {
-      "size": 156,
-      "sha256": "42a59ca6c50102cbcc80da570fbd83431295f78642b300c48fd75aee47ea431e",
-      "mode": "0o644"
-    },
-    "tests/test_btrfs_only_layout.py": {
-      "size": 4888,
-      "sha256": "3f650d5c5189db385a237b062986f2bcc77139bb67f348a7df6d93a37938528f",
-      "mode": "0o644"
-    },
-    "tests/test_cache_exact_reuse.py": {
-      "size": 7902,
-      "sha256": "2fa6c86a6f2d7f1c1f3124d80482749bc27d4f6906547b550cc253d357186435",
-      "mode": "0o644"
-    },
-    "tests/test_cleanup_progress.py": {
-      "size": 25584,
-      "sha256": "fb2e64226b1e5d31d58220608b3cfc013d156f2f002fb9a424cc3d1e1813b339",
-      "mode": "0o644"
-    },
-    "tests/test_cleanup_superseded_cache_modes.py": {
-      "size": 9535,
-      "sha256": "fdb19c2feccd96276eae2f315f070fd34e7849e8835d5efdf8b7f3bd2dad65d7",
-      "mode": "0o644"
-    },
-    "tests/test_cli_help_contract.py": {
-      "size": 4382,
-      "sha256": "4265e2a826bb0e2314babc68cb20324896b9a1f593d9e3f6368928f1d1521c64",
-      "mode": "0o644"
-    },
-    "tests/test_config_attribute_surface.py": {
-      "size": 2172,
-      "sha256": "19ce0e6cfbc68b373dd7650fd69a745d381682a378a9763e859d3457fad06c87",
-      "mode": "0o644"
-    },
-    "tests/test_config_profiles.py": {
-      "size": 6576,
-      "sha256": "0bfd039734ae2454f882ff949cbbaf949391348e5f89375b66f7d6f826e00139",
-      "mode": "0o644"
-    },
-    "tests/test_current_surface.py": {
-      "size": 3047,
-      "sha256": "5c8e17631e6987325bac5530c6b5dd8086d97583fa6d2a0b70cdfe7b626673f2",
-      "mode": "0o644"
-    },
-    "tests/test_destination_inventory_regression.py": {
-      "size": 5774,
-      "sha256": "f9e69343857e4e305d9b174a545a397878681ed0cf21696f1a86c256c408ddcb",
-      "mode": "0o644"
-    },
-    "tests/test_destroy_both_payload_match.py": {
-      "size": 4952,
-      "sha256": "9f44c146169f4f7d0528150fccac7c715784f1a3eed5fe459d87bf7deb71384c",
-      "mode": "0o644"
-    },
-    "tests/test_destroy_post_verification.py": {
-      "size": 6410,
-      "sha256": "623996115c66fdb2c2e94acddc2a08a3a02dd84796f5deb3103b6c3558cee10b",
-      "mode": "0o644"
-    },
-    "tests/test_incremental_parent_recovery.py": {
-      "size": 11822,
-      "sha256": "64ef73a148f7e85f4243d606e5a7ebdff23e5158a941803cf2937542b787cd90",
-      "mode": "0o644"
-    },
-    "tests/test_live_monitor.py": {
-      "size": 27063,
-      "sha256": "f22666c3f551f2a151290847c46926bd51ea2cfe64d3de5b04b75b51b51a8f96",
-      "mode": "0o644"
-    },
-    "tests/test_live_transfer_metrics.py": {
-      "size": 13568,
-      "sha256": "62ec9f90bc8925ba6047fd5ec9048772e7c31500692ff782307c71f4c96efd49",
-      "mode": "0o644"
-    },
-    "tests/test_mail_transports.py": {
-      "size": 17589,
-      "sha256": "147c2dbc4df513652f5665a297d852d392eab6158c23b2cea93a3c464d79f973",
-      "mode": "0o644"
-    },
-    "tests/test_manual_snapshot_retention.py": {
-      "size": 13050,
-      "sha256": "775e2c5c07772c19699185fb278f2738d95be71750fd89a096d05d9f05899786",
-      "mode": "0o644"
-    },
-    "tests/test_manufacturer_dashboard.py": {
-      "size": 21863,
-      "sha256": "971fbf05841f3b055a463dbb7320db15fd34ab5e39224e27f5de37ef230898bb",
-      "mode": "0o644"
-    },
-    "tests/test_pipeline_failure_diagnostics.py": {
-      "size": 5895,
-      "sha256": "bd57a504919bf02e9da93f9ff43d0560c2bc26647661326c3d8264d2c6a72dc9",
-      "mode": "0o644"
-    },
-    "tests/test_pre_restore_snapshot.py": {
-      "size": 11667,
-      "sha256": "e2484806dc63a824edfc48e4f6957e4ef400283890771e6f257d38e80b698c9e",
-      "mode": "0o644"
-    },
-    "tests/test_profiles_and_packaging.py": {
-      "size": 6489,
-      "sha256": "4ed4ddb0588bff33faf31cb73396717782af4aa698f8ef78117a30f5cd431b9f",
-      "mode": "0o644"
-    },
-    "tests/test_recursive_bulk_deletion.py": {
-      "size": 6870,
-      "sha256": "d259b9124d348cab130f34c58c5777a3629eb0080ac07e9cd9dbc43f06938745",
-      "mode": "0o644"
-    },
-    "tests/test_release_hygiene.py": {
-      "size": 5085,
-      "sha256": "79da7c1ed7dffea1e51497be64462c4839189a73ba706ecc279d99482a3a6fba",
-      "mode": "0o644"
-    },
-    "tests/test_remote_file_lock.py": {
-      "size": 3723,
-      "sha256": "fe174761e6ede6a47d539e2107b889cb99998de3e791391c475739cc951a87c6",
-      "mode": "0o644"
-    },
-    "tests/test_repository_reconciliation.py": {
-      "size": 47856,
-      "sha256": "e3457682d9b885fefb628609e24cdef9fad352ca0633c83fd0a069b7f5b210c7",
-      "mode": "0o644"
-    },
-    "tests/test_restore_remote_backup.py": {
-      "size": 27111,
-      "sha256": "efc0391b1ea5892ddb8ee21b023a10b5b262530df0292332e903385a7bea66de",
-      "mode": "0o644"
-    },
-    "tests/test_restore_snapshot.py": {
-      "size": 63030,
-      "sha256": "f1c318fbd4b06b44d41d3689d776054151390eb55c4cdd9bb84a8ff624143bd9",
-      "mode": "0o644"
-    },
-    "tests/test_restore_timeshift_layout.py": {
-      "size": 2547,
-      "sha256": "f3a447a2e260aac9fdaeb7b6b3947bf0f0dad92b7587f1bef3e46fce429a1711",
-      "mode": "0o644"
-    },
-    "tests/test_restore_topology_regressions.py": {
-      "size": 8606,
-      "sha256": "c343768211c0481ab1b3b5b2c2d7855f15da5b6229adec1da51093ed20d82f99",
-      "mode": "0o644"
-    },
-    "tests/test_restricted_snapshot_listing.py": {
-      "size": 17738,
-      "sha256": "0eae678bb80f2cc2362f117b4e68b8211b2ad1bbfd6f4070d44ec1fda880a521",
-      "mode": "0o644"
-    },
-    "tests/test_retention_cleanup_accounting.py": {
-      "size": 9617,
-      "sha256": "b137492e16f3f4a7b4ed70e6ab7e08be18fa6ad9fbe7b4c8b0d16cd394ea7236",
-      "mode": "0o644"
-    },
-    "tests/test_runtime_safety.py": {
-      "size": 6724,
-      "sha256": "d48bde41cd84ba75d8e0f0d6f9f11f5c1d4b8ab5c88b2da95d82d62abc8d21dd",
-      "mode": "0o644"
-    },
-    "tests/test_shared_workflows.py": {
-      "size": 7833,
-      "sha256": "2c8e183cb473d8d764c16ed9c3333080b47d8e8292520cd55b4f2c029f5707be",
-      "mode": "0o644"
-    },
-    "tests/test_snapshot_info_json.py": {
-      "size": 11555,
-      "sha256": "8e348768251612388573ae154197462679c3376f0978a3d65101f176b107e354",
-      "mode": "0o644"
-    },
-    "tests/test_snapshot_listing.py": {
-      "size": 26914,
-      "sha256": "685b2c2f333ee37d9f4e163b460bd53359cac4320e98d55085ac6d689c0b9e9b",
-      "mode": "0o644"
-    },
-    "tests/test_source_inventory.py": {
-      "size": 31376,
-      "sha256": "f8430de598a04e7cfb2ffaeb2db30495e124cd9d8e31aee41a1a58bd0151e175",
-      "mode": "0o644"
-    },
-    "tests/test_ssh_auth_regressions.py": {
-      "size": 7564,
-      "sha256": "aaa79d47f131ee8f1353e2335d951d6d50050e714358e22717ef5cf0e8a44b69",
-      "mode": "0o644"
-    },
-    "tests/test_ssh_identity_passphrase.py": {
-      "size": 8904,
-      "sha256": "af6cb6b9a469c64513346a032f1edbf931cf6a5c1df22fd80fbd33122849b084",
-      "mode": "0o644"
-    },
-    "tests/test_state_path_portability.py": {
-      "size": 11019,
-      "sha256": "f834b3eeb6f1265e5208aa6b1aa78f1daca17e489b7a4f495f7a3e798695b1f7",
-      "mode": "0o644"
-    },
-    "tests/test_sync_cleanup_summary.py": {
-      "size": 7375,
-      "sha256": "e6a689cad9494dacb9016b1878bbfddec0b62c7ec81f80a83ba5b5ee0d5e9bbd",
-      "mode": "0o644"
-    },
-    "tests/test_topology_safety.py": {
-      "size": 4037,
-      "sha256": "73989a10b59390f33dd2f4bc13cefca56fc353f91412cb30e4135606ebd739ea",
-      "mode": "0o644"
-    },
-    "tests/test_transfer_accounting.py": {
-      "size": 4265,
-      "sha256": "ba2d587d78842b94ac4f2cea4990f3dea9083effb5a8607065c5b6cf446d3592",
-      "mode": "0o644"
-    },
-    "tests/test_transfer_size_preflight.py": {
-      "size": 13330,
-      "sha256": "ecef229502ecc78e59c2cd43908da174bfa6d15c1dc26f231180d03fbdebc22f",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/__init__.py": {
-      "size": 59,
-      "sha256": "74e97623282599939702f1378cb0abe72b341d934adaa18d89a1c2c551a8213f",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/__main__.py": {
-      "size": 136,
-      "sha256": "b408010a906fe9bf20cb4971f3f6cdc571d3374a9f1549c7b969f3752983835b",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/btrfs_ops.py": {
-      "size": 11017,
-      "sha256": "bb04eb00f7f593dbcb323afb2dea8e668a7c25543485982c9a6593a4384a94bf",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/cache_ops.py": {
-      "size": 15499,
-      "sha256": "8a4e5e1ba0c26306eeac1ce0f58806f815afb31eeb766acbe82c5a42faaad2d0",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/cli.py": {
-      "size": 61393,
-      "sha256": "12882983fee62fd4e1efa34560747cf0ccdf2ddc75d483ed017e991792b2a116",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/commands.py": {
-      "size": 19764,
-      "sha256": "a3432804726d359d5e0f2744079d93bb2100c2312b0a106acb3f4050406ea5be",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/config.py": {
-      "size": 34086,
-      "sha256": "de81114dfa03313591d57e3ad91b5cf7dd48120b51189dcccb8463463166f0e8",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/data/config.example.toml": {
-      "size": 38850,
-      "sha256": "c0a0c15ef7ccb5e360e927f7ac3a32ca2432048abd25335bac5fce42d2e08c3c",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/data/config.remote-roundtrip.example.toml": {
-      "size": 39039,
-      "sha256": "91c690c9f46476ad06674e95ba75cc44a6cf71686d2cdf9d62ec9e95dc860431",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/data/config.restore-pull.example.toml": {
-      "size": 39247,
-      "sha256": "b635ab632425ca23dedc3f258fd82dcc8a4e4654a4805ea3daddf8bc38af1894",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/data/example-config-local-backup.toml": {
-      "size": 39145,
-      "sha256": "f3eb5d69295cebc4693e090d6fab6a9dae09844e884a3b08e7189d65540b9679",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/data/example-config-local-restore.toml": {
-      "size": 39272,
-      "sha256": "4ecbd34d6cfc447605db6bfb7fc7b8148f7f5ef3ce6ee50b1a799248c0b78e12",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/data/example-config-remote-pull-restore.toml": {
-      "size": 39269,
-      "sha256": "3d4d52f732512ddbe2954582ecdc613f784d939275d57f783414924987fc1d42",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/data/example-config-remote-pull.toml": {
-      "size": 39153,
-      "sha256": "bad0e4e4dedb726873e49e18d673f3218a1407186f4289b9687c164592615a86",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/data/example-config-remote-push-restore.toml": {
-      "size": 39321,
-      "sha256": "fb52d257b2e5a1d7a201695aafa7dc37855dc1854e0a481d0fe0dd071b6307f0",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/destroy.py": {
-      "size": 8485,
-      "sha256": "3b1b5f0e96eb408410d14d3b7c0665b3b97d6a23a5ed98f549765b294eccf7c6",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/endpoint.py": {
-      "size": 3460,
-      "sha256": "9d7fc48ed249e6857c3dfcaf3ef03cdd46636f0d4790b5936a10c1cd214ee7fb",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/executor.py": {
-      "size": 1198,
-      "sha256": "babf27a0148af85daa6683a5b34c879c6485daf659b4739323f538d935e7a716",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/inventory.py": {
-      "size": 34336,
-      "sha256": "93143280b2acbc9aefe7fdb8482a1f832342443f429ba3fab5b77d56ffd15534",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/listing.py": {
-      "size": 36966,
-      "sha256": "7ecb8f05f924a993846d40e43aae49297b36d1a5e84e07a7d0abd7804a9b954e",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/lock.py": {
-      "size": 984,
-      "sha256": "acf80f027b592f6d166890f5c2985ce9fccdff590093a2fba82c893593554d77",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/log.py": {
-      "size": 18217,
-      "sha256": "dff63c3cee4d193bf03dcb8bebdf66346c923320f5cd5d3cd0f273e744409322",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/mail.py": {
-      "size": 11231,
-      "sha256": "4ad7046bf839c9565ae87ff5994fa13dadb4b2288962374ffde742daf9c19863",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/maintenance.py": {
-      "size": 7279,
-      "sha256": "f4ac7a852823a787e8bc03179f863631cfd03e3cd0843234cdb96372bb4fdd98",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/models.py": {
-      "size": 1500,
-      "sha256": "7530505270db419d1431e5fd63c96a05790291710319cacf8925226cbec779e6",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/monitor.py": {
-      "size": 24357,
-      "sha256": "2e44de7222add329a64b6ce613dce17818d6c889fba5268352c24ad27a484498",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/mqtt.py": {
-      "size": 4290,
-      "sha256": "047e282feb324714fcdec6f14fdfd216fe51070b516a47e7a4aaa0a7a54a41c8",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/notify.py": {
-      "size": 1027,
-      "sha256": "8f4e6fdda23de8dd0840b506a00b5be3b85d6637925bcf09a0db446419b94c28",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/paths.py": {
-      "size": 4661,
-      "sha256": "920b9b16819d87b31928580ebad60791b67a69b296ce4b9ebdcc787ae9d321fe",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/payload_stats.py": {
-      "size": 11718,
-      "sha256": "5b256125d44a1205b3a398f2168ae1f764e0cef614be1d3906a71e392ce31c7b",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/planning.py": {
-      "size": 4572,
-      "sha256": "5c904de6028c53be6bf93c4304abb8f355a3d26e5f6f1dd334fe4c59c3744301",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/preflight.py": {
-      "size": 32560,
-      "sha256": "96ad38c088581e41f9bd4f62fe0a3eceadd617448fc332278a0269ee6258a1fb",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/reconciliation.py": {
-      "size": 34503,
-      "sha256": "1005cfed5fc1dc213d3c0667432406fbb892771321bcb0d2f2169c67827a344e",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/restore.py": {
-      "size": 85242,
-      "sha256": "7a68895d355057ebdb63a12d3740ce891a4bcdf5caf9ed38e495866a6610b937",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/retention.py": {
-      "size": 51407,
-      "sha256": "0b90fc5963afbae2400b305377f5f8abfa63439f614ad679d10c3075b5fd5a19",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/source.py": {
-      "size": 3348,
-      "sha256": "34a3de77d833881f62c8010a36012a93fd99478d3d069a47ef78b6e58fd6c77a",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/ssh.py": {
-      "size": 12285,
-      "sha256": "147d1bb40593935f6c1e50afcad0893916af5e02674388ce158a1a1e0017a54f",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/state.py": {
-      "size": 23542,
-      "sha256": "7713776ad57f0d9b5846b76e35dade48cd943497dedfecb7f46b7633b004789f",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/sync.py": {
-      "size": 142244,
-      "sha256": "6d4eaaf5bb8ebc4056e9b390d370850abbc3ffec861de3ab137fe318ef04d83a",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/timeshift.py": {
-      "size": 10047,
-      "sha256": "15a46c1ff883a89df222b5263e705aa1ab6a34a40687f75c76d166d47c2cc787",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/topology.py": {
-      "size": 3969,
-      "sha256": "86f9253f0c750fc8cc04eeacacc05954783c3deb426311466860d9cd74920f22",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/transfer_size.py": {
-      "size": 12222,
-      "sha256": "28fd6a28591ee574a87e24c5f0f7df77dbd3470c045cfac3d79c90e83428f579",
-      "mode": "0o644"
-    },
-    "timeshift_btrfs_sync/tree_ops.py": {
-      "size": 15184,
-      "sha256": "7f78df8b313d1b9367954d06bee264c27e94e0830845b835a5684fe6059b1b5c",
-      "mode": "0o644"
-    },
-    "tools/pyinstaller_entry.py": {
-      "size": 445,
-      "sha256": "96d83fec1b3291e686f41e5660117e86e52ccd3aa8d9c745c50a4f4a09fb0828",
-      "mode": "0o644"
-    },
-    "versioning.md": {
-      "size": 183139,
-      "sha256": "f788cbd409cabc07afa4dec00761ff53ae4854f8996c840cfe7b3be796afec92",
-      "mode": "0o644"
-    }
-  },
   "prior_removed": [],
   "prior_added": [
-    "CONFIG_PROFILE_AUDIT.md",
-    "tests/test_config_profile_contract.py"
+    "tests/test_script_launcher.py",
+    "timeshift_btrfs_sync.py"
   ],
   "prior_modified": [
     "COMMENTED_CODE_MAP.md",
     "CONFIG_AND_CLI_AUDIT.md",
+    "CONFIG_PROFILE_AUDIT.md",
     "INSTALL.md",
     "README.md",
     "RELEASE_VERIFICATION.md",
@@ -1847,6 +1870,7 @@
     "tests/test_cleanup_superseded_cache_modes.py",
     "tests/test_cli_help_contract.py",
     "tests/test_config_attribute_surface.py",
+    "tests/test_config_profile_contract.py",
     "tests/test_config_profiles.py",
     "tests/test_current_surface.py",
     "tests/test_destination_inventory_regression.py",

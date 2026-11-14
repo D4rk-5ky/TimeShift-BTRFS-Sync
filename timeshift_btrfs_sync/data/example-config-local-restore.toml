@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.2.8 config
+# timeshift-btrfs-sync v0.2.9 config
 # Profile: local-restore. Primary command: restore.
 # Run on: Local Timeshift host with local backup mounted.
 # Backup direction: Not the intended command; source.mode=local only defines optional source operations.
