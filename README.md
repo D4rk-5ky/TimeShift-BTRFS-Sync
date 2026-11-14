@@ -29,21 +29,33 @@ You are responsible for reviewing the code, testing it in a safe environment, ma
 
 ## Choose the current source application
 
-This source release is **0.2.8**. Run it from the project root with Python 3.11 or newer:
+This source release is **0.2.9**. With Python **3.11 or newer**, run the normal Python script from the extracted project root:
 
 ```bash
-python3 -m timeshift_btrfs_sync --version
-python3 -m timeshift_btrfs_sync --help
-python3 -m timeshift_btrfs_sync init-config --profile remote-roundtrip --path ./config.toml
+python3 timeshift_btrfs_sync.py --version
+python3 timeshift_btrfs_sync.py --help
+python3 timeshift_btrfs_sync.py init-config --profile remote-roundtrip --path ./config.toml
 # Edit every path, host and retention setting before contacting a machine.
-python3 -m timeshift_btrfs_sync sync --config ./config.toml --dry-run
+python3 timeshift_btrfs_sync.py sync --config ./config.toml --dry-run
 ```
 
-After installation, `ts-btrfs` exposes the same commands. See [INSTALL.md](INSTALL.md) for installation and building an executable.
+**No venv, pip installation or PyInstaller build is required for core source use.** The script forwards every command/flag to the same CLI used by `python3 -m timeshift_btrfs_sync` and the installed `ts-btrfs` command. It preserves argument handling, exit codes, locks, validation and destructive-action confirmations. Shared help uses the command name `ts-btrfs`; replace that prefix with `python3 timeshift_btrfs_sync.py` in its examples.
 
-The supplied `dist/ts-btrfs/ts-btrfs` artifact is preserved unchanged. The original documentation labels it **0.1.84**, but the archive omits its required `_internal` runtime, so it cannot start as supplied. Use the Python source commands above for this release, or install the build dependencies and rebuild with `python3 scripts/build_pyinstaller.py --mode onefile`. Its reported version could not be verified here.
+Keep [timeshift_btrfs_sync.py](timeshift_btrfs_sync.py) beside the complete `timeshift_btrfs_sync/` package directory; extract the full project ZIP rather than copying the launcher alone. Python imports the adjacent package even though the launcher has the same base name. You can run it from another directory using an absolute path:
 
-The application package is `timeshift_btrfs_sync/` directly under the project root. Run source commands from that root, where this README, tests, build helpers and integration examples live. Current configuration examples are in `timeshift_btrfs_sync/data/`.
+```bash
+python3 /path/to/TimeShift-BTRFS-Sync-0.2.9/timeshift_btrfs_sync.py --help
+```
+
+The launcher does not change your working directory. Relative CLI/config/output paths keep the existing CLI interpretation from the directory where you run it; existing maintenance guards still require absolute metadata paths. Use absolute configuration and data paths for scheduled jobs.
+
+The launcher has a Python shebang and executable permission, so `./timeshift_btrfs_sync.py --help` also works on Linux when your extractor preserves that permission. If needed, use `chmod +x timeshift_btrfs_sync.py`; explicit `python3 timeshift_btrfs_sync.py` does not need the executable bit.
+
+Optional MQTT notifications/live monitoring still need `paho-mqtt` available to the selected Python interpreter. Install it using your normal environment or distribution packages if those features are enabled; they are disabled in the examples by default. SMTP and local mailx mode need no extra Python package, while mailx mode still needs its external utility and configured MTA. Btrfs, Timeshift, SSH/sudo and optional mbuffer/sshpass remain external system tools. A launcher does not supply these dependencies or configure services. PyInstaller is needed only when building a binary. See [INSTALL.md](INSTALL.md) for both direct-source and optional venv/install/build workflows.
+
+The supplied `dist/ts-btrfs/ts-btrfs` artifact remains preserved unchanged. The original documentation labels it **0.1.84**, but the archive omits its required `_internal` runtime, so it cannot start as supplied. Use the Python script above, or rebuild with the required build dependencies. Its reported version could not be verified here.
+
+All eight complete configuration examples are under `timeshift_btrfs_sync/data/`. `python3 -m timeshift_btrfs_sync` remains supported, and after installation `ts-btrfs` exposes the same commands. All other command examples in this README can use the script prefix above.
 
 
 ## Data Loss Warning

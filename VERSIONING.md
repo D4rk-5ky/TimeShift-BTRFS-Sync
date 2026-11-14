@@ -1,6 +1,15 @@
 # Versioning
 
-Current source version: **0.2.8**. Each newly created release increments the patch component by one. At patch 99, roll over into the next minor component: `0.0.99 → 0.1.0` and `0.1.99 → 0.2.0`; never create patch 100. Preserved original copies and binaries retain their original versions.
+Current source version: **0.2.9**. Each newly created release increments the patch component by one. At patch 99, roll over into the next minor component: `0.0.99 → 0.1.0` and `0.1.99 → 0.2.0`; never create patch 100. Preserved original copies and binaries retain their original versions.
+
+## 0.2.9 — 2026-11-14
+
+- Increment source 0.2.8 by exactly 0.0.1; preserve complete prior history and patch-99 rollover. Align package/test/helper metadata, current docs and all eight template version headers while preserving every parsed config value.
+- Add executable root timeshift_btrfs_sync.py with a Python3 shebang. Under __main__, check Python>=3.11 and adjacent package files, import the existing cli.main and exit with its exact return code. Reuse all commands/flags/resources rather than adding a parser or implementation. Do not chdir, override sys.path, dispatch on script import, install dependencies or modify services. Keep the script beside the complete timeshift_btrfs_sync package; it is a source launcher, not a flattened single-file bundle.
+- Support `python3 timeshift_btrfs_sync.py ...`, absolute script paths from another working directory, and direct executable/shebang invocation. Core source operation needs no venv/pip install/PyInstaller or third-party Python package. Optional MQTT still requires paho-mqtt for the chosen interpreter; Btrfs/Timeshift/SSH/sudo and configured optional tools remain external requirements. Existing `python3 -m timeshift_btrfs_sync`, installed ts-btrfs and build entry points remain unchanged.
+- Document direct-source usage first in README/INSTALL with help/version, complete config generation, safe dry-run, caller-relative paths, executable permission and optional dependency behavior. Add launcher command/guard explanations to the code map and config/CLI audit. Synchronize full uppercase/lowercase maps/ledgers, preserve both disclaimers and retain all original/prior files and the original binary.
+- Add 11 isolated launcher regressions: all 26 help/version routes with site packages disabled; default/all-profile resource generation from another directory; caller-relative config/state reads with unchanged absolute maintenance guards; overwrite refusal; parser/config exit codes; exact existing-main return-code forwarding; no dispatch on import; package-versus-script resolution; clear missing-package/version errors; and direct shebang execution. Re-run launcher/profile/hygiene checks against a fresh final ZIP extraction with recorded executable permissions restored.
+- Existing runtime package code other than its version label remains byte-identical to 0.2.8. No safety/backup/cleanup/restore/transport/monitoring/mail/state/config-schema behavior, command, flag, setting or dependency changes. The full suite, compilation, source/module/script help and original/prior manifest checks are recorded in RELEASE_VERIFICATION.md. The preserved original executable still needs its omitted runtime or a rebuild; the source launcher runs the current app directly.
 
 ## 0.2.8 — 2026-11-14
 

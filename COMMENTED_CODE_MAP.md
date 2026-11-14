@@ -1,4 +1,4 @@
-# Commented code map — TimeShift-BTRFS-Sync 0.2.8
+# Commented code map — TimeShift-BTRFS-Sync 0.2.9
 
 This file explains every Python class, function, method and nested callback in the current project, plus application commands and supplied shell/integration commands. Line numbers refer to this release. COMMENTED_CODE_MAP.md is the canonical code map; VERSIONING.md is the canonical version ledger. The requested lowercase commented_code_map.md and versioning.md contain full identical copies; synchronize each pair on every release.
 
@@ -7,6 +7,17 @@ The active package is timeshift_btrfs_sync/, selected by pyproject.toml. Current
 The current `sync --limit N` is a soft payload-send limit checked only between complete dates. A started two-payload date can send both `@` and `@home` with `--limit 1`; preserving the date avoids misleading partial snapshot progress. `build_parser` exposes this behavior through the existing argparse help; `sync_once` preserves queue/deletion semantics and adds only an optional in-memory cleanup forecast at its existing replan point.
 
 Runtime layers reuse CommandEndpoint, BtrfsOps, CacheManager, inventory, WorkflowPlan/WorkflowExecutor and delete_subvolume_tree. Timeshift original snapshots remain protected; only freshly verified app-created on-demand retention uses Timeshift deletion. Parent recovery now uses live read-only/UUID proof and retention protects the newest complete proven shared date. Ordinary source H/D/W/M/B retention remains managed by Timeshift.
+
+## `timeshift_btrfs_sync.py`
+
+**Role:** Executable direct-source Python launcher alongside the existing package. No new parser or application functions are defined.
+
+**Why:** Allows `python3 timeshift_btrfs_sync.py COMMAND ...` or `./timeshift_btrfs_sync.py COMMAND ...` to reuse the exact existing CLI without installing the app, creating a venv or rebuilding the preserved old executable.
+
+- `python3 timeshift_btrfs_sync.py --help` / `--version`: Dispatch through the same `cli.main` and complete shared flag/version help as the module/installed command. **Why:** Keeps one maintained command surface and reports current source metadata.
+- `python3 timeshift_btrfs_sync.py init-config --profile PROFILE --path FILE`: Generate the same complete bundled profile using existing resource selection and overwrite refusal. **Why:** Direct-source users receive the current templates without depending on an older installed command.
+- `python3 timeshift_btrfs_sync.py COMMAND --config FILE ...`: Forward ordinary backup/restore/list/maintenance flags and return codes unchanged. **Why:** Preserve existing source/backup endpoints, locking, validation, consent and safety behavior.
+- Main guard: check Python>=3.11 before CLI imports, require adjacent package __init__.py/cli.py, then `raise SystemExit(main())`. **Why:** Avoid unsupported tomllib imports or confusing same-name imports when copied alone, and avoid dispatch on script import. No working-directory or import-path override is used; normal Python resolution selects the adjacent package. Core source use needs no site packages; optional MQTT/external system dependencies remain separate.
 
 ## `scripts/build_pyinstaller.py`
 
@@ -3435,7 +3446,7 @@ Use --json when you need the complete stored structure for diagnosis or automati
 - `dist/ts-btrfs/ts-btrfs`: original artifact, byte-identical to the supplied archive. Its documentation labels it 0.1.84, but executing `--version` fails because the supplied archive lacks its `_internal` runtime, including libpython3.14.so.1.0. Use the current Python source or rebuild; its actual reported version is unverified.
 - The older nested project and its duplicate docs/tests/helpers were removed. Root documents describe current usage; REMOVED_NESTED_SOURCES.md lists every former path.
 
-Coverage: 633 current source/build symbols; 901 root test symbols.
+Coverage: 633 current source/build symbols; 914 root test symbols.
 
 ## Python environment installation
 
@@ -3971,3 +3982,34 @@ These flags are registered by `cli.build_parser`, using the shared config, run-m
 - `ConfigProfileContractTests.test_headers_and_flag_comments_match_actual_settings` (function/method, line 229): Make profiles and mail setting locations visible, with no inverted enabled semantics. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
 
 - `ConfigProfileContractTests.test_default_and_all_generated_profiles_match_current_packaged_resources` (function/method, line 240): Both default config.example generation and every named profile receive all current settings. **Why:** Checks complete section-qualified config examples and their actual parser/CLI/endpoint behavior without contacting backup machines.
+
+## `tests/test_script_launcher.py`
+
+**Role:** Isolated regression checks using temporary files/processes or simulated HA/broker boundaries.
+
+
+- `ScriptLauncherTests` (class, line 22): Protect shared CLI behavior, relative paths and complete-project import resolution. **Why:** Exercises the direct-source launcher, shared CLI/resources and safety refusals with site packages disabled and isolated files, without live backup endpoints.
+
+- `ScriptLauncherTests.run_script` (function/method, line 25): Run a real script process with site packages and user Python path disabled. **Why:** Exercises the direct-source launcher, shared CLI/resources and safety refusals with site packages disabled and isolated files, without live backup endpoints.
+
+- `ScriptLauncherTests.test_global_and_every_command_help_version_share_the_cli` (function/method, line 35): All 26 help/version routes work with no installed Python dependencies. **Why:** Exercises the direct-source launcher, shared CLI/resources and safety refusals with site packages disabled and isolated files, without live backup endpoints.
+
+- `ScriptLauncherTests.test_default_and_all_profiles_are_generated_from_another_directory` (function/method, line 45): The script finds bundled resources and leaves relative output paths in the caller's cwd. **Why:** Exercises the direct-source launcher, shared CLI/resources and safety refusals with site packages disabled and isolated files, without live backup endpoints.
+
+- `ScriptLauncherTests.test_relative_config_and_state_paths_keep_caller_directory` (function/method, line 57): Reading state and safe maintenance must not silently chdir to the launcher's directory. **Why:** Exercises the direct-source launcher, shared CLI/resources and safety refusals with site packages disabled and isolated files, without live backup endpoints.
+
+- `ScriptLauncherTests.test_existing_config_is_preserved_without_force` (function/method, line 75): The launcher cannot weaken init-config's existing overwrite refusal. **Why:** Exercises the direct-source launcher, shared CLI/resources and safety refusals with site packages disabled and isolated files, without live backup endpoints.
+
+- `ScriptLauncherTests.test_argument_and_configuration_refusals_keep_exit_codes` (function/method, line 83): Normal parser/config errors still exit 2 through the shared main function. **Why:** Exercises the direct-source launcher, shared CLI/resources and safety refusals with site packages disabled and isolated files, without live backup endpoints.
+
+- `ScriptLauncherTests.test_exact_return_code_from_shared_main_is_forwarded` (function/method, line 92): No new dispatcher or error translation can hide the existing CLI's result. **Why:** Exercises the direct-source launcher, shared CLI/resources and safety refusals with site packages disabled and isolated files, without live backup endpoints.
+
+- `ScriptLauncherTests.test_importing_launcher_does_not_dispatch_commands` (function/method, line 99): Treat the file like a normal Python script with a guarded main entry point. **Why:** Exercises the direct-source launcher, shared CLI/resources and safety refusals with site packages disabled and isolated files, without live backup endpoints.
+
+- `ScriptLauncherTests.test_package_import_wins_over_same_named_script` (function/method, line 105): The adjacent package remains importable despite the matching launcher filename. **Why:** Exercises the direct-source launcher, shared CLI/resources and safety refusals with site packages disabled and isolated files, without live backup endpoints.
+
+- `ScriptLauncherTests.test_missing_adjacent_package_gives_clear_instructions` (function/method, line 114): Copying the launcher alone reports the full-project requirement instead of recursive imports. **Why:** Exercises the direct-source launcher, shared CLI/resources and safety refusals with site packages disabled and isolated files, without live backup endpoints.
+
+- `ScriptLauncherTests.test_python_version_guard_runs_before_cli_import` (function/method, line 124): Unsupported interpreters receive the required version before tomllib/import failures. **Why:** Exercises the direct-source launcher, shared CLI/resources and safety refusals with site packages disabled and isolated files, without live backup endpoints.
+
+- `ScriptLauncherTests.test_executable_shebang_launch` (function/method, line 131): The source script also runs directly when the archive executable bit is preserved. **Why:** Exercises the direct-source launcher, shared CLI/resources and safety refusals with site packages disabled and isolated files, without live backup endpoints.

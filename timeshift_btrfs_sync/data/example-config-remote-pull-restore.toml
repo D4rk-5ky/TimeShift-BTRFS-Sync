@@ -1,4 +1,4 @@
-# timeshift-btrfs-sync v0.2.8 config
+# timeshift-btrfs-sync v0.2.9 config
 # Profile: remote-pull-restore. Primary command: restore.
 # Run on: Local Timeshift host.
 # Backup direction: Not the intended command; sync is refused for restore.mode=ssh.
